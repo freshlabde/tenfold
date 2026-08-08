@@ -45,6 +45,7 @@ import * as setupScreen from "./ui/setup.js";
 import * as lockScreen from "./ui/lock.js";
 import * as outlineScreen from "./ui/outline.js";
 import * as todayScreen from "./ui/today.js";
+import * as mapScreen from "./ui/map.js";
 import * as focusScreen from "./ui/focus.js";
 import * as leafScreen from "./ui/leaf.js";
 import * as duelScreen from "./ui/duel.js";
@@ -73,6 +74,7 @@ const SCREENS = {
   lock: lockScreen,
   outline: outlineScreen,
   today: todayScreen,
+  map: mapScreen,
   focus: focusScreen,
   leaf: leafScreen,
   duel: duelScreen,
@@ -924,6 +926,23 @@ document.addEventListener("keydown", (ev) => {
     if (state.doc && !isSheetOpen()) {
       ev.preventDefault();
       if (state.view.name !== "today") go("today");
+    }
+    return;
+  }
+  // The desktop way into the map. A bare letter, so it must never fire while
+  // something is being written - the composer and every sheet field would
+  // otherwise lose an "m".
+  if ((ev.key === "m" || ev.key === "M") && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+    const el0 = ev.target;
+    const typing =
+      el0 &&
+      (el0.isContentEditable ||
+        el0.tagName === "INPUT" ||
+        el0.tagName === "TEXTAREA" ||
+        el0.tagName === "SELECT");
+    if (state.doc && !typing && !isSheetOpen()) {
+      ev.preventDefault();
+      if (state.view.name !== "map") go("map");
     }
     return;
   }

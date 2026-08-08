@@ -52,6 +52,16 @@ export function render(ctx) {
       },
       [text(t("today.entry"))],
     ),
+    // The map: the same ten, seen all at once instead of one under the other.
+    el(
+      "button",
+      {
+        class: "iconbtn is-map",
+        attrs: { type: "button", "aria-label": t("a11y.mapOpen") },
+        on: { click: () => ctx.go("map") },
+      },
+      [icon("constellation", 20)],
+    ),
     el(
       "button",
       {

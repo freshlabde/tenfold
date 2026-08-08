@@ -176,6 +176,19 @@ export const es = {
   "today.empty.line": "Hoy no llama nada.",
   "today.empty.hint": "O ya está hecho todo lo que tenía fecha, o nada está desglosado lo bastante como para empezarlo esta tarde.",
 
+  // --------------------------------------------------------------------- map
+  "map.title": "Mapa",
+  "map.goals": "{n} metas",
+  "map.goalsOne": "1 meta",
+  "map.parts": "{n} partes",
+  "map.partsOne": "1 parte",
+  "map.subEmpty": "Todavía no hay nada en el mapa",
+  "map.canvas": "La lista entera como mapa",
+  "map.recentre": "Mostrarlo todo",
+  "map.more": "+{n}",
+  "map.hint.empty": "Escribe tus diez. Cada una aparece aquí, con todo lo que la compone.",
+  "map.hint.one": "Solo una por ahora. Tócala para acercarte, toca su nombre para abrirla.",
+
   // ------------------------------------------------------ the daily question
   "question.heading": "Pregunta del día",
   "question.placeholder": "Unas frases sinceras.",
@@ -449,6 +462,7 @@ export const es = {
   "a11y.menu": "Más acciones",
   "a11y.searchOpen": "Abrir la búsqueda",
   "a11y.settingsOpen": "Abrir los ajustes",
+  "a11y.mapOpen": "Abrir el mapa",
   "a11y.back": "Un nivel atrás",
 
   // -------------------------------------------------------------------- time

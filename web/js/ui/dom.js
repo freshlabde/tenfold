@@ -55,6 +55,43 @@ export function el(tag, props = {}, children = []) {
   return node;
 }
 
+/**
+ * Build an SVG element. Same shape as `el`, but in the SVG namespace and with
+ * attributes only - SVG has no className setter that behaves like HTML's, so
+ * `class` goes through setAttribute as well.
+ * @param {string} tag
+ * @param {Object} [props] class, text, attrs, dataset, style, on
+ * @param {Array<Node|string|null|undefined|false>} [children]
+ * @returns {SVGElement}
+ */
+export function sel(tag, props = {}, children = []) {
+  const node = document.createElementNS(SVG_NS, tag);
+  if (props.class) node.setAttribute("class", props.class);
+  if (typeof props.text === "string") node.textContent = props.text;
+  if (props.attrs) {
+    for (const [k, v] of Object.entries(props.attrs)) {
+      if (v === false || v === null || v === undefined) continue;
+      node.setAttribute(k, String(v));
+    }
+  }
+  if (props.dataset) {
+    for (const [k, v] of Object.entries(props.dataset)) {
+      if (v === null || v === undefined) continue;
+      node.dataset[k] = String(v);
+    }
+  }
+  if (props.style) {
+    for (const [k, v] of Object.entries(props.style)) node.style[k] = v;
+  }
+  if (props.on) {
+    for (const [type, fn] of Object.entries(props.on)) {
+      if (typeof fn === "function") node.addEventListener(type, fn);
+    }
+  }
+  append(node, children);
+  return node;
+}
+
 /** Append children, skipping falsy entries and wrapping bare strings as text. */
 export function append(parent, children) {
   const list = Array.isArray(children) ? children : [children];
@@ -125,6 +162,15 @@ const PATHS = {
   clock: ["M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z", "M12 7.5V12l3 2"],
   // The mark: ten strokes that fold from one into many.
   mark: ["M4 20V4", "M9 20V9", "M14 20v-5", "M19 20v-2"],
+  // The map: three bodies and the pull between them.
+  constellation: [
+    "M18 8.4a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z",
+    "M6 16.6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    "M14.4 21a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z",
+    "M8.3 11.6 15.8 7.5",
+    "M8 15.6l4.9 2.6",
+  ],
+  target: ["M12 4.6v3", "M12 16.4v3", "M4.6 12h3", "M16.4 12h3", "M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z"],
 };
 
 /**

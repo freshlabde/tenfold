@@ -176,6 +176,19 @@ export const de = {
   "today.empty.line": "Heute ruft nichts.",
   "today.empty.hint": "Entweder ist alles mit Datum erledigt, oder noch nichts ist so weit zerlegt, dass man es heute Nachmittag anfangen könnte.",
 
+  // --------------------------------------------------------------------- map
+  "map.title": "Karte",
+  "map.goals": "{n} Ziele",
+  "map.goalsOne": "1 Ziel",
+  "map.parts": "{n} Teile",
+  "map.partsOne": "1 Teil",
+  "map.subEmpty": "Noch nichts auf der Karte",
+  "map.canvas": "Die ganze Liste als Karte",
+  "map.recentre": "Alles zeigen",
+  "map.more": "+{n}",
+  "map.hint.empty": "Schreib deine zehn auf. Jedes erscheint hier, mit allem, woraus es besteht.",
+  "map.hint.one": "Erst eines. Tipp darauf, um näher zu kommen, tipp den Namen an, um es zu öffnen.",
+
   // ------------------------------------------------------ the daily question
   "question.heading": "Frage des Tages",
   "question.placeholder": "Ein paar ehrliche Sätze.",
@@ -449,6 +462,7 @@ export const de = {
   "a11y.menu": "Weitere Aktionen",
   "a11y.searchOpen": "Suche öffnen",
   "a11y.settingsOpen": "Einstellungen öffnen",
+  "a11y.mapOpen": "Karte öffnen",
   "a11y.back": "Eine Ebene zurück",
 
   // -------------------------------------------------------------------- time

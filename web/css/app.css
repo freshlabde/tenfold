@@ -987,6 +987,173 @@ button { -webkit-tap-highlight-color: transparent; }
   cursor: pointer;
 }
 
+/* ------------------------------------------------------------------ the map */
+
+/* The map is the one screen that fills the frame edge to edge: the header
+   floats on top of the sky instead of pushing it down. Every colour is mixed
+   out of --accent and --bg, because two of the three skins define --surface as
+   transparent - a body has to stay a body there too. */
+
+/* The map keeps the frame's own insets: pulling the screen out of them with
+   negative margins made the frame scrollable by exactly those pixels, and a
+   scrolled frame moves the sky out from under the finger. */
+
+.map-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+.map-canvas:active { cursor: grabbing; }
+
+.map-scene, .map-labels {
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease);
+}
+.map-scene.is-ready, .map-labels.is-ready { opacity: 1; }
+
+.map-core { pointer-events: none; }
+
+/* The sky lights up from the ten outwards: one step per level, opacity only,
+   so it never fights the transforms the animation frame is writing. */
+@keyframes map-rise { from { opacity: 0; } to { opacity: 1; } }
+.map-scene.is-ready .map-body {
+  /* backwards, never both: a filled animation would outrank the dimming that
+     focusing a branch applies to the other nine. */
+  animation: map-rise var(--dur-slow) var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * var(--dur-slow) * .34);
+}
+
+/* Looking at one branch means letting go of the other nine. */
+.map-body { transition: opacity var(--dur) var(--ease); }
+.map-tree.has-focus > .map-body:not(.is-path) { opacity: .22; }
+.map-body.is-focus > .map-disc {
+  stroke: var(--accent-2);
+  stroke-width: 2;
+}
+
+.map-link {
+  stroke: color-mix(in srgb, var(--accent) 26%, transparent);
+  stroke-width: 1;
+  fill: none;
+  pointer-events: none;
+}
+
+.map-halo { pointer-events: none; }
+
+.map-arcbase {
+  fill: none;
+  stroke: color-mix(in srgb, var(--text) 12%, transparent);
+  stroke-width: 1.1;
+  pointer-events: none;
+}
+.map-arc {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  opacity: .85;
+  pointer-events: none;
+}
+
+.map-disc {
+  fill: color-mix(in srgb, var(--accent) 26%, var(--bg));
+  stroke: color-mix(in srgb, var(--accent) 40%, transparent);
+  stroke-width: 1;
+  pointer-events: none;
+}
+.map-body.is-d0 .map-disc {
+  fill: color-mix(in srgb, var(--accent) 46%, var(--bg));
+  stroke: color-mix(in srgb, var(--accent) 68%, transparent);
+  stroke-width: 1.4;
+}
+.map-body.is-lead .map-disc {
+  fill: color-mix(in srgb, var(--accent) 74%, var(--bg));
+  stroke: var(--accent);
+}
+.map-body.is-d2 .map-disc { fill: color-mix(in srgb, var(--accent) 20%, var(--bg)); }
+.map-body.is-d3 .map-disc { fill: color-mix(in srgb, var(--accent) 15%, var(--bg)); }
+
+/* Finished work has not gone away, it has gone quiet. */
+.map-body.is-done .map-disc {
+  fill: color-mix(in srgb, var(--text) 13%, var(--bg));
+  stroke: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.map-body.is-done .map-link { opacity: .5; }
+
+.map-body.is-seed .map-disc { fill: none; stroke: var(--line); }
+.map-body.is-seed .map-arcbase { stroke-dasharray: 3 7; }
+
+.map-more {
+  fill: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: .04em;
+  pointer-events: none;
+}
+
+.map-hit { fill: transparent; stroke: none; cursor: pointer; }
+
+/* Labels sit in screen space, not in the sky: their size must not depend on
+   how far the camera has zoomed in. */
+.map-labeltext {
+  fill: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  /* A name may end up over a body or over a connector. The background colour,
+     painted first as a stroke, keeps it readable without a plate behind it. */
+  stroke: var(--bg);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+}
+.map-label.is-d0 .map-labeltext { fill: var(--text); font-size: 12.5px; }
+.map-label.is-done .map-labeltext { fill: var(--text-4); }
+.map-label { transition: opacity var(--dur) var(--ease); }
+.map-label.is-dim { opacity: .3; }
+.map-labelhit { fill: transparent; cursor: pointer; }
+.map-label:focus-visible { outline: none; }
+.map-label:focus-visible .map-labelhit {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+  rx: 6;
+}
+
+.map-veil {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  padding: 10px var(--gutter) 26px;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--bg) 8%, transparent);
+}
+.map-veil button { pointer-events: auto; }
+
+.map-hint {
+  position: absolute;
+  left: var(--gutter); right: var(--gutter);
+  bottom: calc(max(12px, var(--sa-bot)) + 18px);
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  pointer-events: none;
+}
+
 /* --------------------------------------------------------- view transitions */
 
 ::view-transition-old(hero),

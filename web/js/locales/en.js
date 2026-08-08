@@ -176,6 +176,19 @@ export const en = {
   "today.empty.line": "Nothing calls for today.",
   "today.empty.hint": "Either everything with a date is done, or nothing has been broken down far enough yet to be started this afternoon.",
 
+  // --------------------------------------------------------------------- map
+  "map.title": "Map",
+  "map.goals": "{n} goals",
+  "map.goalsOne": "1 goal",
+  "map.parts": "{n} parts",
+  "map.partsOne": "1 part",
+  "map.subEmpty": "Nothing on the map yet",
+  "map.canvas": "The whole list as a map",
+  "map.recentre": "Show everything",
+  "map.more": "+{n}",
+  "map.hint.empty": "Write your ten. Each one appears here, with everything it is made of.",
+  "map.hint.one": "One so far. Tap it to come closer, tap its name to open it.",
+
   // ------------------------------------------------------ the daily question
   "question.heading": "Question of the day",
   "question.placeholder": "A few honest sentences.",
@@ -449,6 +462,7 @@ export const en = {
   "a11y.menu": "More actions",
   "a11y.searchOpen": "Open search",
   "a11y.settingsOpen": "Open settings",
+  "a11y.mapOpen": "Open the map",
   "a11y.back": "Back one level",
 
   // -------------------------------------------------------------------- time
