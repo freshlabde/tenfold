@@ -49,6 +49,17 @@ async function tryRead(base, rel) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   let rel = normalize(decodeURIComponent(url.pathname));
+
+  // The app is also reachable under the /tenfold prefix
+  // (kairatools.com/tenfold via the tunnel path rule). Redirect the bare
+  // prefix to the trailing-slash form so relative asset paths resolve,
+  // then strip the prefix - the file layout below is identical.
+  if (rel === "/tenfold") {
+    res.writeHead(301, { Location: "/tenfold/" }).end();
+    return;
+  }
+  if (rel.startsWith("/tenfold/")) rel = rel.slice("/tenfold".length);
+
   if (rel === "/" || rel === "/index.html") rel = "/index.html";
 
   // App files first (served at the root), then repo files (tests, design).
