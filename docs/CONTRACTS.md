@@ -433,7 +433,9 @@ which has no BarcodeDetector) or, where `BarcodeDetector` exists (Android/Chrome
 in-app "Scan code" button on the welcome/adopt screen using `getUserMedia`; the in-app
 scanner is progressive enhancement and its absence must leave the typed-code path fully
 usable. Camera frames are processed locally and never leave the device; the stream stops
-the moment the sheet closes.
+the moment the sheet closes. The symbol is rendered by `web/js/ui/qrview.js` (one SVG path,
+quiet zone 4, black on white in every skin), the camera path lives in `web/js/ui/scan.js`
+(one teardown function, called by the hit, every error and the sheet's `onClose`).
 
 ## Tests
 

@@ -16,6 +16,7 @@ import { t } from "../i18n.js";
 import { formatRecoveryKey } from "../crypto.js";
 import { importEncrypted } from "../portability.js";
 import { langSwitch } from "./langswitch.js";
+import { scanSupported, openScanner } from "./scan.js";
 
 const TEMPLATE_KEYS = [
   "template.health",
@@ -191,12 +192,34 @@ function adopt(ctx) {
     if (ev.key === "Enter") submit();
   });
 
+  // Progressive enhancement, and nothing more: where the browser has no
+  // barcode detector this button does not exist at all - the typed code and
+  // the pairing link opened by the native camera app are the paths that work
+  // everywhere, iOS included.
+  const scan = scanSupported()
+    ? el(
+        "button",
+        {
+          class: "btn-ghost",
+          attrs: { type: "button" },
+          on: {
+            click: () =>
+              openScanner(ctx, (code) => {
+                input.value = code;
+                submit();
+              }),
+          },
+        },
+        [text(t("sync.scan.action"))],
+      )
+    : null;
+
   return screen([
     head("sync.adopt.eyebrow", "sync.adopt.title", "sync.adopt.body"),
     el("div", { class: "scroll" }, [
       el("div", { class: "field" }, [
         el("span", { class: "field-label" }, [text(t("sync.adopt.label"))]),
-        input,
+        el("div", { class: "field-row" }, [input, scan]),
       ]),
       adoptReplaces ? el("p", { class: "field-hint" }, [text(t("sync.adopt.replaces"))]) : null,
       err,

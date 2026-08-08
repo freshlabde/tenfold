@@ -16,6 +16,7 @@ import { el, text, icon } from "./dom.js";
 import { t, LOCALES, getLocale } from "../i18n.js";
 import { exportEncrypted, importEncrypted, exportPlaintextMarkdown, suggestedVaultFileName } from "../portability.js";
 import { openSheet, closeSheet } from "./sheet.js";
+import { qrCard } from "./qrview.js";
 import { relativeTime } from "./format.js";
 import { answerText, call, llmSettings } from "../llm.js";
 
@@ -118,7 +119,11 @@ function syncStatusRow(ctx) {
   ]);
 }
 
-/** The pairing sheet: the grouped code, and the same code as a link. */
+/**
+ * The pairing sheet: the link as a QR code first, because holding a camera at
+ * a screen beats typing thirty characters on a phone - then the grouped code
+ * and the link itself, which stay the paths that need no camera at all.
+ */
 function pairingSheet(ctx) {
   const code = ctx.sync.pairingCode();
   const url = ctx.sync.pairingUrl();
@@ -134,8 +139,14 @@ function pairingSheet(ctx) {
   link.value = url;
   link.addEventListener("focus", () => link.select());
 
+  // The QR carries the link, not the bare code: the native camera app of the
+  // other device opens it, and the fragment adopts the vault on arrival.
+  const card = qrCard(url, t("sync.pairing.qrLabel"));
+
   const body = el("div", {}, [
     el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("sync.pairing.body"))]),
+    card,
+    card ? el("p", { class: "qrhint" }, [text(t("sync.pairing.qrHint"))]) : null,
     grid,
     el("div", { class: "field" }, [
       el("span", { class: "field-label" }, [text(t("sync.pairing.link"))]),
