@@ -106,7 +106,14 @@ function applyPresentation(settings) {
   const root = document.documentElement;
   const skin = ["slate", "register", "breath"].includes(settings.skin) ? settings.skin : "slate";
   const theme = settings.theme === "light" ? "light" : "dark";
-  const lang = LOCALES.includes(settings.lang) ? settings.lang : detectLocale();
+  // Precedence: explicit doc setting, then a choice made on the lock/setup
+  // screen (localStorage), then browser detection.
+  const prefLang = readUiPrefs().lang;
+  const lang = LOCALES.includes(settings.lang)
+    ? settings.lang
+    : LOCALES.includes(prefLang)
+      ? prefLang
+      : detectLocale();
   root.setAttribute("data-skin", skin);
   root.setAttribute("data-theme", theme);
   root.setAttribute("lang", lang);
@@ -270,6 +277,24 @@ function setSettings(patch) {
   render();
 }
 
+/**
+ * Explicit language choice. Unlike setSettings this also works on the lock
+ * and setup screens, where no document is open yet - the choice then lives
+ * in the localStorage presentation prefs and is folded into doc.settings on
+ * the next unlock or vault creation.
+ */
+function setLanguage(lang) {
+  if (!LOCALES.includes(lang)) return;
+  if (state.doc) {
+    setSettings({ lang });
+    return;
+  }
+  setLocale(lang);
+  document.documentElement.setAttribute("lang", lang);
+  writeUiPrefs({ ...readUiPrefs(), lang });
+  render();
+}
+
 // ------------------------------------------------------------------- context
 
 const ctx = {
@@ -314,6 +339,7 @@ const ctx = {
   lock,
   undo,
   setSettings,
+  setLanguage,
   openSheet: (spec) => openSheet(layerEl, spec),
   closeSheet,
   maxRoots: MAX_ROOTS,

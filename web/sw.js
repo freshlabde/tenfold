@@ -10,7 +10,7 @@
 // are not same-origin GETs are passed through untouched, so nothing can be
 // smuggled through this worker.
 
-const VERSION = "tenfold-v1";
+const VERSION = "tenfold-v2";
 
 const SHELL = [
   "./",
@@ -37,6 +37,7 @@ const SHELL = [
   "./js/ui/sheet.js",
   "./js/ui/editor.js",
   "./js/ui/setup.js",
+  "./js/ui/langswitch.js",
   "./js/ui/lock.js",
   "./js/ui/outline.js",
   "./js/ui/focus.js",
@@ -46,8 +47,11 @@ const SHELL = [
   "./js/ui/settings.js",
   "./js/ui/about.js",
   "./icons/icon.svg",
+  "./icons/icon-maskable.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/icon-192-maskable.png",
+  "./icons/icon-512-maskable.png",
 ];
 
 self.addEventListener("install", (event) => {

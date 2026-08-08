@@ -748,6 +748,19 @@ button { -webkit-tap-highlight-color: transparent; }
 .lock-sub { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 30ch; }
 .lock-foot { flex: none; padding: 14px var(--gutter) 0; display: flex; justify-content: space-between; align-items: center; }
 
+/* The quiet language row on the lock and setup screens. */
+.lang-switch {
+  flex: none; display: flex; justify-content: center; gap: 4px;
+  padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.lang-opt {
+  appearance: none; border: 0; background: none; cursor: pointer;
+  font: 500 12px/1 var(--font-mono); letter-spacing: 0.06em;
+  color: var(--muted); padding: 8px 10px; border-radius: var(--radius-s);
+}
+.lang-opt.is-active { color: var(--accent); }
+.lang-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---------------------------------------------------------------- search view */
 
 .searchbar {

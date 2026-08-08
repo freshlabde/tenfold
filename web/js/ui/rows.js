@@ -117,6 +117,10 @@ function attachGestures(ctx, refs) {
   let velocity = 0;
   let drag = null;
   let gestured = false;
+  // A gesture exists only between pointerdown and pointerup. Without this
+  // guard a plain mouse hover fires pointermove with stale start coordinates
+  // and swipes the row away (desktop regression, 2026-08-08).
+  let down = false;
 
   const setX = (v) => {
     row.style.transform = v ? `translate3d(${v}px,0,0)` : "";
@@ -140,6 +144,7 @@ function attachGestures(ctx, refs) {
 
   const onDown = (ev) => {
     if (ev.button !== undefined && ev.button !== 0) return;
+    down = true;
     gestured = false;
     startX = ev.clientX;
     startY = ev.clientY;
@@ -158,6 +163,10 @@ function attachGestures(ctx, refs) {
   };
 
   const onMove = (ev) => {
+    if (!down) return;
+    // Belt and braces for mice: a captured pointer can report moves after the
+    // button was released outside the window.
+    if (ev.pointerType === "mouse" && ev.buttons === 0) return;
     const mx = ev.clientX - startX;
     const my = ev.clientY - startY;
     if (mode === "none") {
@@ -187,6 +196,7 @@ function attachGestures(ctx, refs) {
   };
 
   const onUp = () => {
+    down = false;
     clearTimeout(pressTimer);
     // A gesture must not also count as a tap: the click event arrives after
     // pointerup, when dx has already been reset.

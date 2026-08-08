@@ -9,7 +9,7 @@
 // unencrypted export is behind a sheet that states plainly what it means.
 
 import { el, text, icon } from "./dom.js";
-import { t, LOCALES } from "../i18n.js";
+import { t, LOCALES, getLocale } from "../i18n.js";
 import { exportEncrypted, importEncrypted, exportPlaintextMarkdown, suggestedVaultFileName } from "../portability.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { relativeTime } from "./format.js";
@@ -166,7 +166,7 @@ export function render(ctx) {
       segment("settings.theme", THEMES, settings.theme || "dark", (v) => t(`settings.theme.${v}`), (v) =>
         ctx.setSettings({ theme: v }),
       ),
-      segment("settings.language", LOCALES, settings.lang || "en", (v) => t(`settings.lang.${v}`), (v) =>
+      segment("settings.language", LOCALES, settings.lang || getLocale(), (v) => t(`settings.lang.${v}`), (v) =>
         ctx.setSettings({ lang: v }),
       ),
     ]),

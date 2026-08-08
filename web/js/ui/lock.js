@@ -11,6 +11,7 @@
 
 import { el, text, icon, clear } from "./dom.js";
 import { t } from "../i18n.js";
+import { langSwitch } from "./langswitch.js";
 
 let mode = "pass";
 let failed = false;
@@ -109,5 +110,6 @@ export function render(ctx) {
     ]),
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [unlock]),
     el("div", { class: "lock-foot" }, [toggle, about]),
+    langSwitch(ctx),
   ]);
 }

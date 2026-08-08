@@ -13,6 +13,7 @@ import { el, text, icon, clear } from "./dom.js";
 import { t } from "../i18n.js";
 import { formatRecoveryKey } from "../crypto.js";
 import { importEncrypted } from "../portability.js";
+import { langSwitch } from "./langswitch.js";
 
 const TEMPLATE_KEYS = [
   "template.health",
@@ -88,6 +89,7 @@ function welcome(ctx) {
       ),
       file,
     ]),
+    langSwitch(ctx),
   ]);
 }
 
