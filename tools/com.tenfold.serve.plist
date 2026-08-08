@@ -19,6 +19,15 @@
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/kaira/tenfold</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- The model relay's allowlist: LM Studio on this Mac (no key needed)
+         and the LiteLLM balancer (needs its master key as the API key). -->
+    <key>TENFOLD_LLM_UPSTREAMS</key>
+    <string>http://127.0.0.1:1234/v1,http://127.0.0.1:4000/v1</string>
+    <key>TENFOLD_PUSH_SUBJECT</key>
+    <string>mailto:info@freshlab.es</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
