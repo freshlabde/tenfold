@@ -4,9 +4,11 @@
 // what the browser says about keeping the data, when it was last saved, and
 // the button that locks everything again.
 //
-// What it deliberately does NOT do: no account, no sync toggle, no telemetry
-// switch (there is nothing to switch off), no theme preview screen. The
-// unencrypted export is behind a sheet that states plainly what it means.
+// What it deliberately does NOT do: no account, no telemetry switch (there is
+// nothing to switch off), no theme preview screen. The unencrypted export is
+// behind a sheet that states plainly what it means. The sync group is a
+// status line and two actions - no progress bars, no spinner, no dialog: a
+// sync that fails is a quiet dot, never an interruption.
 
 import { el, text, icon } from "./dom.js";
 import { t, LOCALES, getLocale } from "../i18n.js";
@@ -67,6 +69,128 @@ function persistenceLabel(ctx) {
   if (!p) return t("settings.persistence.unsupported");
   if (!p.supported) return t("settings.persistence.unsupported");
   return p.persisted ? t("settings.persistence.granted") : t("settings.persistence.denied");
+}
+
+/** Phase to dot modifier. Four states are enough: on, working, stalled, off. */
+function dotClass(phase) {
+  if (phase === "idle") return "syncdot is-on";
+  if (phase === "syncing") return "syncdot is-working";
+  if (phase === "off") return "syncdot";
+  return "syncdot is-stalled";
+}
+
+/** The status row: a dot, a label, and when it last got through. */
+function syncStatusRow(ctx) {
+  const status = ctx.sync.status;
+  const when = status.lastSyncedAt
+    ? t("sync.lastSynced", { ago: relativeTime(status.lastSyncedAt, ctx.now()) })
+    : t("sync.lastSyncedNever");
+  return el("div", { class: "setrow", attrs: { "aria-disabled": "true" } }, [
+    el("span", {}, [
+      el("span", { class: "setrow-label" }, [
+        el("span", { class: dotClass(status.phase) }),
+        text(t(`sync.state.${status.phase}`)),
+      ]),
+      el("span", { class: "setrow-desc" }, [text(when)]),
+    ]),
+  ]);
+}
+
+/** The pairing sheet: the grouped code, and the same code as a link. */
+function pairingSheet(ctx) {
+  const code = ctx.sync.pairingCode();
+  const url = ctx.sync.pairingUrl();
+  const grid = el(
+    "div",
+    { class: "keygrid", attrs: { role: "group", "aria-label": t("sync.pairing.title") } },
+    code.split("-").map((g) => el("span", {}, [text(g)])),
+  );
+  const link = el("input", {
+    class: "input is-mono is-url",
+    attrs: { type: "text", readonly: "readonly", "aria-label": t("sync.pairing.link"), spellcheck: "false" },
+  });
+  link.value = url;
+  link.addEventListener("focus", () => link.select());
+
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("sync.pairing.body"))]),
+    grid,
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("sync.pairing.link"))]),
+      link,
+    ]),
+    el("p", { class: "field-hint" }, [text(t("sync.pairing.warn"))]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.close")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: async () => {
+            try {
+              await navigator.clipboard.writeText(code);
+              ctx.toast(t("sync.pairing.copied"));
+            } catch {
+              // No clipboard permission: the code is on screen, which is the point.
+            }
+          },
+        },
+      },
+      [text(t("sync.pairing.copy"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("sync.pairing.title"), body, footer });
+}
+
+function disableSheet(ctx) {
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("sync.disableConfirm"))]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: async () => {
+            closeSheet();
+            await ctx.sync.disable();
+            ctx.toast(t("sync.disabled"));
+            ctx.render();
+          },
+        },
+      },
+      [text(t("sync.disable"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("sync.disable"), body, footer });
+}
+
+/** The whole sync group: off = one row, on = status, pairing code, off switch. */
+function syncGroup(ctx) {
+  if (!ctx.sync.enabled) {
+    return group("settings.group.sync", [
+      row("sync.enable", "sync.enableDesc", null, async () => {
+        ctx.toast(t("sync.enabling"));
+        await ctx.sync.enable();
+        ctx.render();
+      }),
+    ]);
+  }
+  return group("settings.group.sync", [
+    syncStatusRow(ctx),
+    row("sync.pairing", "sync.pairingDesc", null, () => pairingSheet(ctx)),
+    row("sync.disable", "sync.disableDesc", null, () => disableSheet(ctx), { danger: true }),
+  ]);
 }
 
 function plaintextSheet(ctx) {
@@ -187,6 +311,7 @@ export function render(ctx) {
       ),
       file,
     ]),
+    syncGroup(ctx),
     group("settings.group.security", [
       row("settings.lock", "settings.lockDesc", null, () => ctx.lock(false), { danger: true }),
     ]),

@@ -654,6 +654,11 @@ function blobFromPayload(vault) {
  * Convenience pair around seal()/open() for the stored form. store.js persists a
  * VaultFile, so the sealed document has to live inside it; these two keep that
  * framing in one place instead of spreading it over app code.
+ *
+ * sealIntoVault copies the whole vault and replaces only `payload`, so unknown
+ * top-level fields survive a save. `vault.sync` (sync id and auth salt, both
+ * non-secret) depends on that: it is written once and must still be there
+ * after the next thousand autosaves.
  */
 export async function sealIntoVault(vault, masterKey, doc) {
   assertVault(vault);
@@ -665,6 +670,54 @@ export async function sealIntoVault(vault, masterKey, doc) {
 export async function openFromVault(vault, masterKey) {
   assertVault(vault);
   return open(masterKey, blobFromPayload(vault));
+}
+
+/* --------------------------------------------------------- public: sync auth */
+
+/**
+ * Info string for the sync write token. Fixed by the contract: a different
+ * info would produce a different token from the same master key, and every
+ * device would lock itself out of its own mailbox.
+ */
+export const SYNC_AUTH_INFO = "tenfold-sync-auth";
+
+/** A fresh, non-secret salt for the sync token derivation. Travels in vault.sync. */
+export function newAuthSalt() {
+  return b64uEncode(randomBytes(SALT_BYTES));
+}
+
+/**
+ * Derives the write token for the ciphertext mailbox: HKDF-SHA256 over the
+ * master key. Only a device that can already OPEN the vault can produce it,
+ * which is what makes "no accounts" possible - the ability to decrypt IS the
+ * authorisation to overwrite.
+ *
+ * The token is a one-way function of the master key: handing it to the server
+ * discloses nothing about the key, and the server only ever stores its hash.
+ */
+export async function deriveSyncAuthToken(masterKey, authSalt) {
+  if (!masterKey) throw new TenfoldCryptoError("master key required");
+  if (typeof authSalt !== "string" || authSalt.length === 0) {
+    throw new TenfoldCryptoError("auth salt required");
+  }
+  const raw = new Uint8Array(await crypto.subtle.exportKey("raw", masterKey));
+  let bits;
+  try {
+    const base = await crypto.subtle.importKey("raw", raw, "HKDF", false, ["deriveBits"]);
+    bits = await crypto.subtle.deriveBits(
+      {
+        name: "HKDF",
+        hash: PBKDF2_HASH,
+        salt: b64uDecode(authSalt),
+        info: TEXT.encode(SYNC_AUTH_INFO),
+      },
+      base,
+      256,
+    );
+  } finally {
+    wipe(raw);
+  }
+  return b64uEncode(new Uint8Array(bits));
 }
 
 /* ------------------------------------------------------------ public: rotate */

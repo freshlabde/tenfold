@@ -2,7 +2,9 @@
 //
 // What it does: four quiet steps. Explain what this is, take a passphrase,
 // show the recovery key exactly once behind a forced acknowledgement, then
-// offer an empty list or a neutral frame of eight life areas.
+// offer an empty list or a neutral frame of eight life areas. Plus one side
+// door: a vault that already exists somewhere else can be opened here with its
+// pairing code, after which the normal lock screen asks for the passphrase.
 //
 // What it deliberately does NOT do: it never stores the recovery key, never
 // shows it a second time, and never lets the user past that screen without
@@ -31,6 +33,9 @@ let step = "welcome";
 let recoveryKey = "";
 let busy = false;
 let errorKey = "";
+let adoptCode = "";
+let adoptReplaces = false;
+let adoptError = "";
 
 /** Called by the app when a vault already exists, so setup starts clean. */
 export function reset() {
@@ -38,6 +43,22 @@ export function reset() {
   recoveryKey = "";
   busy = false;
   errorKey = "";
+  adoptCode = "";
+  adoptReplaces = false;
+  adoptError = "";
+}
+
+/**
+ * Opens the adopt step with a code that came from a pairing link.
+ * `replacesLocal` is true when a vault is already on this device - then the
+ * step warns, because adopting overwrites it.
+ */
+export function prime(code, replacesLocal = false, errorCode = "") {
+  step = "adopt";
+  adoptCode = typeof code === "string" ? code : "";
+  adoptReplaces = !!replacesLocal;
+  adoptError = errorCode ? `sync.error.${errorCode}` : "";
+  busy = false;
 }
 
 function head(eyebrowKey, titleKey, bodyKey) {
@@ -87,9 +108,113 @@ function welcome(ctx) {
         { class: "btn-ghost", attrs: { type: "button" }, on: { click: () => file.click() } },
         [text(t("setup.welcome.import"))],
       ),
+      el(
+        "button",
+        {
+          class: "btn-ghost",
+          attrs: { type: "button" },
+          on: {
+            click: () => {
+              prime("", false, "");
+              ctx.render();
+            },
+          },
+        },
+        [text(t("sync.adopt.open"))],
+      ),
       file,
     ]),
     langSwitch(ctx),
+  ]);
+}
+
+// ------------------------------------------------------- open from elsewhere
+
+/**
+ * Takes a pairing code and fetches the sealed vault that belongs to it. The
+ * blob is useless without the passphrase, which is why this step can run
+ * before anything is unlocked - the lock screen follows immediately.
+ */
+function adopt(ctx) {
+  const input = el("input", {
+    class: "input is-mono",
+    attrs: {
+      type: "text",
+      placeholder: t("sync.adopt.placeholder"),
+      "aria-label": t("sync.adopt.label"),
+      autocomplete: "off",
+      autocapitalize: "none",
+      spellcheck: "false",
+      enterkeyhint: "go",
+    },
+  });
+  input.value = adoptCode;
+
+  const err = el("div", { class: "field-error" }, adoptError ? [text(t(adoptError))] : []);
+  const go = el(
+    "button",
+    { class: "btn is-primary is-big is-wide", attrs: { type: "button" } },
+    [text(t("sync.adopt.action"))],
+  );
+
+  const submit = async () => {
+    if (busy) return;
+    const code = input.value;
+    if (!code) return;
+    busy = true;
+    adoptError = "";
+    clear(go);
+    go.appendChild(text(t("sync.adopt.working")));
+    go.setAttribute("disabled", "disabled");
+    try {
+      await ctx.sync.adopt(code);
+      adoptCode = "";
+      busy = false;
+      // Success routes to the lock screen; nothing left to paint here.
+    } catch (e) {
+      busy = false;
+      adoptCode = input.value;
+      adoptError = `sync.error.${e && e.code ? e.code : "offline"}`;
+      ctx.render();
+    }
+  };
+
+  go.addEventListener("click", submit);
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") submit();
+  });
+
+  return screen([
+    head("sync.adopt.eyebrow", "sync.adopt.title", "sync.adopt.body"),
+    el("div", { class: "scroll" }, [
+      el("div", { class: "field" }, [
+        el("span", { class: "field-label" }, [text(t("sync.adopt.label"))]),
+        input,
+      ]),
+      adoptReplaces ? el("p", { class: "field-hint" }, [text(t("sync.adopt.replaces"))]) : null,
+      err,
+    ]),
+    el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [
+      go,
+      el(
+        "button",
+        {
+          class: "btn-ghost",
+          attrs: { type: "button" },
+          on: {
+            click: () => {
+              const hadVault = !!ctx.vault;
+              reset();
+              // A vault is already here: cancelling belongs on the lock screen,
+              // not on the welcome screen of a first run that is not happening.
+              if (hadVault) ctx.go("lock", null, { replace: true });
+              else ctx.render();
+            },
+          },
+        },
+        [text(t("common.cancel"))],
+      ),
+    ]),
   ]);
 }
 
@@ -260,6 +385,7 @@ function templateStep(ctx) {
 }
 
 export function render(ctx) {
+  if (step === "adopt") return adopt(ctx);
   if (step === "pass") return passphrase(ctx);
   if (step === "key") return recovery(ctx);
   if (step === "template") return templateStep(ctx);

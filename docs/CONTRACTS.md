@@ -17,7 +17,9 @@ Anyone who wants to change an interface changes this file first.
 6. **i18n: en, de, es.** English is the source of truth and the fallback chain is
    `[requested] -> en`. All three locales ship with identical key sets — a missing key in any
    locale is a test failure. No hardcoded UI strings in components.
-7. **No network calls in stage 1.** No `fetch`, no `XMLHttpRequest`. Exception: none.
+7. **Network discipline.** The ONLY module allowed to use `fetch` is `web/js/sync.js`, and
+   the only endpoints it may call are the same-origin `/api/vault/...` routes below. Every
+   other module stays network-free. Nothing that leaves the device is ever plaintext.
 8. Every file starts with a short comment block: what it does, what it deliberately does not do.
 
 ## Data model (stage 1)
@@ -210,6 +212,55 @@ app is and what happens to the data. Content (all through i18n):
 4. **The claim** — "tenfold — get what you want."
 
 No marketing tone, no self-praise, no AI-tell phrasing. Short paragraphs, generous type.
+
+## Zero-knowledge sync (stage 2)
+
+The server is a dumb ciphertext mailbox. It stores the encrypted VaultFile, a version
+counter, and the hash of an auth token. It has no code path that could decrypt anything.
+
+**Identifiers and auth**
+- `syncId`: 26 chars from the confusable-free base32 alphabet (128 bits), generated
+  client-side, displayed grouped like the recovery key. Knowing it grants READ of the
+  ciphertext only (capability); it is not derivable from any secret.
+- `authToken`: HKDF-SHA256(masterKey, salt=authSalt, info="tenfold-sync-auth"), base64url.
+  Only a device that can OPEN the vault can derive it. The server stores its SHA-256 hash,
+  registered on the first PUT (trust on first use). PUT requires the token; GET does not
+  (bootstrap: a new device must fetch the blob before it can decrypt anything).
+- Both `syncId` and `authSalt` live in `vault.sync = { id, authSalt }` — non-secret metadata
+  on the VaultFile, travelling with exports. crypto.js must preserve unknown top-level
+  fields across sealIntoVault.
+
+**HTTP API (served by tools/serve.js, same origin as the PWA)**
+```
+GET /api/vault/<syncId>          -> 200 { version, vault } | 404
+PUT /api/vault/<syncId>          -> 200 { version } | 401 | 409 { version, vault } | 413
+    headers: X-Sync-Token, X-If-Version (optimistic lock)
+    body: { vault }
+```
+- Version is a server-side monotonic counter. A PUT with a stale X-If-Version returns 409
+  with the current record; the CLIENT merges (decrypt both, `mergeDocs`, re-seal, re-PUT).
+  The server never merges — it cannot.
+- The server keeps the last 10 versions per syncId (rescue net), enforces a 4 MB blob cap,
+  validates syncId against `^[a-z0-9]{26}$` (path traversal), and stores everything under
+  the data dir (`TENFOLD_DATA`, default `~/.tenfold-data` — OUTSIDE the repo).
+- No logging of tokens or bodies. Access log lines carry syncId prefix (6 chars) at most.
+
+**Client (`web/js/sync.js`)**
+```js
+export async function enableSync(ctx): Promise<void>      // generate ids, first push
+export async function disableSync(ctx): Promise<void>     // forget local sync fields (server copy stays)
+export async function push(ctx): Promise<void>            // debounced after autosave
+export async function pull(ctx): Promise<"clean"|"merged"|"offline">  // on unlock
+export function pairingCode(vault): string                // grouped syncId for the other device
+export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then normal unlock
+```
+- Sync is OFF by default; enabling is an explicit act in settings.
+- On unlock: pull; if the remote is newer, decrypt locally, `mergeDocs`, save, push.
+- All failures are silent-but-visible: a quiet status dot plus a "last synced" line in
+  settings, never a blocking dialog.
+- New device: "Open from another device" on the setup welcome screen asks for the pairing
+  code, calls `adopt`, then the normal lock screen takes the passphrase. The URL fragment
+  form `#s=<code>` triggers the same flow (fragments never reach the server).
 
 ## Tests
 

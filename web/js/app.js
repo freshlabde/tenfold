@@ -8,7 +8,12 @@
 // What it deliberately does NOT do: no DOM building of its own beyond the
 // screen swap, no crypto, no IndexedDB access - those are crypto.js and
 // store.js. It never writes plaintext anywhere but into the DOM and never
-// makes a network request.
+// makes a network request of its own: everything that leaves the device goes
+// through sync.js, and only as a sealed vault.
+//
+// The master key is deliberately NOT on the ctx object every screen receives.
+// sync.js needs it (it decrypts the remote copy to merge), so it gets its own
+// narrow context object further down instead of a key on the shared one.
 
 import { createVault, unlockWithPassphrase, unlockWithRecoveryKey, sealIntoVault, openFromVault, VaultUnlockError } from "./crypto.js";
 import { loadVault, saveVault, requestPersistence, lastSavedAt } from "./store.js";
@@ -21,6 +26,7 @@ import {
   reorder,
   softDelete,
 } from "./model.js";
+import * as sync from "./sync.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
 import { el, clear, text, icon } from "./ui/dom.js";
@@ -130,7 +136,12 @@ function scheduleSave() {
   }, AUTOSAVE_MS);
 }
 
-async function flushSave() {
+/**
+ * Seal and store. `opts.fromSync` marks the saves that sync itself caused
+ * (a merge, a metadata change) - those must not schedule another push, or a
+ * merge would bounce between two devices forever.
+ */
+async function flushSave(opts = {}) {
   clearTimeout(saveTimer);
   if (!state.vault || !state.masterKey || !state.doc) return;
   try {
@@ -138,6 +149,7 @@ async function flushSave() {
     state.vault = sealed;
     await saveVault(sealed);
     state.savedAt = Date.now();
+    if (!opts.fromSync) sync.schedulePush(syncCtx);
   } catch {
     // A failed save must not take the session down; the next mutation retries.
   }
@@ -155,6 +167,9 @@ function touchIdle() {
 
 async function lock(auto = false) {
   await flushSave();
+  // Sync stops at the lock: without the master key nothing could be merged,
+  // and a timer firing behind the lock screen would only produce errors.
+  sync.resetSync();
   state.doc = null;
   state.masterKey = null;
   state.duel = null;
@@ -351,7 +366,11 @@ const ctx = {
    * once dismissed it never appears uninvited again (flag in doc.settings,
    * so the decision travels with the vault).
    */
-  enterApp() {
+  async enterApp() {
+    // With sync on, the remote copy is folded in before the list appears -
+    // unless the server is slow, in which case the list wins and the merge
+    // arrives a moment later.
+    await pullOnEntry();
     if (state.doc && !state.doc.settings.aboutRead) {
       state.introAbout = true;
       state.view = { name: "about", id: null };
@@ -637,6 +656,34 @@ const ctx = {
     return state.persisted;
   },
 
+  // --- sync surface for the UI ---------------------------------------------
+
+  /**
+   * Everything the settings and setup screens need. The screens never see the
+   * master key or a URL; they ask for a status, a code, or an action.
+   */
+  sync: {
+    get meta() {
+      return sync.syncMeta(state.vault);
+    },
+    get enabled() {
+      return sync.syncMeta(state.vault) !== null;
+    },
+    get status() {
+      return sync.snapshot();
+    },
+    pairingCode: () => sync.pairingCode(state.vault),
+    pairingUrl: () => sync.pairingUrl(state.vault),
+    enable: () => sync.enableSync(syncCtx),
+    disable: () => sync.disableSync(syncCtx),
+    pushNow: () => sync.push(syncCtx),
+    /** Fetch a vault by pairing code and put it on this device. */
+    async adopt(code) {
+      const vault = await sync.adopt(code);
+      await ctx.setVault(vault);
+    },
+  },
+
   /** Write a Blob to disk. Local only - no upload, no network. */
   download(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -647,6 +694,70 @@ const ctx = {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   },
 };
+
+// ------------------------------------------------------------- sync context
+
+/**
+ * The narrow context sync.js works with. It carries the master key, which the
+ * screen-facing ctx deliberately does not: merging a remote copy means
+ * decrypting it, and that has to happen somewhere.
+ */
+const syncCtx = {
+  get vault() {
+    return state.vault;
+  },
+  get masterKey() {
+    return state.masterKey;
+  },
+  get doc() {
+    return state.doc;
+  },
+
+  /** Result of a merge: becomes the open document, is sealed and repainted. */
+  async applyMerged(doc) {
+    if (!state.doc || !state.masterKey) return;
+    state.doc = doc;
+    applyPresentation(state.doc.settings || {});
+    await flushSave({ fromSync: true });
+    render("none");
+  },
+
+  /** Write or drop the non-secret sync metadata on the vault. */
+  async setSyncMeta(meta) {
+    if (!state.vault) return;
+    const next = { ...state.vault };
+    if (meta) next.sync = { id: meta.id, authSalt: meta.authSalt };
+    else delete next.sync;
+    state.vault = next;
+    await flushSave({ fromSync: true });
+  },
+};
+
+sync.bindContext(syncCtx);
+// A status change only matters while the settings screen is on screen; the
+// outline stays calm on purpose.
+sync.onSyncChange(() => {
+  if (state.view.name === "settings" && state.doc) render("none");
+});
+
+/**
+ * Pull before the outline appears when the server answers quickly, otherwise
+ * paint first and reconcile in the background. A sync must never be the reason
+ * the app feels slow.
+ */
+async function pullOnEntry() {
+  if (!sync.syncMeta(state.vault) || !state.masterKey) return;
+  const pulling = sync.pull(syncCtx).catch(() => "offline");
+  const settle = (outcome) => {
+    if (outcome === "merged") sync.push(syncCtx);
+  };
+  const raced = await Promise.race([
+    pulling,
+    new Promise((r) => setTimeout(() => r("slow"), 800)),
+  ]);
+  if (raced === "slow") pulling.then(settle);
+  else settle(raced);
+}
 
 // ---------------------------------------------------------------- global keys
 
@@ -663,6 +774,13 @@ document.addEventListener("keydown", (ev) => {
 ["pointerdown", "wheel", "touchstart"].forEach((type) =>
   document.addEventListener(type, touchIdle, { passive: true }),
 );
+// A pairing link opened while the app is already running (still locked, or on
+// the welcome screen). An unlocked session is left alone on purpose: the
+// fragment is stripped, nothing is fetched, nothing is replaced.
+window.addEventListener("hashchange", () => {
+  const code = takePairingFromFragment();
+  if (code && !state.doc) handlePairing(code);
+});
 window.addEventListener("pagehide", () => {
   flushSave();
 });
@@ -672,10 +790,53 @@ document.addEventListener("visibilitychange", () => {
 
 // ----------------------------------------------------------------- bootstrap
 
+/**
+ * Reads a pairing code out of the URL fragment and removes it immediately.
+ * A fragment is never sent to a server by the browser, and it does not stay in
+ * the address bar either - a link that was shared once should not linger in a
+ * screenshot or a bookmark.
+ * @returns {string|null} the normalised sync id
+ */
+function takePairingFromFragment() {
+  const hash = location.hash || "";
+  if (!hash.startsWith("#s=")) return null;
+  let code = null;
+  try {
+    code = sync.normaliseSyncId(hash);
+  } catch {
+    code = null;
+  }
+  history.replaceState(null, "", location.pathname + location.search);
+  return code;
+}
+
+/** A pairing link was opened. What happens depends on what is on this device. */
+async function handlePairing(code) {
+  const local = sync.syncMeta(state.vault);
+  if (local && local.id === code) return; // already this vault
+  if (state.vault) {
+    // Adopting would replace the vault that is already here, so it needs a
+    // deliberate press, not a link.
+    setupScreen.prime(code, true);
+    state.view = { name: "setup", id: null };
+    render();
+    return;
+  }
+  try {
+    await ctx.sync.adopt(code);
+    toast(t("sync.adoptDone"));
+  } catch (err) {
+    setupScreen.prime(code, false, err && err.code ? err.code : "offline");
+    state.view = { name: "setup", id: null };
+    render();
+  }
+}
+
 async function boot() {
   const prefs = readUiPrefs();
   setLocale(LOCALES.includes(prefs.lang) ? prefs.lang : detectLocale());
   document.documentElement.setAttribute("lang", getLocale());
+  const pairing = takePairingFromFragment();
   try {
     state.vault = await loadVault();
   } catch {
@@ -684,6 +845,8 @@ async function boot() {
   state.savedAt = state.vault ? await lastSavedAt().catch(() => null) : null;
   state.view = state.vault ? { name: "lock", id: null } : { name: "setup", id: null };
   render();
+
+  if (pairing) await handlePairing(pairing);
 
   if ("serviceWorker" in navigator && !navigator.webdriver && location.protocol !== "file:") {
     // Registered outside the test runner: a cached shell would otherwise hide

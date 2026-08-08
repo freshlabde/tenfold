@@ -10,7 +10,7 @@
 // are not same-origin GETs are passed through untouched, so nothing can be
 // smuggled through this worker.
 
-const VERSION = "tenfold-v2";
+const VERSION = "tenfold-v3";
 
 const SHELL = [
   "./",
@@ -26,6 +26,7 @@ const SHELL = [
   "./js/portability.js",
   "./js/prioritize.js",
   "./js/search.js",
+  "./js/sync.js",
   "./js/motion.js",
   "./js/i18n.js",
   "./js/locales/en.js",
@@ -77,6 +78,10 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // The sync mailbox is never cached: a cached vault would be served instead
+  // of the current one, and a copy of the ciphertext would sit in a store the
+  // app cannot see. Sync handles its own offline case.
+  if (url.pathname.includes("/api/vault/")) return;
 
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then((hit) => {

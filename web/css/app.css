@@ -664,6 +664,18 @@ button { -webkit-tap-highlight-color: transparent; }
 .setrow.is-danger .setrow-label { color: var(--accent); }
 .setrow[aria-disabled="true"] { opacity: .5; cursor: default; }
 
+/* The sync status dot: the only place sync appears outside its own group.
+   Four quiet states, no animation - a background task must not blink at you. */
+.syncdot {
+  display: inline-block; vertical-align: middle;
+  width: 7px; height: 7px; margin: -1px 8px 0 0;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+.syncdot.is-on { background: var(--accent); }
+.syncdot.is-working { background: var(--muted); }
+.syncdot.is-stalled { background: var(--text-4); box-shadow: 0 0 0 2px var(--sunk); }
+
 .seg {
   display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 5px;
   padding: 5px; border-radius: var(--radius-m);
@@ -705,6 +717,9 @@ button { -webkit-tap-highlight-color: transparent; }
 .input:focus-visible, .textarea:focus-visible { box-shadow: var(--shadow-sunk), 0 0 0 2px var(--accent); }
 .textarea { min-height: 96px; resize: none; }
 .input.is-mono { font-family: var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
+/* A URL is not a code to be typed: it must be shown exactly as it is, or the
+   lower-case sync id in the fragment would read as upper case. */
+.input.is-url { text-transform: none; letter-spacing: .02em; font-size: 12.5px; }
 .field-hint { margin-top: 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .field-error { margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: var(--accent); font-weight: 600; }
 

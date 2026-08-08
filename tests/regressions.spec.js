@@ -134,6 +134,46 @@ test("the language switch is also on the lock screen", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
 });
 
+test("abuse limits: creation cap and rate limit apply to tunnel clients", async ({ request }) => {
+  // A forged cf-connecting-ip marks the request as coming through the tunnel,
+  // so the limits apply (plain loopback without the header is exempt).
+  const vault = { magic: "TENFOLD1", version: 1, wrappers: [{ kind: "passphrase" }], payload: { nonce: "x", ct: "y" } };
+  const id = () => {
+    const alphabet = "abcdefghjkmnpqrstvwxyz23456789".replace(/[ilou01]/g, "");
+    let s = "";
+    for (let i = 0; i < 26; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return s;
+  };
+
+  // Creation cap: 10 fresh ids per IP per day, the 11th is refused.
+  const creator = { "cf-connecting-ip": "203.0.113.7" };
+  let refused = false;
+  for (let i = 0; i < 11; i++) {
+    const r = await request.put(`/api/vault/${id()}`, {
+      headers: { ...creator, "X-Sync-Token": "test-token-16-chars-long", "X-If-Version": "0" },
+      data: { vault },
+    });
+    if (i < 10) expect(r.status()).toBe(200);
+    else refused = r.status() === 429;
+  }
+  expect(refused).toBe(true);
+
+  // Rate limit: 60 API requests per minute per IP, the 61st is refused.
+  const reader = { "cf-connecting-ip": "203.0.113.8" };
+  let limited = false;
+  for (let i = 0; i < 61; i++) {
+    const r = await request.get(`/api/vault/${"a".repeat(26)}`, { headers: reader });
+    if (i === 60) limited = r.status() === 429;
+    else expect([404, 200]).toContain(r.status());
+  }
+  expect(limited).toBe(true);
+
+  // Loopback without the header stays exempt (the whole rest of the suite
+  // depends on this, but assert it explicitly once).
+  const r = await request.get(`/api/vault/${"a".repeat(26)}`);
+  expect(r.status()).toBe(404);
+});
+
 test("the service worker precache list matches the files on disk", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
   const listed = [...sw.matchAll(/"\.\/([^"]+)"/g)].map((m) => m[1]).filter((p) => p !== "");
