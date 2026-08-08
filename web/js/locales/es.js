@@ -94,6 +94,11 @@ export const es = {
   "lock.usePass": "Usar la frase",
   "lock.wrong": "Con eso no se abre la caja fuerte.",
   "lock.autoLocked": "Bloqueado tras {minutes} minutos sin actividad.",
+  "lock.reset": "Borrar la caja fuerte y empezar de nuevo",
+  "lock.reset.title": "¿Empezar de nuevo?",
+  "lock.reset.body": "Esto borra la caja fuerte de este dispositivo, de forma definitiva. Sin la frase de acceso, la clave de recuperación o un archivo exportado, la lista desaparece.",
+  "lock.reset.syncNote": "Si la sincronización estaba activada, la copia cifrada del servidor se conserva — solo puede abrirse de nuevo con el código de emparejamiento y la frase de acceso.",
+  "lock.reset.confirm": "Borrar en este dispositivo",
 
   // ----------------------------------------------------------------- outline
   "outline.title": "Las Diez",
@@ -436,7 +441,7 @@ export const es = {
   "about.privacy.p1": "Todo lo que introduces se cifra directamente en tu dispositivo con tu frase de acceso. Lo que se guarda o se sincroniza es un bloque de datos ilegible. No hay cuentas, ni copias en claro en servidores, ni forma de que nosotros leamos tu lista.",
   "about.privacy.lead": "Quedan dos límites honestos:",
   "about.privacy.li1": "Un dispositivo desbloqueado en manos ajenas deja tus datos al descubierto.",
-  "about.privacy.li2": "La asistencia de IA es una decisión consciente: solo cuando la activas sale texto de tu dispositivo para ser procesado por el proveedor de IA. Trabajar sin IA sigue siendo siempre plenamente posible.",
+  "about.privacy.li2": "La asistencia de IA es una decisión consciente: solo cuando la activas sale texto de tu dispositivo para ser procesado por el proveedor de IA. Recomendamos un modelo de lenguaje local — así también el pensar se queda contigo. Trabajar sin IA sigue siendo siempre plenamente posible.",
 
   "about.claim.heading": "La promesa",
   "about.claim.p1": "tenfold — get what you want.",
@@ -522,6 +527,20 @@ export const es = {
   "llm.error.timeout": "El modelo ha tardado demasiado.",
   "llm.error.server": "El servidor del modelo no ha respondido bien.",
   "llm.error.malformed": "La respuesta no ha llegado en la forma esperada. No se ha cambiado nada.",
+  "llm.error.tooBig": "Ese archivo pasa de 15 MB. No se ha leído y no se ha enviado nada.",
+  "llm.error.unreadable": "No se ha encontrado nada legible en esa imagen. No se ha cambiado nada.",
+
+  // ------------------------------------------------------ import from a photo
+  "import.entry": "Importar desde una foto",
+  "import.title": "Importar desde una foto",
+  "import.intro.local": "Haz una foto de una lista escrita, una tabla o un esquema. Se reduce en este dispositivo y la lee tu modelo local. La imagen se queda en tu máquina.",
+  "import.intro.cloud": "Haz una foto de una lista escrita, una tabla o un esquema. Se reduce en este dispositivo y luego se envía al proveedor que elegiste, que la lee. La imagen sale de este dispositivo.",
+  "import.limit": "Hasta 15 MB. La sangría del papel se convierte aquí en el nivel, hasta cuatro de profundidad.",
+  "import.targetRoots": "Las líneas del margen exterior pasan a ser metas de tus diez; todo lo sangrado cae debajo de ellas.",
+  "import.targetUnder": "Todo cae bajo {title}, un nivel más abajo.",
+  "import.pick": "Elegir una imagen",
+  "import.another": "Otra imagen",
+  "import.size": "{n} kB a enviar",
 
   // ------------------------------------------------------------------ toasts
   "toast.deleted": "Borrado.",

@@ -1,10 +1,11 @@
 // prompts.js - what the model is told, and what it is allowed to answer with.
 //
 // What it does: one system prompt that fixes the tone and the output format,
-// a plain-text rendering of the scoped context from llm.js, and the seven
+// a plain-text rendering of the scoped context from llm.js, the seven
 // operations of the contract - the interview gate first, then break down,
 // sharpen, smallest next step, blockers and preconditions, done criterion and
-// ranking the parts of a goal. Every operation carries its own schema check,
+// ranking the parts of a goal - and, at the end, the one prompt that reads a
+// picture instead of a context. Every operation carries its own schema check,
 // so an answer is either exactly the shape that was asked for or it is
 // rejected whole.
 //
@@ -352,4 +353,102 @@ export function operationsFor(node, info) {
 /** The messages for step two - the operation itself. */
 export function operationMessages(operation, context, locale) {
   return messages(locale, operation.task, context);
+}
+
+// ---------------------------------------------------------- reading a picture
+
+/** Four levels deep, 0..3 - the depth a real handwritten outline reaches. */
+export const MAX_IMPORT_LEVEL = 3;
+
+/** Upper bound on the lines taken from one picture. */
+export const MAX_IMPORT_ITEMS = 100;
+
+/** A line on paper is a line, not an essay. */
+export const MAX_IMPORT_TITLE = 200;
+
+/**
+ * Nothing readable on the picture. Its own failure, not a broken answer: the
+ * model did what it was asked, there was simply nothing there. Carries the
+ * same shape as an LlmError so the UI translates it the same way.
+ */
+class UnreadableError extends Error {
+  constructor() {
+    super("unreadable");
+    this.name = "LlmError";
+    this.code = "unreadable";
+  }
+}
+
+/**
+ * A picture is not a context. This prompt does not share the tone of the
+ * others on purpose: nothing here is written for the person, everything is
+ * copied off the paper. In particular it does NOT say "write in {language}" -
+ * the interface language has no business rewriting what somebody wrote down.
+ */
+export function importSystemPrompt() {
+  return [
+    "You are given one photograph or screenshot of a list, a table, a handwritten page or an outline.",
+    "Write down what is visibly on it, line by line, in the order it is written.",
+    "Copy each line exactly as it stands, in the language it is written in. Do not translate it, do not correct it, do not shorten it, do not expand it, do not complete a list that stops, and never add a line that is not on the picture.",
+    "Indentation, bullets, numbering and nesting become a level: an entry at the outer margin is level 0, an entry written under it is level 1, and so on to level 3 at most.",
+    "Ignore decoration: page numbers, headers and footers, dates in the margin, drawings, stamps, ruled lines, the paper itself.",
+    "If the picture carries nothing readable, answer with an empty list rather than a guess.",
+    "Answer with STRICT JSON and nothing else: no sentence before it, no sentence after it, no code fence, no comment, no trailing text.",
+    'The shape is exactly: {"items": [{"title": "...", "level": 0}]}',
+  ].join("\n");
+}
+
+/**
+ * The one request of the picture flow. One user message with a text part and
+ * an image part - the shape every OpenAI-compatible vision model expects, and
+ * the shape the relay already budgets eight megabytes for.
+ *
+ * @param {string} dataUrl a resized JPEG as a data URL
+ * @returns {Array} OpenAI-shaped messages
+ */
+export function importMessages(dataUrl) {
+  return [
+    { role: "system", content: importSystemPrompt() },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Write down the list on this picture, with its levels." },
+        { type: "image_url", image_url: { url: dataUrl } },
+      ],
+    },
+  ];
+}
+
+/**
+ * The answer, made safe. Everything a model can get wrong about a level is
+ * corrected here rather than trusted: a level below zero, a level past four, a
+ * level that jumps two steps at once and would have no parent to hang under, a
+ * title the length of a page, a list the length of a book.
+ *
+ * @param {Object} value the parsed JSON
+ * @returns {{items: {title: string, level: number}[]}}
+ */
+export function parseImportItems(value) {
+  if (!value || typeof value !== "object") fail();
+  const raw = Array.isArray(value) ? value : Array.isArray(value.items) ? value.items : null;
+  // A shape that is not a list at all is a broken answer, not an empty page.
+  if (!raw) fail();
+
+  const items = [];
+  let previous = -1;
+  for (const entry of raw) {
+    const title = typeof entry === "string" ? str(entry) : str(entry && entry.title);
+    if (!title) continue;
+    const asked = Number(entry && typeof entry === "object" ? entry.level : 0);
+    let level = Number.isFinite(asked) ? Math.trunc(asked) : 0;
+    if (level < 0) level = 0;
+    if (level > MAX_IMPORT_LEVEL) level = MAX_IMPORT_LEVEL;
+    // One step down at a time. The first line is always at the outer margin.
+    if (level > previous + 1) level = previous + 1;
+    items.push({ title: title.slice(0, MAX_IMPORT_TITLE), level });
+    previous = level;
+    if (items.length >= MAX_IMPORT_ITEMS) break;
+  }
+  if (!items.length) throw new UnreadableError();
+  return { items };
 }

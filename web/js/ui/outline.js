@@ -12,6 +12,7 @@ import { el, text, icon } from "./dom.js";
 import { nodeList, composer } from "./rows.js";
 import { t } from "../i18n.js";
 import { relativeTime } from "./format.js";
+import { importEntry } from "./imageimport.js";
 
 function headerSub(ctx) {
   const roots = ctx.childrenOf(null);
@@ -130,5 +131,7 @@ export function render(ctx) {
     ? el("div", { class: "bar" }, [add, order])
     : el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [add]);
 
-  return el("section", { class: "screen" }, [head, body, bar]);
+  // The way in from paper: one quiet line above the bar, next to the way in
+  // from the keyboard. It exists only when assistance is switched on at all.
+  return el("section", { class: "screen" }, [head, body, importEntry(ctx, null), bar]);
 }

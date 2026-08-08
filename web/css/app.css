@@ -745,6 +745,27 @@ button { -webkit-tap-highlight-color: transparent; }
 
 /* A bare checkbox: the label carries no text, the line next to it does. */
 .check.is-bare { min-height: 0; padding: 1px 0 0; }
+
+/* ------------------------------------------------------- import from a photo */
+
+/* The way in from paper: one quiet line, sitting on the bottom bar. */
+.import-entry {
+  flex: none;
+  margin: 0 var(--gutter); padding: 6px 0 2px;
+  display: flex; justify-content: flex-start;
+}
+
+/* An indented line of a read outline. Four levels, and the indent is the
+   only thing that says which is which - no bullets, no guide lines. */
+.assist-item.is-level { padding-left: calc(var(--lvl, 0) * 16px); }
+/* Blocked by the ten-root rule: shown, readable, and out of reach. */
+.assist-item.is-blocked { opacity: .38; }
+.import-blocked { margin-top: 12px; }
+
+/* The sheet foot of the picture flow: the buttons, and under them the weight
+   of what would travel - in the mono rail, like every other machine number. */
+.import-foot { flex: none; }
+.import-size { margin: 9px 0 0; text-align: center; }
 .chip[aria-pressed="true"] { color: var(--accent); }
 
 /* --------------------------------------------------------------- prose blocks */
@@ -929,6 +950,9 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .lock-sub { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 30ch; }
 .lock-foot { flex: none; padding: 14px var(--gutter) 0; display: flex; justify-content: space-between; align-items: center; }
+/* The escape hatch under the language row: present, but never loud. */
+.lock-reset { flex: none; display: flex; justify-content: center; padding: 0 var(--gutter) 4px; }
+.lock-reset .btn-ghost { font-size: 12px; color: var(--text-4); }
 
 /* The quiet language row on the lock and setup screens. */
 .lang-switch {

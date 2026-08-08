@@ -111,5 +111,38 @@ export function render(ctx) {
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [unlock]),
     el("div", { class: "lock-foot" }, [toggle, about]),
     langSwitch(ctx),
+    // The way out when the passphrase is truly gone and no key exists:
+    // wipe this device's copy and start over. Deliberately quiet - it is
+    // an escape hatch, not an invitation.
+    el("div", { class: "lock-reset" }, [
+      el(
+        "button",
+        { class: "btn-ghost", attrs: { type: "button" }, on: { click: () => confirmReset(ctx) } },
+        [text(t("lock.reset"))],
+      ),
+    ]),
   ]);
+}
+
+/** The wipe is irreversible on this device - say so in plain words first. */
+function confirmReset(ctx) {
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("lock.reset.body"))]),
+    el("p", { class: "check-text" }, [text(t("lock.reset.syncNote"))]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => ctx.closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: { click: () => ctx.wipeLocalVault() },
+      },
+      [text(t("lock.reset.confirm"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("lock.reset.title"), body, footer });
 }

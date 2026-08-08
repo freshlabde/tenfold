@@ -134,6 +134,28 @@ test("the language switch is also on the lock screen", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
 });
 
+test("the lock screen can wipe the vault and start over", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.reload();
+  await page.waitForSelector(".lock-title");
+
+  await page.getByRole("button", { name: /Delete the vault and start over/ }).click();
+  await expect(page.locator(".sheet")).toBeVisible();
+  // Cancelling changes nothing.
+  await page.locator(".sheet").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator(".lock-title")).toBeVisible();
+
+  await page.getByRole("button", { name: /Delete the vault and start over/ }).click();
+  await page.locator(".sheet").getByRole("button", { name: "Delete on this device" }).click();
+
+  // Straight back to the first run, and the wipe survives a reload.
+  await expect(page.getByRole("button", { name: "Set up the vault" })).toBeVisible();
+  await page.reload();
+  await page.waitForSelector(".screen");
+  await expect(page.getByRole("button", { name: "Set up the vault" })).toBeVisible();
+});
+
 test("abuse limits: creation cap and rate limit apply to tunnel clients", async ({ request }) => {
   // A forged cf-connecting-ip marks the request as coming through the tunnel,
   // so the limits apply (plain loopback without the header is exempt).

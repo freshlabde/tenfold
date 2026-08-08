@@ -32,7 +32,7 @@ import { entitiesForNode } from "../entities.js";
 const TYPE_CPS = 24;
 
 /** Below this a wait is not a wait, and a line about it would be noise. */
-const WAIT_AFTER_MS = 400;
+export const WAIT_AFTER_MS = 400;
 
 /**
  * Type text into an element. Same idea as the rest of the motion vocabulary:
@@ -62,6 +62,21 @@ export function typeInto(node, value) {
 /** The error code of anything that came back from llm.js or prompts.js. */
 function codeOf(err) {
   return err && typeof err.code === "string" ? err.code : "server";
+}
+
+/**
+ * The one quiet line that says a model is working, and which one. There is no
+ * spinner anywhere in this app; every flow that waits uses this.
+ */
+export function thinkingLine(mode) {
+  return el("p", { class: "assist-wait" }, [
+    text(mode === "cloud" ? t("llm.thinking.cloud") : t("llm.thinking.local")),
+  ]);
+}
+
+/** One calm line for whatever came back. Never a server text, never a stack. */
+export function errorLine(err) {
+  return el("p", { class: "assist-error" }, [text(t(`llm.error.${codeOf(err)}`))]);
 }
 
 /**
@@ -208,10 +223,7 @@ export function openAssist(layer, ctx, node) {
     // No spinner anywhere in this app. After a moment of silence one line
     // says what is happening, and it says which model is thinking.
     waitTimer = setTimeout(() => {
-      const line = el("p", { class: "assist-wait" }, [
-        text(mode() === "cloud" ? t("llm.thinking.cloud") : t("llm.thinking.local")),
-      ]);
-      body.appendChild(line);
+      body.appendChild(thinkingLine(mode()));
     }, WAIT_AFTER_MS);
     footer.appendChild(
       el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
@@ -222,7 +234,7 @@ export function openAssist(layer, ctx, node) {
 
   function paintError(op, err) {
     reset();
-    body.appendChild(el("p", { class: "assist-error" }, [text(t(`llm.error.${codeOf(err)}`))]));
+    body.appendChild(errorLine(err));
     footer.appendChild(
       el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => paintMenu() } }, [
         text(t("common.back")),

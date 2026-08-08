@@ -16,7 +16,7 @@
 // narrow context object further down instead of a key on the shared one.
 
 import { createVault, unlockWithPassphrase, unlockWithRecoveryKey, sealIntoVault, openFromVault, VaultUnlockError } from "./crypto.js";
-import { loadVault, saveVault, requestPersistence, lastSavedAt } from "./store.js";
+import { loadVault, saveVault, requestPersistence, lastSavedAt, clearAll } from "./store.js";
 import {
   createNode,
   childrenOf,
@@ -58,6 +58,7 @@ import { openSheet, closeSheet, isSheetOpen } from "./ui/sheet.js";
 import { openEditor } from "./ui/editor.js";
 import { openStoryGuide } from "./ui/storyguide.js";
 import * as assist from "./ui/assist.js";
+import * as imageImport from "./ui/imageimport.js";
 
 /** Minutes of inactivity after which the document is wiped from memory. */
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -448,6 +449,30 @@ const ctx = {
   closeSheet,
   maxRoots: MAX_ROOTS,
 
+  /**
+   * Wipe the vault on THIS device and return to the first-run screen.
+   * Reachable from the lock screen: whoever holds an unlocked device could
+   * clear site data anyway, so this adds convenience, not attack surface.
+   * A server copy (if sync was on) is deliberately left alone.
+   */
+  async wipeLocalVault() {
+    sync.resetSync();
+    await clearAll();
+    state.vault = null;
+    state.masterKey = null;
+    state.doc = null;
+    state.stack = [];
+    state.undo = null;
+    state.savedAt = null;
+    state.autoLocked = false;
+    [setupScreen, lockScreen, duelScreen, searchScreen].forEach((s) => {
+      if (typeof s.reset === "function") s.reset();
+    });
+    closeSheet();
+    state.view = { name: "setup", id: null };
+    render();
+  },
+
   /** Open a node: goals zoom in, steps show their detail. */
   openNode(node, rowEl) {
     if (rowEl) {
@@ -825,6 +850,71 @@ const ctx = {
   /** An accepted order for the parts of one goal. */
   reorderChildren(parentId, orderedIds) {
     mutate((list) => reorder(list, parentId, orderedIds));
+  },
+
+  /** The picture flow. Absent in "off" mode - the screens do not build it. */
+  importImage(parentId) {
+    imageImport.openImageImport(layerEl, ctx, parentId);
+  },
+
+  /**
+   * A hierarchy somebody accepted off a photograph. The levels become parents:
+   * a line at the outer margin hangs under `parentId` (null = the ten), every
+   * deeper line under the last line one level above it. Ordinary nodes, one
+   * mutation, origin "llm" on all of them.
+   *
+   * The ten-root rule is enforced here as well, not only in the sheet that
+   * offered the lines: a line that would be the eleventh goal is dropped, and
+   * everything written under it goes with it. Two guards for one invariant is
+   * the right number when the invariant is the whole method.
+   *
+   * @param {string|null} parentId
+   * @param {{title: string, level: number}[]} items
+   */
+  importTree(parentId, items) {
+    const now = Date.now();
+    mutate((list) => {
+      const made = [];
+      /** The last node created at each level - the parent of the next level. */
+      const open = [];
+      /** Next rank per parent id; a fresh parent starts its children at zero. */
+      const ranks = new Map();
+      const key = (id) => (id === null ? " root" : id);
+      const nextRank = (pid) => {
+        const k = key(pid);
+        if (!ranks.has(k)) ranks.set(k, childrenOf(list, pid).length);
+        const rank = ranks.get(k);
+        ranks.set(k, rank + 1);
+        return rank;
+      };
+      let roots = parentId === null ? childrenOf(list, null).length : 0;
+      /** Everything under a dropped line is dropped: the depth it starts at. */
+      let dropped = -1;
+
+      for (const item of items) {
+        const level = Math.max(0, Math.min(3, Math.trunc(Number(item.level) || 0)));
+        if (dropped >= 0 && level > dropped) continue;
+        dropped = -1;
+        if (parentId === null && level === 0 && roots >= MAX_ROOTS) {
+          dropped = level;
+          continue;
+        }
+        const pid = level === 0 ? parentId : open[level - 1] === undefined ? parentId : open[level - 1];
+        const node = createNode({
+          title: item.title,
+          parentId: pid,
+          rank: nextRank(pid),
+          origin: "llm",
+          createdAt: now,
+          updatedAt: now,
+        });
+        if (pid === null) roots += 1;
+        open.length = level;
+        open[level] = node.id;
+        made.push(node);
+      }
+      return [...list, ...made];
+    });
   },
 
   // --- vault lifecycle used by setup.js and lock.js -------------------------

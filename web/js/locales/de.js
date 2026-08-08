@@ -94,6 +94,11 @@ export const de = {
   "lock.usePass": "Passphrase verwenden",
   "lock.wrong": "Damit ließ sich der Tresor nicht öffnen.",
   "lock.autoLocked": "Nach {minutes} Minuten ohne Aktivität gesperrt.",
+  "lock.reset": "Tresor löschen und neu beginnen",
+  "lock.reset.title": "Neu beginnen?",
+  "lock.reset.body": "Das löscht den Tresor auf diesem Gerät, endgültig. Ohne Passphrase, Wiederherstellungsschlüssel oder eine Exportdatei ist die Liste dann weg.",
+  "lock.reset.syncNote": "War Sync eingeschaltet, bleibt die verschlüsselte Server-Kopie bestehen — sie lässt sich nur mit Kopplungscode und Passphrase wieder öffnen.",
+  "lock.reset.confirm": "Auf diesem Gerät löschen",
 
   // ----------------------------------------------------------------- outline
   "outline.title": "Die Zehn",
@@ -436,7 +441,7 @@ export const de = {
   "about.privacy.p1": "Alles, was du eingibst, wird direkt auf deinem Gerät mit deiner Passphrase verschlüsselt. Was gespeichert oder synchronisiert wird, ist ein unlesbarer Datenblock. Es gibt keine Konten, keine Klartext-Kopien auf Servern und keine Möglichkeit für uns, deine Liste zu lesen.",
   "about.privacy.lead": "Zwei ehrliche Grenzen bleiben:",
   "about.privacy.li1": "Ein entsperrtes Gerät in fremden Händen legt deine Daten offen.",
-  "about.privacy.li2": "KI-Unterstützung ist eine bewusste Entscheidung: Erst wenn du sie einschaltest, verlässt Text dein Gerät und wird vom KI-Anbieter verarbeitet. Die Arbeit ohne KI bleibt immer vollständig möglich.",
+  "about.privacy.li2": "KI-Unterstützung ist eine bewusste Entscheidung: Erst wenn du sie einschaltest, verlässt Text dein Gerät und wird vom KI-Anbieter verarbeitet. Wir empfehlen ein lokales Sprachmodell — dann bleibt auch das Denken bei dir. Die Arbeit ohne KI bleibt immer vollständig möglich.",
 
   "about.claim.heading": "Das Versprechen",
   "about.claim.p1": "tenfold — get what you want.",
@@ -522,6 +527,20 @@ export const de = {
   "llm.error.timeout": "Das Modell hat zu lange gebraucht.",
   "llm.error.server": "Der Modell-Server hat nicht sauber geantwortet.",
   "llm.error.malformed": "Die Antwort kam nicht in der erwarteten Form. Es wurde nichts geaendert.",
+  "llm.error.tooBig": "Diese Datei ist größer als 15 MB. Sie wurde nicht gelesen und nichts gesendet.",
+  "llm.error.unreadable": "Auf dem Bild war nichts Lesbares. Es wurde nichts geändert.",
+
+  // ------------------------------------------------------ import from a photo
+  "import.entry": "Aus einem Foto übernehmen",
+  "import.title": "Aus einem Foto übernehmen",
+  "import.intro.local": "Fotografiere eine geschriebene Liste, eine Tabelle oder eine Gliederung. Das Bild wird auf diesem Gerät verkleinert und von deinem lokalen Modell gelesen. Es bleibt auf deiner Maschine.",
+  "import.intro.cloud": "Fotografiere eine geschriebene Liste, eine Tabelle oder eine Gliederung. Das Bild wird auf diesem Gerät verkleinert und dann an den gewählten Anbieter geschickt, der es liest. Das Bild verlässt dieses Gerät.",
+  "import.limit": "Bis 15 MB. Die Einrückung auf dem Papier wird hier zur Ebene, bis zu vier tief.",
+  "import.targetRoots": "Die Zeilen am äußeren Rand werden Ziele deiner Zehn; alles Eingerückte landet darunter.",
+  "import.targetUnder": "Alles landet unter {title}, eine Ebene tiefer.",
+  "import.pick": "Bild wählen",
+  "import.another": "Anderes Bild",
+  "import.size": "{n} kB zu senden",
 
   // ------------------------------------------------------------------ toasts
   "toast.deleted": "Gelöscht.",

@@ -94,6 +94,11 @@ export const en = {
   "lock.usePass": "Use the passphrase",
   "lock.wrong": "That did not open the vault.",
   "lock.autoLocked": "Locked after {minutes} minutes without activity.",
+  "lock.reset": "Delete the vault and start over",
+  "lock.reset.title": "Start over?",
+  "lock.reset.body": "This deletes the vault on this device, permanently. Without the passphrase, the recovery key or an export file, the list is gone.",
+  "lock.reset.syncNote": "If sync was on, the encrypted server copy stays - it can only be opened again with the pairing code and the passphrase.",
+  "lock.reset.confirm": "Delete on this device",
 
   // ----------------------------------------------------------------- outline
   "outline.title": "The Ten",
@@ -436,7 +441,7 @@ export const en = {
   "about.privacy.p1": "Everything you enter is encrypted on this device with your passphrase. What is stored — or synchronised — is an unreadable block. There are no accounts, no plaintext copies on servers, and no way for us to read your list.",
   "about.privacy.lead": "Two honest limits remain:",
   "about.privacy.li1": "An unlocked device in someone else's hands lays your data open.",
-  "about.privacy.li2": "AI assistance is a deliberate choice: only when you switch it on does text leave your device to be processed by the AI provider. Working without AI always remains fully possible.",
+  "about.privacy.li2": "AI assistance is a deliberate choice: only when you switch it on does text leave your device to be processed by the AI provider. We recommend a local language model — then the thinking stays with you too. Working without AI always remains fully possible.",
 
   "about.claim.heading": "The claim",
   "about.claim.p1": "tenfold — get what you want.",
@@ -522,6 +527,20 @@ export const en = {
   "llm.error.timeout": "The model took too long.",
   "llm.error.server": "The model server did not answer properly.",
   "llm.error.malformed": "The answer did not come back in the expected form. Nothing was changed.",
+  "llm.error.tooBig": "That file is larger than 15 MB. It was not read and nothing was sent.",
+  "llm.error.unreadable": "Nothing readable was found on that picture. Nothing was changed.",
+
+  // ------------------------------------------------------ import from a photo
+  "import.entry": "Import from a photo",
+  "import.title": "Import from a photo",
+  "import.intro.local": "Take a picture of a written list, a table or an outline. It is made smaller on this device and read by your local model. The picture stays on your machine.",
+  "import.intro.cloud": "Take a picture of a written list, a table or an outline. It is made smaller on this device and then sent to the provider you chose, who reads it. The picture leaves this device.",
+  "import.limit": "Up to 15 MB. Indentation on the paper becomes the levels here, up to four deep.",
+  "import.targetRoots": "The lines at the outer margin become goals in your ten; everything indented lands underneath them.",
+  "import.targetUnder": "Everything lands under {title}, one level down.",
+  "import.pick": "Choose a picture",
+  "import.another": "Another picture",
+  "import.size": "{n} kB to send",
 
   // ------------------------------------------------------------------ toasts
   "toast.deleted": "Deleted.",

@@ -31,10 +31,12 @@ export default defineConfig({
       // deployed server accepts https push endpoints only.
       TENFOLD_PUSH_ALLOW_INSECURE: "1",
       // The upstream allowlist of the model relay. tests/llm.spec.js starts a
-      // mock OpenAI-compatible server on exactly this address; without this
-      // entry the relay refuses it with 403, which is the intended mechanism -
-      // an operator names their model servers here, nobody bypasses the wall.
-      TENFOLD_LLM_UPSTREAMS: "http://127.0.0.1:7799/v1",
+      // mock OpenAI-compatible server on 7799 and tests/import.spec.js one on
+      // 7797 - two ports because the two spec files run in parallel workers
+      // and would otherwise fight over one socket. Without these entries the
+      // relay refuses them with 403, which is the intended mechanism - an
+      // operator names their model servers here, nobody bypasses the wall.
+      TENFOLD_LLM_UPSTREAMS: "http://127.0.0.1:7799/v1,http://127.0.0.1:7797/v1",
     },
   },
 });
