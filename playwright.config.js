@@ -17,7 +17,9 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "node tools/serve.js",
+    // Wipe the throwaway data dir first: vaults accumulate across runs and
+    // would eventually trip the global MAX_VAULTS cap (a real 507 did occur).
+    command: `rm -rf ${TEST_DATA} && node tools/serve.js`,
     url: `http://127.0.0.1:${TEST_PORT}/tests/fixture.html`,
     reuseExistingServer: false,
     stdout: "ignore",
@@ -28,6 +30,11 @@ export default defineConfig({
       // VAPID header can be read back and verified. Off everywhere else - a
       // deployed server accepts https push endpoints only.
       TENFOLD_PUSH_ALLOW_INSECURE: "1",
+      // The upstream allowlist of the model relay. tests/llm.spec.js starts a
+      // mock OpenAI-compatible server on exactly this address; without this
+      // entry the relay refuses it with 403, which is the intended mechanism -
+      // an operator names their model servers here, nobody bypasses the wall.
+      TENFOLD_LLM_UPSTREAMS: "http://127.0.0.1:7799/v1",
     },
   },
 });

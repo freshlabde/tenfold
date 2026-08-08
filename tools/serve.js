@@ -28,7 +28,30 @@
 //     audience, an expiry and a contact address.
 // If a future change gives this key material anything to do with vault data,
 // the design is broken, not improved.
-import { createServer } from "node:http";
+//
+// THE SECOND EXCEPTION - THE MODEL RELAY, AND WHAT IT IS NOT: /api/llm below
+// hands a request on to a language model and hands the answer back. Read this
+// before you take it as a hole in the rule either:
+//   - It is a PIPE, not a store. Nothing that passes through is written to
+//     disk, kept in memory past the request, counted, or logged - not the
+//     messages, not the key, not the answer, not who asked.
+//   - It exists only because a browser cannot reach most providers directly
+//     (CORS) and because a phone outside the flat cannot reach a model on the
+//     home network.
+//   - It is NOT an open proxy. The target must be on the built-in cloud host
+//     list (https only) or match an operator-configured upstream exactly.
+//     Anything else is refused before a socket is opened. Redirects are never
+//     followed, no header of the caller is passed on, and only four fields of
+//     the body travel. That allowlist is the SSRF wall; widening it to "any
+//     URL the client sends" is never an improvement.
+//   - It adds NO cryptography. It forwards a key it does not keep and cannot
+//     use for anything else. The drift guard in tests/sync.spec.js pins the
+//     complete list of WebCrypto operations this file may perform, and the
+//     relay is not on it.
+// If a future change makes this relay remember a single message, the design is
+// broken, not improved.
+import { createServer, request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -68,6 +91,50 @@ const PUSH_SUBJECT = process.env.TENFOLD_PUSH_SUBJECT || "mailto:tenfold@localho
  * an arbitrary http endpoint, that would be a request forwarder.
  */
 const ALLOW_INSECURE_PUSH = process.env.TENFOLD_PUSH_ALLOW_INSECURE === "1";
+
+// -------------------------------------------------------------- model relay
+/**
+ * The built-in cloud allowlist. Hosts, not URLs: a provider moves its path
+ * around ("/v1", "/api/v1", "/openai/v1") and the host is the part that says
+ * who is being talked to. https only - a plain-http cloud target would send an
+ * API key across the wire in the open.
+ */
+const LLM_CLOUD_HOSTS = new Set([
+  "api.openai.com",
+  "api.anthropic.com",
+  "openrouter.ai",
+  "api.mistral.ai",
+  "api.groq.com",
+]);
+
+/**
+ * Local upstreams the operator allows, comma separated, matched EXACTLY as
+ * base URLs (e.g. "http://127.0.0.1:1234/v1"). Not a host list: on a home
+ * network an approximate match would let a caller aim the server at any port
+ * of any machine on that network.
+ */
+const LLM_LOCAL_UPSTREAMS = String(process.env.TENFOLD_LLM_UPSTREAMS || "")
+  .split(",")
+  .map((value) => value.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+/** A prompt is kilobytes of text. One megabyte is already generous. */
+const MAX_LLM_BODY_BYTES = 1024 * 1024;
+
+/** Except when a photograph travels with it: a resized JPEG as a data URL. */
+const MAX_LLM_IMAGE_BODY_BYTES = 8 * 1024 * 1024;
+
+/** What may come back. A completion that needs more than this is not one. */
+const MAX_LLM_RESPONSE_BYTES = 1024 * 1024;
+
+/** A slow local model on a laptop is normal; two minutes is the ceiling. */
+const LLM_TIMEOUT_MS = 120 * 1000;
+
+/** How long the set of known write-token hashes may be reused. */
+const TOKEN_CACHE_MS = 30 * 1000;
+
+/** Floor between two rescans caused by a token that is not in the cache. */
+const TOKEN_RESCAN_MS = 2 * 1000;
 
 /** A sync id is 26 symbols of a confusable-free base32 alphabet, lower case. */
 const SYNC_ID_RE = /^[a-z0-9]{26}$/;
@@ -660,6 +727,222 @@ async function handlePushApi(req, res, rest) {
   sendJson(res, 404, { error: "not found" });
 }
 
+// ---------------------------------------------------------------- model relay
+//
+// Everything from here to the router is the pipe described at the top of this
+// file. It reads a request, checks that the target is allowed and that the
+// caller may use it, opens exactly one connection, and copies the answer back.
+// It keeps nothing.
+
+/**
+ * The full URL to talk to, or null when the target is not allowed.
+ * Query strings, fragments and URL credentials are refused outright: none of
+ * them belong in a base URL, and all three are classic ways to make a checked
+ * string point somewhere else.
+ */
+function upstreamTarget(value) {
+  if (typeof value !== "string" || value.length < 8 || value.length > 300) return null;
+  const cleaned = value.trim().replace(/\/+$/, "");
+  let url;
+  try {
+    url = new URL(cleaned);
+  } catch {
+    return null;
+  }
+  if (url.search || url.hash || url.username || url.password) return null;
+  if (url.protocol === "https:" && LLM_CLOUD_HOSTS.has(url.hostname)) return `${cleaned}/chat/completions`;
+  if (LLM_LOCAL_UPSTREAMS.includes(cleaned)) return `${cleaned}/chat/completions`;
+  return null;
+}
+
+/** True when the messages carry an image part - the only reason for 8 MB. */
+function carriesImage(messages) {
+  if (!Array.isArray(messages)) return false;
+  for (const message of messages) {
+    const content = message && message.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part && typeof part === "object" && part.type === "image_url") return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The hashes of every registered write token. Cached, because the alternative
+ * is a directory walk per relayed request. The relay deliberately does NOT ask
+ * which vault is calling: it only needs to know that SOME vault on this server
+ * vouches for the caller, and not asking is one identifier less that exists.
+ */
+let tokenCache = { at: 0, hashes: [] };
+let lastRescanAt = 0;
+
+async function loadTokenHashes() {
+  const hashes = [];
+  let ids;
+  try {
+    ids = await readdir(VAULT_DIR);
+  } catch {
+    ids = [];
+  }
+  for (const id of ids) {
+    if (!SYNC_ID_RE.test(id)) continue;
+    const record = await readRecord(id);
+    if (record && typeof record.tokenHash === "string") hashes.push(record.tokenHash);
+  }
+  tokenCache = { at: Date.now(), hashes };
+  return hashes;
+}
+
+/**
+ * Who may use the relay: a local caller (this machine - the dev server, the
+ * test suite, the operator's own browser), or anybody holding the write token
+ * of a vault that exists here. Without that rule a stranger who found the
+ * tunnel could burn the operator's local model, or their cloud budget.
+ */
+async function relayAuthorised(req) {
+  if (isLocal(req)) return true;
+  const token = req.headers["x-sync-token"];
+  if (typeof token !== "string" || token.length < 16 || token.length > 512) return false;
+  const hash = await sha256Hex(token);
+  const matches = (list) => {
+    let found = false;
+    for (const known of list) if (sameHex(known, hash)) found = true;
+    return found;
+  };
+  const fresh = Date.now() - tokenCache.at < TOKEN_CACHE_MS;
+  if (matches(fresh ? tokenCache.hashes : await loadTokenHashes())) return true;
+  // A vault registered seconds ago is not in the cache yet. One rescan, rate
+  // limited, so a wrong token cannot be turned into a directory walk per try.
+  if (fresh && Date.now() - lastRescanAt > TOKEN_RESCAN_MS) {
+    lastRescanAt = Date.now();
+    return matches(await loadTokenHashes());
+  }
+  return false;
+}
+
+/** The answer, byte for byte, with the content type this API always sends. */
+function sendRaw(res, status, body) {
+  res.writeHead(status, { ...API_HEADERS, "Content-Length": body.length });
+  res.end(body);
+}
+
+/**
+ * One request to the model. No caller header is passed on, no redirect is
+ * followed (node does not follow them and nothing here adds it), and the
+ * response is read with a hard cap so a hostile or broken upstream cannot
+ * push this process into swap.
+ * @returns {Promise<{status?: number, body?: Buffer, error?: string}>}
+ */
+function askUpstream(target, payload, apiKey) {
+  return new Promise((done) => {
+    const url = new URL(target);
+    const body = Buffer.from(JSON.stringify(payload), "utf8");
+    const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const headers = {
+      "Content-Type": "application/json",
+      "Content-Length": String(body.length),
+      Accept: "application/json",
+    };
+    // The key belongs to the caller, travels once, and is not kept anywhere.
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+    const call = send(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        method: "POST",
+        headers,
+      },
+      (answer) => {
+        const chunks = [];
+        let size = 0;
+        answer.on("data", (chunk) => {
+          size += chunk.length;
+          if (size > MAX_LLM_RESPONSE_BYTES) {
+            answer.destroy();
+            call.destroy();
+            done({ error: "tooLarge" });
+            return;
+          }
+          chunks.push(chunk);
+        });
+        answer.on("end", () => done({ status: answer.statusCode || 502, body: Buffer.concat(chunks) }));
+        answer.on("error", () => done({ error: "upstream" }));
+      },
+    );
+    call.setTimeout(LLM_TIMEOUT_MS, () => {
+      call.destroy();
+      done({ error: "timeout" });
+    });
+    call.on("error", () => done({ error: "upstream" }));
+    call.end(body);
+  });
+}
+
+async function handleLlm(req, res) {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "method not allowed" });
+    return;
+  }
+  // The hard ceiling is read off the stream; the ordinary one megabyte is
+  // applied below, once it is clear whether an image is really part of this.
+  const read = await readBody(req, MAX_LLM_IMAGE_BODY_BYTES);
+  if (read.tooLarge) {
+    sendJson(res, 413, { error: "too large" });
+    return;
+  }
+  if (!(await relayAuthorised(req))) {
+    sendJson(res, 401, { error: "unauthorised" });
+    return;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(read.body.toString("utf8"));
+  } catch {
+    sendJson(res, 400, { error: "bad request" });
+    return;
+  }
+  if (!payload || typeof payload !== "object" || !Array.isArray(payload.messages)) {
+    sendJson(res, 400, { error: "bad request" });
+    return;
+  }
+  const target = upstreamTarget(payload.upstream);
+  if (!target) {
+    sendJson(res, 403, { error: "upstream not allowed" });
+    return;
+  }
+  if (!carriesImage(payload.messages) && read.body.length > MAX_LLM_BODY_BYTES) {
+    sendJson(res, 413, { error: "too large" });
+    return;
+  }
+  if (typeof payload.model !== "string" || !payload.model || payload.model.length > 200) {
+    sendJson(res, 400, { error: "bad request" });
+    return;
+  }
+
+  // Exactly four fields travel. Anything else the client might have sent -
+  // and anything a future client might send by accident - stops here.
+  const forwarded = { model: payload.model, messages: payload.messages };
+  if (Number.isFinite(payload.maxTokens)) forwarded.max_tokens = Math.trunc(payload.maxTokens);
+  if (Number.isFinite(payload.temperature)) forwarded.temperature = payload.temperature;
+
+  const answer = await askUpstream(target, forwarded, typeof payload.apiKey === "string" ? payload.apiKey : "");
+  if (answer.error === "timeout") {
+    sendJson(res, 504, { error: "timeout" });
+    return;
+  }
+  if (answer.error) {
+    sendJson(res, 502, { error: "upstream" });
+    return;
+  }
+  // Verbatim: whatever the model said, including its own error shape. This
+  // server does not interpret, rewrite, summarise or remember any of it.
+  sendRaw(res, answer.status, answer.body);
+}
+
 /**
  * Routes /api/vault/<syncId>. Returns true when the request was handled here.
  * Anything that is not an exact match falls through to the static files, so a
@@ -668,12 +951,16 @@ async function handlePushApi(req, res, rest) {
 async function handleApi(req, res, rel) {
   if (!rel.startsWith("/api/")) return false;
   const rest = rel.slice("/api/".length);
-  if (!rest.startsWith("vault/") && !rest.startsWith("push/")) {
+  if (!rest.startsWith("vault/") && !rest.startsWith("push/") && rest !== "llm") {
     sendJson(res, 404, { error: "not found" });
     return true;
   }
   if (!isLocal(req) && overLimit(rateHits, clientIp(req), RATE_WINDOW_MS, RATE_MAX_PER_WINDOW)) {
     sendJson(res, 429, { error: "slow down" });
+    return true;
+  }
+  if (rest === "llm") {
+    await handleLlm(req, res);
     return true;
   }
   if (rest.startsWith("push/")) {

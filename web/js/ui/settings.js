@@ -17,8 +17,27 @@ import { t, LOCALES, getLocale } from "../i18n.js";
 import { exportEncrypted, importEncrypted, exportPlaintextMarkdown, suggestedVaultFileName } from "../portability.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { relativeTime } from "./format.js";
+import { answerText, call, llmSettings } from "../llm.js";
 
 const SKINS = ["slate", "register", "breath"];
+const LLM_MODES = ["off", "local", "cloud"];
+
+/**
+ * The providers the relay's built-in allowlist covers, with the base URL each
+ * one serves its OpenAI-compatible endpoint under. Picking one fills the
+ * address; the address is never typed by hand in cloud mode, so a typo cannot
+ * quietly send a request somewhere else.
+ */
+const PROVIDERS = [
+  { id: "openai", label: "OpenAI", url: "https://api.openai.com/v1" },
+  { id: "anthropic", label: "Anthropic", url: "https://api.anthropic.com/v1" },
+  { id: "openrouter", label: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+  { id: "mistral", label: "Mistral", url: "https://api.mistral.ai/v1" },
+  { id: "groq", label: "Groq", url: "https://api.groq.com/openai/v1" },
+];
+
+/** What LM Studio serves on by default - the most likely local case. */
+const DEFAULT_LOCAL_URL = "http://127.0.0.1:1234/v1";
 const THEMES = ["dark", "light"];
 const DEPTH = ["on", "off"];
 
@@ -281,6 +300,204 @@ function syncGroup(ctx) {
   ]);
 }
 
+// --------------------------------------------------------------- assistance
+
+function providerOf(llm) {
+  return PROVIDERS.find((p) => p.id === llm.provider) || PROVIDERS.find((p) => p.url === llm.baseUrl) || null;
+}
+
+/** Address and model of the machine on the desk. Two fields, no magic. */
+function localSheet(ctx, llm) {
+  const url = el("input", {
+    class: "input is-url",
+    attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.baseUrl") },
+  });
+  url.value = llm.baseUrl || DEFAULT_LOCAL_URL;
+  const model = el("input", {
+    class: "input",
+    attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.model") },
+  });
+  model.value = llm.model || "";
+
+  const body = el("div", {}, [
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("llm.baseUrl"))]),
+      url,
+      el("p", { class: "field-hint" }, [text(t("llm.baseUrlHint"))]),
+    ]),
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("llm.model"))]),
+      model,
+      el("p", { class: "field-hint" }, [text(t("llm.modelHint"))]),
+    ]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: () => {
+            closeSheet();
+            ctx.setLlm({ baseUrl: url.value.trim(), model: model.value.trim() });
+            ctx.toast(t("toast.saved"));
+          },
+        },
+      },
+      [text(t("common.save"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("llm.local"), body, footer });
+}
+
+/** Provider, model and key. The key is a password field and stays in the vault. */
+function cloudSheet(ctx, llm) {
+  let provider = providerOf(llm) || PROVIDERS[0];
+  const model = el("input", {
+    class: "input",
+    attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.model") },
+  });
+  model.value = llm.model || "";
+  const key = el("input", {
+    class: "input",
+    attrs: { type: "password", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.apiKey") },
+  });
+  key.value = llm.apiKey || "";
+
+  const seg = el(
+    "div",
+    { class: "seg", attrs: { role: "group", "aria-label": t("llm.provider") } },
+    PROVIDERS.map((p) =>
+      el(
+        "button",
+        {
+          attrs: { type: "button", "aria-pressed": p.id === provider.id ? "true" : "false" },
+          on: {
+            click: (ev) => {
+              provider = p;
+              seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+              ev.currentTarget.setAttribute("aria-pressed", "true");
+            },
+          },
+        },
+        [text(p.label)],
+      ),
+    ),
+  );
+
+  const body = el("div", {}, [
+    el("div", { class: "field" }, [el("span", { class: "field-label" }, [text(t("llm.provider"))]), seg]),
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("llm.model"))]),
+      model,
+      el("p", { class: "field-hint" }, [text(t("llm.modelHint"))]),
+    ]),
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("llm.apiKey"))]),
+      key,
+      el("p", { class: "field-hint" }, [text(t("llm.apiKeyDesc"))]),
+    ]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: () => {
+            closeSheet();
+            ctx.setLlm({
+              provider: provider.id,
+              baseUrl: provider.url,
+              model: model.value.trim(),
+              apiKey: key.value,
+            });
+            ctx.toast(t("toast.saved"));
+          },
+        },
+      },
+      [text(t("common.save"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("llm.provider"), body, footer });
+}
+
+/**
+ * Switching the mode. Cloud is the only one that asks first, and it asks
+ * exactly once per vault: what leaves the device, in plain words, before
+ * anything can leave it. Declining changes nothing at all.
+ */
+function pickMode(ctx, llm, next) {
+  const mode = LLM_MODES.includes(llm.mode) ? llm.mode : "off";
+  if (next === mode) return;
+  if (next === "off") {
+    ctx.setLlm({ mode: "off" });
+    return;
+  }
+  if (next === "local") {
+    const cloudUrl = PROVIDERS.some((p) => p.url === llm.baseUrl);
+    ctx.setLlm({ mode: "local", baseUrl: !llm.baseUrl || cloudUrl ? DEFAULT_LOCAL_URL : llm.baseUrl });
+    return;
+  }
+  const toCloud = () => {
+    const provider = providerOf(llm) || PROVIDERS[0];
+    ctx.setLlm({ mode: "cloud", cloudConsent: true, provider: provider.id, baseUrl: provider.url });
+  };
+  if (llm.cloudConsent === true) toCloud();
+  else ctx.llmConsent(toCloud);
+}
+
+/** One short ping, and an honest sentence about what came back. */
+async function testConnection(ctx) {
+  ctx.toast(t("llm.test.running"));
+  try {
+    const data = await call(llmSettings(ctx.doc), [{ role: "user", content: "ping" }], { maxTokens: 8 });
+    answerText(data);
+    ctx.toast(t("llm.test.ok"));
+  } catch (err) {
+    ctx.toast(t("llm.test.fail", { reason: t(`llm.error.${err && err.code ? err.code : "server"}`) }));
+  }
+}
+
+/**
+ * The assistance group. It is always here, because it IS the switch: the mode
+ * segment is the one AI control that must exist even when the answer is "no".
+ */
+function llmGroup(ctx) {
+  const llm = llmSettings(ctx.doc);
+  const mode = LLM_MODES.includes(llm.mode) ? llm.mode : "off";
+  const rows = [
+    segment("llm.mode", LLM_MODES, mode, (v) => t(`llm.mode.${v}`), (v) => pickMode(ctx, llm, v)),
+    el("p", { class: "field-hint", style: { padding: "0 2px 4px" } }, [text(t("llm.modeDesc"))]),
+  ];
+  if (mode === "local") {
+    rows.push(row("llm.local", "llm.localDesc", llm.model || t("llm.notSet"), () => localSheet(ctx, llm)));
+  }
+  if (mode === "cloud") {
+    const provider = providerOf(llm);
+    rows.push(
+      row("llm.provider", "llm.providerDesc", provider ? provider.label : t("llm.notSet"), () =>
+        cloudSheet(ctx, llm),
+      ),
+    );
+    rows.push(
+      row("llm.apiKey", "llm.apiKeyDesc", llm.apiKey ? t("llm.keySet") : t("llm.notSet"), () =>
+        cloudSheet(ctx, llm),
+      ),
+    );
+  }
+  if (mode !== "off") rows.push(row("llm.test", "llm.testDesc", null, () => testConnection(ctx)));
+  return group("settings.group.llm", rows);
+}
+
 function plaintextSheet(ctx) {
   const body = el("div", {}, [
     el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("settings.exportPlainWarn"))]),
@@ -420,6 +637,7 @@ export function render(ctx) {
       file,
     ]),
     syncGroup(ctx),
+    llmGroup(ctx),
     group("settings.group.security", [
       row("settings.lock", "settings.lockDesc", null, () => ctx.lock(false), { danger: true }),
     ]),

@@ -379,6 +379,6 @@ test("a fourth level is summed up on its level-three ancestor", async ({ page })
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v6"');
+  expect(sw).toContain('const VERSION = "tenfold-v7"');
   expect(sw).toContain('"./js/ui/map.js"');
 });

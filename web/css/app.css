@@ -709,6 +709,44 @@ button { -webkit-tap-highlight-color: transparent; }
   color: var(--text);
 }
 
+/* ---------------------------------------------------------------- assistance */
+
+.assist { padding-top: 2px; }
+.assist-wait { margin: 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.assist-error { margin: 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--accent); }
+
+.assist-item {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 11px 2px;
+  border-top: 1px solid var(--line);
+}
+.assist-item:first-child { border-top: 0; }
+.assist-item.is-off { opacity: .4; }
+.assist-item-body { flex: 1 1 auto; min-width: 0; }
+.assist-item .row-chip { margin-top: 1px; }
+
+.assist-title {
+  appearance: none; border: 0; background: none; margin: 0; padding: 0;
+  display: block; width: 100%; text-align: left; cursor: text;
+  font-family: var(--font-body); font-size: 14px; font-weight: var(--weight-title);
+  letter-spacing: -.012em; line-height: 1.35; color: var(--text);
+}
+.assist-title.is-static { cursor: default; }
+.assist-why { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+
+.assist-before, .assist-after { margin: 6px 0 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.assist-before { color: var(--text-4); }
+.assist-after { color: var(--text); min-height: 1.5em; }
+
+.assist-foot {
+  margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+
+/* A bare checkbox: the label carries no text, the line next to it does. */
+.check.is-bare { min-height: 0; padding: 1px 0 0; }
+.chip[aria-pressed="true"] { color: var(--accent); }
+
 /* --------------------------------------------------------------- prose blocks */
 
 .prose { padding-bottom: 12px; }

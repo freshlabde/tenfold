@@ -38,6 +38,7 @@ import {
 } from "./entities.js";
 import * as sync from "./sync.js";
 import * as push from "./push.js";
+import { llmEnabled, llmMode, bindContext as bindLlmContext } from "./llm.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
 import { el, clear, text, icon } from "./ui/dom.js";
@@ -56,6 +57,7 @@ import * as entityScreen from "./ui/entity.js";
 import { openSheet, closeSheet, isSheetOpen } from "./ui/sheet.js";
 import { openEditor } from "./ui/editor.js";
 import { openStoryGuide } from "./ui/storyguide.js";
+import * as assist from "./ui/assist.js";
 
 /** Minutes of inactivity after which the document is wiped from memory. */
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -663,6 +665,24 @@ const ctx = {
     const nodes = state.doc.nodes;
     const siblings = childrenOf(nodes, node.parentId);
     const i = siblings.findIndex((n) => n.id === node.id);
+    // Everything the model touches is gathered here, and in "off" mode none
+    // of it is built - not hidden, not disabled: absent.
+    const keep = ctx.optout(node.id);
+    const assistActions = !llmEnabled(state.doc)
+      ? []
+      : [
+          keep.own || keep.inherited
+            ? null
+            : { label: t("llm.assist"), icon: "target", llm: true, run: () => ctx.assist(node) },
+          keep.inherited
+            ? null
+            : {
+                label: keep.own ? t("llm.optoutOff") : t("llm.optout"),
+                icon: "lock",
+                llm: true,
+                run: () => ctx.toggleOptout(node),
+              },
+        ].filter(Boolean);
     const actions = [
       { label: t("common.edit"), icon: "pencil", run: () => ctx.editNode(node) },
       {
@@ -682,6 +702,7 @@ const ctx = {
         disabled: i < 0 || i >= siblings.length - 1,
         run: () => ctx.moveWithinSiblings(node, 1),
       },
+      ...assistActions,
       { label: t("common.delete"), icon: "trash", danger: true, run: () => ctx.deleteNode(node) },
     ];
     openSheet(layerEl, {
@@ -695,6 +716,7 @@ const ctx = {
             {
               class: `setrow${a.danger ? " is-danger" : ""}`,
               attrs: { type: "button", "aria-disabled": a.disabled ? "true" : "false" },
+              dataset: a.llm ? { llm: "menu" } : null,
               on: {
                 click: () => {
                   if (a.disabled) return;
@@ -729,6 +751,81 @@ const ctx = {
   childrenOf: (parentId) => childrenOf(state.doc.nodes, parentId),
   isLeaf: (id) => isLeaf(state.doc.nodes, id),
   nodeById: (id) => state.doc.nodes.find((n) => n.id === id) || null,
+
+  // --- assistance ----------------------------------------------------------
+  //
+  // The screens ask three things of this: is it on, may this node be shown to
+  // a model, and please apply what the person accepted. Nothing here talks to
+  // a model itself - that is llm.js, reached from ui/assist.js.
+
+  get llmOn() {
+    return llmEnabled(state.doc);
+  },
+
+  get llmMode() {
+    return llmMode(state.doc);
+  },
+
+  /** Patch doc.settings.llm. The whole block lives inside the sealed vault. */
+  setLlm(patch) {
+    const current = (state.doc && state.doc.settings && state.doc.settings.llm) || {};
+    setSettings({ llm: { ...current, ...patch } });
+  },
+
+  assist(node) {
+    assist.openAssist(layerEl, ctx, node);
+  },
+
+  /** The one-time cloud consent; the caller decides what accepting means. */
+  llmConsent(onAccept) {
+    assist.openConsent(layerEl, ctx, onAccept);
+  },
+
+  /**
+   * Whether a node is kept away from the model, and whether that decision was
+   * made here or further up. An inherited state is shown, never toggled: the
+   * switch belongs where it was thrown.
+   */
+  optout(id) {
+    const node = state.doc.nodes.find((n) => n.id === id);
+    const own = !!(node && node.llmOptout);
+    const source = own ? null : ancestorsOf(state.doc.nodes, id).find((a) => a.llmOptout === true);
+    return { own, inherited: !!source, source: source ? source.title : "" };
+  },
+
+  toggleOptout(node) {
+    const on = !node.llmOptout;
+    ctx.updateNode(node.id, { llmOptout: on });
+    toast(on ? t("llm.optoutSet") : t("llm.optoutCleared"));
+  },
+
+  /**
+   * Proposals the person accepted. They are ordinary nodes in every respect
+   * but one: origin says where they came from, and it stays with them.
+   */
+  addChildren(parentId, items) {
+    const now = Date.now();
+    mutate((list) => {
+      const base = childrenOf(list, parentId).length;
+      const made = items.map((item, i) =>
+        createNode({
+          title: item.title,
+          parentId,
+          rank: base + i,
+          origin: "llm",
+          effortMinutes: typeof item.effortMinutes === "number" ? item.effortMinutes : null,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      return [...list, ...made];
+    });
+  },
+
+  /** An accepted order for the parts of one goal. */
+  reorderChildren(parentId, orderedIds) {
+    mutate((list) => reorder(list, parentId, orderedIds));
+  },
 
   // --- vault lifecycle used by setup.js and lock.js -------------------------
 
@@ -890,6 +987,9 @@ const syncCtx = {
 };
 
 sync.bindContext(syncCtx);
+// The relay wants the same write token the sync PUT uses, so llm.js gets the
+// same narrow context - and, like sync, never the screens' ctx.
+bindLlmContext(syncCtx);
 // A status change only matters while the settings screen is on screen; the
 // outline stays calm on purpose.
 sync.onSyncChange(() => {

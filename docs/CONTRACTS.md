@@ -370,6 +370,55 @@ export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then
   code, calls `adopt`, then the normal lock screen takes the passphrase. The URL fragment
   form `#s=<code>` triggers the same flow (fragments never reach the server).
 
+## Stage 3 — the model (assistance is an accessory, never the foundation)
+
+**Three modes, default OFF.** `doc.settings.llm = { mode: "off"|"local"|"cloud", provider,
+baseUrl, model, apiKey }` lives INSIDE the sealed vault — the server never stores any of it.
+In `off` mode not a single AI control exists in the DOM (not hidden — absent). Switching to
+`cloud` requires a one-time explicit consent sheet stating plainly what leaves the device.
+
+**Server relay (`POST /api/llm`)** — exists only because browsers cannot reach most
+providers directly (CORS) and because the phone cannot reach the home LAN from outside:
+- Body: `{ upstream, model, apiKey?, messages, maxTokens?, temperature? }`. The server
+  forwards to `<upstream>/chat/completions` (OpenAI-compatible), returns the JSON verbatim,
+  **stores nothing, logs nothing** — same rule as the vault mailbox.
+- **No open proxy.** `upstream` must be EITHER on the built-in cloud allowlist
+  (api.openai.com, api.anthropic.com, openrouter.ai, api.mistral.ai, api.groq.com — https
+  only) OR exactly match one of the operator-configured local upstreams in the env var
+  `TENFOLD_LLM_UPSTREAMS` (comma-separated base URLs, e.g. `http://127.0.0.1:1234/v1`).
+  Anything else -> 403. This is the SSRF wall; weakening it is never an improvement.
+- **Auth:** the relay requires a valid `X-Sync-Token` for an existing vault on this server,
+  or a local (loopback, no cf-connecting-ip) caller. Without that, strangers would burn the
+  operator's local models through the tunnel.
+- Abuse limits apply (the existing per-IP rate limiter covers /api/llm too).
+- Timeout ~120 s, response size cap 1 MB, non-streaming in v1 (the UI animates the text in;
+  no spinner anywhere).
+
+**Client (`web/js/llm.js` — the third and last module allowed to fetch, `/api/llm` only):**
+- Context scoping per request: the target node, its ancestor chain, direct siblings and
+  children, the stories along that chain, and the LINKED entity cards. Never the whole tree.
+- Filters enforced at prompt build (with tests): `llm_optout` subtrees never appear;
+  `sensitivity: "high"` cards only after an explicit per-call release; in cloud mode entity
+  NOTES are omitted unless released (name/relation may go).
+- Every result is a PROPOSAL: rendered as an acceptable diff, applied item by item through
+  the normal mutate path with `origin: "llm"`. Nothing writes to the doc directly.
+
+**Operations v1** (`web/js/prompts.js`): understand (the interview gate — step 1 returns
+`{ready:false, questions:[...]}` or `{ready:true}`; answers append to story/entity cards
+with confirmation), then: break down (3-7 substeps), sharpen (vague -> testable), smallest
+next step (<30 min), blockers & preconditions, done-criterion, rank siblings with one-line
+reasons. Break down ALWAYS runs the interview gate first.
+
+**Node opt-out UI:** the `llmOptout` field exists since schema 2; stage 3 must add the
+toggle (row menu + leaf screen, with the inherited state shown) — without UI the field is a
+dead promise.
+
+**Image import (stage 3b):** photograph the handwritten list (or a table) -> vision model
+via the same relay (`messages` with image content part, base64 data URL, capped 8 MB pre-
+resize client-side to ~1600px JPEG) -> a flat proposal list, each line individually
+acceptable as a new node. Never a direct tree import. Works in local mode with a vision
+model (e.g. qwen2.5-vl) and in cloud mode; absent in off mode like every AI control.
+
 ## Tests
 
 Playwright, headless. `tests/*.spec.js` load the ES modules directly in an empty page via a

@@ -436,7 +436,7 @@ test("an oversized blob is refused", async ({ request }) => {
 
 // --------------------------------------------------------------- source rules
 
-test("only sync.js and push.js reach the network", async () => {
+test("only sync.js, push.js and llm.js reach the network", async () => {
   const dir = join(ROOT, "web", "js");
   const walk = async (base) => {
     const out = [];
@@ -450,8 +450,12 @@ test("only sync.js and push.js reach the network", async () => {
   const strip = (source) =>
     source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-  // Contract rule 7: two named modules, nothing else.
-  const allowed = [join("web", "js", "sync.js"), join("web", "js", "push.js")];
+  // Contract rule 7, as of stage 3: three named modules, nothing else.
+  const allowed = [
+    join("web", "js", "sync.js"),
+    join("web", "js", "push.js"),
+    join("web", "js", "llm.js"),
+  ];
   const offenders = [];
   for (const file of await walk(dir)) {
     const code = strip(await readFile(file, "utf8"));
@@ -477,6 +481,17 @@ test("only sync.js and push.js reach the network", async () => {
   for (const url of pushUrls) expect(url).toMatch(/endpointUrl\(/);
   expect(pushSource).toMatch(/API_BASE\s*=\s*location\.pathname/);
   expect(pushSource).not.toMatch(/https?:\/\//);
+
+  // And the model client: same-origin builder, /api/llm only. The provider
+  // address is a field of the sealed settings and travels in the body - it is
+  // never built, defaulted or hard-coded in this module, so no foreign URL
+  // appears in its source either.
+  const llmSource = strip(await readFile(join(dir, "llm.js"), "utf8"));
+  const llmUrls = [...llmSource.matchAll(/fetch\s*\(\s*([^,)]+)/g)].map((m) => m[1].trim());
+  expect(llmUrls.length).toBeGreaterThan(0);
+  for (const url of llmUrls) expect(url).toMatch(/endpointUrl\(/);
+  expect(llmSource).toMatch(/API_BASE\s*=\s*location\.pathname/);
+  expect(llmSource).not.toMatch(/https?:\/\//);
 });
 
 test("the server has no key material, no cipher and no decrypt path", async () => {

@@ -600,11 +600,14 @@ test("the push channel can never carry content", async () => {
   // The service worker writes its own sentence and never reads what arrived.
   expect(sw).toMatch(/showNotification/);
   expect(sw).not.toMatch(/event\.data/);
-  expect(sw).toMatch(/tenfold-v6/);
+  expect(sw).toMatch(/tenfold-v7/);
 
   const serve = await readFile(new URL("../tools/serve.js", import.meta.url), "utf8");
   const stripped = stripComments(serve);
-  // Exactly one outbound fetch in the whole server, and it carries no body.
+  // Still exactly one outbound fetch in the whole server, and it carries no
+  // body. The model relay added in stage 3 is deliberately NOT a second one:
+  // it uses node's http/https request directly, because it has to cap and
+  // destroy the response stream, and that keeps this count meaningful.
   const calls = [...stripped.matchAll(/fetch\(/g)];
   expect(calls).toHaveLength(1);
   expect(stripped).not.toMatch(/fetch\([\s\S]{0,400}body:/);

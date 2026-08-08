@@ -122,6 +122,13 @@ function welcome(ctx) {
         },
         [text(t("sync.adopt.open"))],
       ),
+      // What this app is must be readable BEFORE anything is set up -
+      // the About screen renders without a vault, same as from the lock.
+      el(
+        "button",
+        { class: "btn-ghost", attrs: { type: "button" }, on: { click: () => ctx.go("about") } },
+        [text(t("common.about"))],
+      ),
       file,
     ]),
     langSwitch(ctx),

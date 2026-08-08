@@ -126,6 +126,52 @@ function nameHint(ctx, node) {
   ]);
 }
 
+/**
+ * The assistance block. It exists only when assistance is switched on at all -
+ * in "off" mode not one of these elements is built. A step that is kept away
+ * from the model has no assist entry; a step that inherits that decision says
+ * where it came from and offers no switch, because the switch belongs to the
+ * goal it was thrown on.
+ */
+function assistBlock(ctx, node) {
+  if (!ctx.llmOn) return null;
+  const keep = ctx.optout(node.id);
+  const box = el("section", { class: "assist-foot", dataset: { llm: "leaf" } });
+
+  if (!keep.own && !keep.inherited) {
+    box.appendChild(
+      el(
+        "button",
+        {
+          class: "btn-ghost is-accent",
+          attrs: { type: "button" },
+          on: { click: () => ctx.assist(node) },
+        },
+        [text(t("llm.assist"))],
+      ),
+    );
+  }
+
+  if (keep.inherited) {
+    box.appendChild(
+      el("p", { class: "field-hint" }, [text(t("llm.optoutInherited", { title: keep.source }))]),
+    );
+  } else {
+    box.appendChild(
+      el(
+        "button",
+        {
+          class: "btn-ghost",
+          attrs: { type: "button" },
+          on: { click: () => ctx.toggleOptout(node) },
+        },
+        [text(keep.own ? t("llm.optoutOff") : t("llm.optout"))],
+      ),
+    );
+  }
+  return box;
+}
+
 export function render(ctx, id) {
   const node = ctx.nodeById(id);
   if (!node) {
@@ -189,6 +235,7 @@ export function render(ctx, id) {
       entityChips(ctx, node),
       el("div", { class: "panel" }, [text(node.note || t("leaf.noteEmpty"))]),
       cells,
+      assistBlock(ctx, node),
     ]),
     el("div", { style: { flex: "none", margin: "0 var(--gutter)", paddingTop: "10px" } }, [doneBtn, alt]),
   ]);
