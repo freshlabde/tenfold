@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  tenfold static server, kept alive by launchd.
+  Serves the PWA on 127.0.0.1:7710 for the Cloudflare tunnel
+  (tenfold.kairatools.com). Static files only - no user data.
+  Install:
+    cp tools/com.tenfold.serve.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.tenfold.serve.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tenfold.serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/kaira/.nvm/versions/node/v25.9.0/bin/node</string>
+    <string>/Users/kaira/tenfold/tools/serve.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/kaira/tenfold</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/tenfold-serve.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/tenfold-serve.log</string>
+</dict>
+</plist>
