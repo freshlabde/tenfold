@@ -267,6 +267,8 @@ export const en = {
 
   "about.method.heading": "The method",
   "about.method.p0": "You already know what matters to you. And still, exactly that keeps sinking in the everyday — under everything else that also needs doing.",
+  "about.method.o1": "The method behind this comes from a book: How to Get What You Want by the Canadian author Raymond Hull, published in 1969 — better known as the co-author of The Peter Principle. Hull's observation: most people do not fail for lack of ability or effort, but because they never settle what they truly want — and in what order.",
+  "about.method.o2": "His tool against that is deliberately simple: a handwritten list of the things you truly want, honestly ranked, rewritten regularly — and your energy belongs to the top of the list. tenfold carries exactly this discipline into the phone age.",
   "about.method.p1": "tenfold holds one list: the ten things you truly want. Not twenty, not a backlog of everything you might do someday. Exactly ten. The hard part is the honest order, so tenfold never asks you to rank ten things at once — it asks one question at a time: which of these two matters more?",
   "about.method.p2": "The handwritten ritual stays. Once a month, or whenever life shifts, sit down with paper and write your ten by hand — slowly, in full sentences. Writing is the thinking; no software takes that off your hands. Then carry the list in here.",
   "about.method.lead": "The app takes over what paper cannot:",
@@ -275,7 +277,7 @@ export const en = {
   "about.method.li3": "Honesty: it keeps the order incorruptible, pair by pair, regardless of the mood of the day.",
   "about.method.li4": "Privacy: everything is encrypted. Your list belongs to you alone.",
   "about.method.p4": "You work from the top down. The first entry gets your full attention. The tenth may rest — that is exactly what the sorting was for.",
-  "about.method.p5": "None of this is new: the author Raymond Hull described the same discipline decades ago, for pen and paper. tenfold keeps the discipline and takes over the logistics.",
+  "about.method.p5": "None of this is new — and that is the strength. tenfold does not invent a method; it keeps a proven one and takes over the logistics.",
 
   "about.story.heading": "Why your story matters",
   "about.story.p1": "A goal without context cannot be broken down well. \"Get fit\" means one thing at twenty-eight and another at sixty-one, with a bad knee and two children. Standard templates cannot tell the difference.",

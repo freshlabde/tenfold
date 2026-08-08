@@ -14,7 +14,13 @@
 import { el, text, icon } from "./dom.js";
 import { t } from "../i18n.js";
 
-const METHOD_TOP = ["about.method.p0", "about.method.p1", "about.method.p2"];
+const METHOD_TOP = [
+  "about.method.p0",
+  "about.method.o1",
+  "about.method.o2",
+  "about.method.p1",
+  "about.method.p2",
+];
 const METHOD_LIS = ["about.method.li1", "about.method.li2", "about.method.li3", "about.method.li4"];
 const METHOD_END = ["about.method.p4", "about.method.p5"];
 const STORY = ["about.story.p1", "about.story.p2", "about.story.p3"];

@@ -267,6 +267,8 @@ export const de = {
 
   "about.method.heading": "Die Methode",
   "about.method.p0": "Du weißt eigentlich, was dir wichtig ist. Und trotzdem versinkt genau das im Alltag — unter allem, was auch noch ansteht.",
+  "about.method.o1": "Die Methode dahinter stammt aus einem Buch: How to Get What You Want des kanadischen Autors Raymond Hull, erschienen 1969 — bekannt wurde er als Co-Autor des Peter-Prinzips. Hulls Beobachtung: Die meisten Menschen scheitern nicht an Können oder Fleiß, sondern daran, dass sie nie festlegen, was sie wirklich wollen — und in welcher Reihenfolge.",
+  "about.method.o2": "Sein Werkzeug dagegen ist bewusst einfach: eine handgeschriebene Liste der Dinge, die du wirklich willst, ehrlich geordnet, regelmäßig neu geschrieben — und deine Kraft gehört den obersten Punkten. tenfold bringt genau diese Disziplin ins Handy-Zeitalter.",
   "about.method.p1": "tenfold führt eine einzige Liste: die zehn Dinge, die du wirklich willst. Nicht zwanzig, kein Rückstau von allem, was man irgendwann mal tun könnte. Genau zehn. Der schwere Teil ist die ehrliche Reihenfolge. Deshalb verlangt tenfold nie, zehn Dinge auf einmal zu sortieren, sondern stellt immer nur eine Frage: Was von diesen beiden ist dir wichtiger?",
   "about.method.p2": "Das handschriftliche Ritual bleibt: Einmal im Monat oder bei Veränderungen im Leben setzt du dich mit Papier hin und schreibst deine zehn Punkte auf — langsam, von Hand, in ganzen Sätzen. Das Schreiben ist das Denken. Das nimmt dir keine Software ab. Danach überträgst du die Liste hierher.",
   "about.method.lead": "Die App übernimmt, was Papier nicht kann:",
@@ -275,7 +277,7 @@ export const de = {
   "about.method.li3": "Ehrlichkeit: Sie hält die Reihenfolge unbestechlich, Paar für Paar, unabhängig von Tagesform oder Stimmung.",
   "about.method.li4": "Privatsphäre: Alles wird verschlüsselt. Deine Liste gehört nur dir.",
   "about.method.p4": "Du arbeitest von oben nach unten. Der erste Eintrag bekommt deine volle Aufmerksamkeit. Der zehnte darf ruhen — genau dafür hast du sortiert.",
-  "about.method.p5": "Neu ist das nicht. Der Autor Raymond Hull hat dieselbe Disziplin vor Jahrzehnten für Stift und Papier beschrieben. tenfold bewahrt diese Disziplin und übernimmt die Logistik.",
+  "about.method.p5": "Neu ist das nicht — und genau das ist die Stärke. tenfold erfindet keine Methode, es bewahrt eine bewährte und übernimmt die Logistik.",
 
   "about.story.heading": "Warum deine Geschichte zählt",
   "about.story.p1": "Ein Ziel ohne Kontext lässt sich nicht sinnvoll zerlegen. „Fit werden“ bedeutet mit achtundzwanzig etwas anderes als mit einundsechzig, mit Knieproblemen und zwei Kindern. Standardvorlagen erkennen diesen Unterschied nicht.",

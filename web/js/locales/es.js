@@ -267,6 +267,8 @@ export const es = {
 
   "about.method.heading": "El método",
   "about.method.p0": "En el fondo ya sabes lo que te importa. Y aun así, justo eso se hunde en el día a día — bajo todo lo demás que también hay que hacer.",
+  "about.method.o1": "El método viene de un libro: How to Get What You Want, del autor canadiense Raymond Hull, publicado en 1969 — más conocido como coautor de El principio de Peter. Su observación: la mayoría no fracasa por falta de capacidad o esfuerzo, sino porque nunca fija qué quiere de verdad — y en qué orden.",
+  "about.method.o2": "Su herramienta es deliberadamente simple: una lista escrita a mano con las cosas que de verdad quieres, ordenada con honestidad, reescrita con regularidad — y tu energía pertenece a los primeros puestos. tenfold lleva exactamente esa disciplina a la era del móvil.",
   "about.method.p1": "tenfold lleva una sola lista: las diez cosas que de verdad quieres. No veinte, ni un montón de todo lo que podrías hacer algún día. Exactamente diez. Lo difícil es el orden honesto. Por eso tenfold nunca te pide ordenar diez cosas a la vez — hace una sola pregunta cada vez: ¿cuál de estas dos te importa más?",
   "about.method.p2": "El ritual a mano se queda: una vez al mes, o cuando la vida cambie, siéntate con papel y escribe tus diez puntos — despacio, a mano, en frases enteras. Escribir es pensar; eso no te lo quita ningún software. Después trasladas la lista aquí.",
   "about.method.lead": "La app se encarga de lo que el papel no puede:",
@@ -275,7 +277,7 @@ export const es = {
   "about.method.li3": "Honestidad: mantiene el orden insobornable, par a par, independiente del ánimo del día.",
   "about.method.li4": "Privacidad: todo se cifra. Tu lista te pertenece solo a ti.",
   "about.method.p4": "Trabajas de arriba abajo. La primera entrada recibe toda tu atención. La décima puede descansar — exactamente para eso ordenaste.",
-  "about.method.p5": "Nada de esto es nuevo: el autor Raymond Hull describió la misma disciplina hace décadas, para papel y bolígrafo. tenfold conserva la disciplina y se encarga de la logística.",
+  "about.method.p5": "Nada de esto es nuevo — y esa es la fuerza. tenfold no inventa un método; conserva uno probado y se encarga de la logística.",
 
   "about.story.heading": "Por qué importa tu historia",
   "about.story.p1": "Un objetivo sin contexto no se puede desglosar con sentido. «Ponerme en forma» significa una cosa a los veintiocho y otra a los sesenta y uno, con problemas de rodilla y dos hijos. Las plantillas estándar no notan la diferencia.",

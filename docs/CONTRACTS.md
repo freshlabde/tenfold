@@ -52,8 +52,57 @@ Anyone who wants to change an interface changes this file first.
  */
 ```
 
-Stage 2/3 fields (`story`, `entityRefs`, the context index) do not exist in the schema yet.
-The `schema` field enables later migration.
+### Schema 2 (stage 2 — story layer)
+
+```js
+/** Node gains:
+ * @property {string} story         the story behind the goal - plain text, no markdown
+ * @property {string[]} entityRefs  ids of linked entities
+ */
+
+/** @typedef {Object} Entity   the private context index
+ * @property {string} id
+ * @property {string} name
+ * @property {string[]} aliases
+ * @property {"person"|"place"|"org"|"topic"} kind
+ * @property {string} relation      one line: "my daughter, 14" - plain text
+ * @property {string} notes         history, agreements, sore points - plain text
+ * @property {"normal"|"high"} sensitivity  high = only ever shown to an LLM after explicit release
+ * @property {number} createdAt @property {number} updatedAt @property {number|null} deletedAt
+ */
+
+/** Doc (schema 2): { schema: 2, nodes, entities, settings } */
+```
+
+- Migration: a schema-1 doc is upgraded in memory on open (`schema: 2`, `entities: []`,
+  missing node fields defaulted). One-way, invisible, no data touched otherwise.
+- `mergeDocs` applies the same per-item rule to `entities` as to `nodes`.
+- **Name detection** is a plain local scan (capitalised words in title/story matched against
+  entity names/aliases; unknown recurring names produce a quiet inline hint to add a card).
+  Never a modal, never a network call, never an LLM.
+- **Story guide** (the no-LLM interview): fixed prompts - why does this matter now, what was
+  already tried, what typically gets in the way, how will you know it is done - whose answers
+  are appended to `story` / `doneWhen` with plain labels. No new schema.
+- **Story-depth marker**: a silent 0..1 derived from presence of story, doneWhen, entityRefs,
+  note. Subtle visual mark only, hideable via settings; it never nags.
+
+## Today & the daily question (stage 2)
+
+- **Today screen**: `model.todayList` (rule fixed above), route `today`, reachable from the
+  outline header; a quiet list, max 7, nothing else.
+- **`web/js/questions.js`**: a catalogue of calm coaching questions (i18n keys, all three
+  locales). The daily question picks deterministically (date + node with the thinnest story);
+  the answer is appended to that node's story. Works fully offline, no LLM.
+- **Web push** (optional, off by default, requires sync enabled + browser permission):
+  - `GET  /api/push/vapid` -> `{ publicKey }` (server generates its VAPID P-256 pair once,
+    stored in the data dir; ES256 JWT via node:crypto - still no third-party dependency).
+  - `POST /api/push/subscribe` `{ syncId, sub, hourUtc }`, header `X-Sync-Token` -> 204.
+    Max 5 subscriptions per syncId, stored beside the vault record.
+  - `POST /api/push/unsubscribe` `{ syncId, endpoint }`, same auth.
+  - The server sends an **empty** push (no payload) once daily per subscription at
+    `hourUtc`; the service worker shows a static localised "your question is waiting"
+    notification. No list content ever reaches the push channel; the SW may keep the
+    current locale in its own small store to localise the static text.
 
 ## `web/js/crypto.js` (BUILT — do not change without updating its tests)
 
