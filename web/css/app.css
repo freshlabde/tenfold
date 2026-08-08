@@ -662,6 +662,39 @@ button { -webkit-tap-highlight-color: transparent; }
 .iconbtn.is-small { width: 34px; height: 34px; flex: none; }
 
 /* The four questions: one at a time, nothing else on the sheet. */
+/* ------------------------------------------------------- today and question */
+
+.btn-ghost.is-today { padding: 12px 8px; color: var(--text-2); }
+.btn-ghost.is-today:active { color: var(--accent); }
+
+.qcard {
+  margin-bottom: 14px; padding: 14px;
+  border-radius: var(--radius-m);
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  box-shadow: inset 0 1px 0 var(--edge), var(--shadow-1);
+}
+.qcard-key {
+  font-family: var(--font-mono);
+  font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-4);
+}
+.qcard-node {
+  display: block; width: 100%; margin-top: 8px; padding: 0;
+  border: 0; background: none; text-align: left; cursor: pointer;
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  color: var(--accent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.qcard-q {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 17px; line-height: 1.35; font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-display);
+  color: var(--text);
+}
+.qcard .textarea { margin-top: 12px; min-height: 76px; }
+.qcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; }
+
 .guide { padding-top: 4px; }
 .guide-step {
   font-family: var(--font-mono);

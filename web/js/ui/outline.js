@@ -41,6 +41,17 @@ export function render(ctx) {
   const composing = ctx.compose && ctx.compose.parentId === null;
 
   const actions = el("div", { class: "head-actions" }, [
+    // The way into the short list. A word, not an icon: "Today" is the one
+    // thing on this screen that is a destination rather than a tool.
+    el(
+      "button",
+      {
+        class: "btn-ghost is-today",
+        attrs: { type: "button" },
+        on: { click: () => ctx.go("today") },
+      },
+      [text(t("today.entry"))],
+    ),
     el(
       "button",
       {

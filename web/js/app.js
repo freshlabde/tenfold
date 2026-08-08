@@ -37,12 +37,14 @@ import {
   rememberDismissal,
 } from "./entities.js";
 import * as sync from "./sync.js";
+import * as push from "./push.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
 import { el, clear, text, icon } from "./ui/dom.js";
 import * as setupScreen from "./ui/setup.js";
 import * as lockScreen from "./ui/lock.js";
 import * as outlineScreen from "./ui/outline.js";
+import * as todayScreen from "./ui/today.js";
 import * as focusScreen from "./ui/focus.js";
 import * as leafScreen from "./ui/leaf.js";
 import * as duelScreen from "./ui/duel.js";
@@ -70,6 +72,7 @@ const SCREENS = {
   setup: setupScreen,
   lock: lockScreen,
   outline: outlineScreen,
+  today: todayScreen,
   focus: focusScreen,
   leaf: leafScreen,
   duel: duelScreen,
@@ -91,6 +94,8 @@ const state = {
   savedAt: null,
   persisted: null,
   autoLocked: false,
+  /** "today" when the app was opened from the daily notification. */
+  pendingView: null,
 };
 
 let saveTimer = 0;
@@ -138,6 +143,9 @@ function applyPresentation(settings) {
   root.setAttribute("lang", lang);
   setLocale(lang);
   writeUiPrefs({ skin, theme, lang });
+  // The service worker cannot import the catalogues, so the chosen language is
+  // parked where it can read it. One of three fixed strings, no user content.
+  push.rememberLocale(lang);
 }
 
 // ------------------------------------------------------------------ autosave
@@ -334,6 +342,7 @@ function setLanguage(lang) {
   setLocale(lang);
   document.documentElement.setAttribute("lang", lang);
   writeUiPrefs({ ...readUiPrefs(), lang });
+  push.rememberLocale(lang);
   render();
 }
 
@@ -405,6 +414,15 @@ const ctx = {
       render();
       return;
     }
+    // Arrived through the notification: the outline stays underneath, so the
+    // close button on Today lands where it always does.
+    if (state.pendingView === "today") {
+      state.pendingView = null;
+      state.view = { name: "outline", id: null };
+      state.stack = [];
+      ctx.go("today");
+      return;
+    }
     ctx.go("outline", null, { replace: true });
   },
 
@@ -412,6 +430,11 @@ const ctx = {
     state.introAbout = false;
     state.view = { name: "outline", id: null };
     state.stack = [];
+    if (state.pendingView === "today") {
+      state.pendingView = null;
+      state.view = { name: "today", id: null };
+      state.stack = [{ name: "outline", id: null }];
+    }
     setSettings({ aboutRead: true });
     // Persist immediately - the debounced autosave loses this flag when the
     // page is closed right after the intro, and the intro would reappear.
@@ -800,6 +823,21 @@ const ctx = {
     },
   },
 
+  /**
+   * The daily reminder. Optional, off by default, and only offered when sync
+   * is on - the server has to know which vault a subscription belongs to, and
+   * the write token is what proves it may.
+   */
+  push: {
+    get status() {
+      return push.snapshot();
+    },
+    /** Re-read the browser truth; resolves to true when something changed. */
+    refresh: () => push.refresh(),
+    enable: (hour) => push.enablePush(syncCtx, hour),
+    disable: () => push.disablePush(syncCtx),
+  },
+
   /** Write a Blob to disk. Local only - no upload, no network. */
   download(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -879,6 +917,16 @@ async function pullOnEntry() {
 
 document.addEventListener("keydown", (ev) => {
   touchIdle();
+  // The desktop way into the short list. In a browser tab Cmd/Ctrl+T belongs
+  // to the browser and never reaches us; in the installed app it does, and the
+  // header button works everywhere.
+  if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && (ev.key === "t" || ev.key === "T")) {
+    if (state.doc && !isSheetOpen()) {
+      ev.preventDefault();
+      if (state.view.name !== "today") go("today");
+    }
+    return;
+  }
   if (ev.key === "Escape") {
     if (isSheetOpen()) {
       closeSheet();
@@ -948,10 +996,27 @@ async function handlePairing(code) {
   }
 }
 
+/**
+ * The notification opens the app at ?view=today. The parameter is read once
+ * and removed immediately, so a reload or a bookmark does not keep forcing the
+ * screen - and it never carries anything but that one fixed word.
+ */
+function takePendingView() {
+  const params = new URLSearchParams(location.search);
+  const view = params.get("view");
+  if (view === null) return null;
+  params.delete("view");
+  const query = params.toString();
+  history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
+  return view === "today" ? "today" : null;
+}
+
 async function boot() {
   const prefs = readUiPrefs();
   setLocale(LOCALES.includes(prefs.lang) ? prefs.lang : detectLocale());
   document.documentElement.setAttribute("lang", getLocale());
+  push.rememberLocale(getLocale());
+  state.pendingView = takePendingView();
   const pairing = takePairingFromFragment();
   try {
     state.vault = await loadVault();

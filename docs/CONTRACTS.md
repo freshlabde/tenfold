@@ -17,9 +17,11 @@ Anyone who wants to change an interface changes this file first.
 6. **i18n: en, de, es.** English is the source of truth and the fallback chain is
    `[requested] -> en`. All three locales ship with identical key sets — a missing key in any
    locale is a test failure. No hardcoded UI strings in components.
-7. **Network discipline.** The ONLY module allowed to use `fetch` is `web/js/sync.js`, and
-   the only endpoints it may call are the same-origin `/api/vault/...` routes below. Every
-   other module stays network-free. Nothing that leaves the device is ever plaintext.
+7. **Network discipline.** Exactly TWO modules are allowed to use `fetch`:
+   `web/js/sync.js` (same-origin `/api/vault/...` only) and `web/js/push.js` (same-origin
+   `/api/push/...` only). Every other module stays network-free. Nothing that leaves the
+   device is ever plaintext; what push sends is a browser-issued endpoint URL and one hour,
+   never a title, a note or a node id.
 8. Every file starts with a short comment block: what it does, what it deliberately does not do.
 
 ## Data model (stage 1)
@@ -95,21 +97,36 @@ Anyone who wants to change an interface changes this file first.
 
 ## Today & the daily question (stage 2)
 
-- **Today screen**: `model.todayList` (rule fixed above), route `today`, reachable from the
-  outline header; a quiet list, max 7, nothing else.
-- **`web/js/questions.js`**: a catalogue of calm coaching questions (i18n keys, all three
-  locales). The daily question picks deterministically (date + node with the thinnest story);
-  the answer is appended to that node's story. Works fully offline, no LLM.
+- **Today screen** (`web/js/ui/today.js`, route `today`): `model.todayList` (rule fixed
+  above), reachable from a "Today" button in the outline header and via Cmd/Ctrl+T; a quiet
+  list, max 7, nothing else. Rows are the ordinary `rows.js` rows with `opts.path` set, so
+  swipe-right-done works here too.
+- **`web/js/questions.js`**: a catalogue of 16 calm coaching questions (i18n keys, all three
+  locales; each question carries a short label its answer is filed under). The daily question
+  picks deterministically (`dayKey` YYYYMMDD + the open node with the thinnest `storyDepth`,
+  ties by root rank then own rank then age then id); the answer is appended to that node's
+  story as a labelled line. `settings.dailyDismissed` (YYYYMMDD) puts it away until tomorrow.
+  Works fully offline, no LLM, no randomness.
 - **Web push** (optional, off by default, requires sync enabled + browser permission):
   - `GET  /api/push/vapid` -> `{ publicKey }` (server generates its VAPID P-256 pair once,
-    stored in the data dir; ES256 JWT via node:crypto - still no third-party dependency).
-  - `POST /api/push/subscribe` `{ syncId, sub, hourUtc }`, header `X-Sync-Token` -> 204.
-    Max 5 subscriptions per syncId, stored beside the vault record.
-  - `POST /api/push/unsubscribe` `{ syncId, endpoint }`, same auth.
+    stored as `vapid.json` in the data dir; ES256 JWT signed with WebCrypto -
+    `globalThis.crypto.subtle`, no `node:crypto` import, no third-party dependency).
+    The pair is a SIGNING key for push identity only - it can decrypt nothing.
+  - `POST /api/push/subscribe` `{ syncId, sub, hourUtc }`, header `X-Sync-Token` (checked
+    against the stored token hash) -> 204. Max 5 subscriptions per syncId (the 6th gets 429),
+    stored as `push.json` beside the vault record, atomically. Only `sub.endpoint` is kept -
+    the subscription's encryption keys are deliberately dropped.
+  - `POST /api/push/unsubscribe` `{ syncId, endpoint }`, same auth -> 204.
+  - `POST /api/push/dispatch` runs a round now; loopback only (operator/test trigger).
   - The server sends an **empty** push (no payload) once daily per subscription at
-    `hourUtc`; the service worker shows a static localised "your question is waiting"
-    notification. No list content ever reaches the push channel; the SW may keep the
-    current locale in its own small store to localise the static text.
+    `hourUtc` - a `setInterval` every 5 min, `lastSentDay` per subscription, and a 404/410
+    from the push service removes it. This is the ONE outbound call in the whole system.
+  - The service worker shows a static localised "your question is waiting" notification and
+    never reads `event.data`; the locale sits in its own `tenfold-locale` cache entry,
+    written by the app on every locale change. `notificationclick` opens `./?view=today`,
+    which the app consumes once and strips from the URL.
+  - Client: `web/js/push.js` (see rule 7), settings row "Daily reminder" inside the sync
+    group, honest about iOS needing the installed home-screen app.
 
 ## `web/js/crypto.js` (BUILT — do not change without updating its tests)
 

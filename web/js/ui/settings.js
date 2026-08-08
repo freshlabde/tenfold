@@ -8,7 +8,9 @@
 // nothing to switch off), no theme preview screen. The unencrypted export is
 // behind a sheet that states plainly what it means. The sync group is a
 // status line and two actions - no progress bars, no spinner, no dialog: a
-// sync that fails is a quiet dot, never an interruption.
+// sync that fails is a quiet dot, never an interruption. The daily reminder
+// only appears with sync on, is off until switched on, and says out loud what
+// it cannot do on iOS outside the installed app.
 
 import { el, text, icon } from "./dom.js";
 import { t, LOCALES, getLocale } from "../i18n.js";
@@ -176,6 +178,90 @@ function disableSheet(ctx) {
   ctx.openSheet({ title: t("sync.disable"), body, footer });
 }
 
+/** "at 08:00" - the hour, in the plain 24 hour form every locale can read. */
+function hourLabel(hour) {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+/**
+ * The reminder sheet: what it does, what it costs in honesty, and the hour.
+ * Turning it on asks the browser for permission at the moment of the press,
+ * which is the only moment a permission prompt is not an ambush.
+ */
+function reminderSheet(ctx) {
+  const status = ctx.push.status;
+  const field = el("input", {
+    class: "input",
+    attrs: { type: "number", min: "0", max: "23", step: "1", inputmode: "numeric", "aria-label": t("push.hour") },
+  });
+  field.value = String(status.hour);
+
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("push.body"))]),
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("push.hour"))]),
+      field,
+      el("p", { class: "field-hint" }, [text(t("push.hourHint"))]),
+    ]),
+    el("p", { class: "field-hint" }, [text(t("push.ios"))]),
+  ]);
+
+  const apply = async () => {
+    const hour = Number(field.value);
+    closeSheet();
+    try {
+      await ctx.push.enable(Number.isFinite(hour) ? hour : 8);
+      ctx.toast(t("push.on", { time: hourLabel(Math.max(0, Math.min(23, Math.trunc(hour)))) }));
+    } catch (err) {
+      ctx.toast(t(`push.error.${err && err.code ? err.code : "server"}`));
+    }
+    await ctx.push.refresh();
+    ctx.render();
+  };
+
+  const footer = el("div", { class: "sheet-foot" }, [
+    status.enabled
+      ? el(
+          "button",
+          {
+            class: "btn",
+            attrs: { type: "button" },
+            on: {
+              click: async () => {
+                closeSheet();
+                await ctx.push.disable();
+                await ctx.push.refresh();
+                ctx.toast(t("push.off"));
+                ctx.render();
+              },
+            },
+          },
+          [text(t("push.disable"))],
+        )
+      : el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+          text(t("common.cancel")),
+        ]),
+    el("button", { class: "btn is-primary", attrs: { type: "button" }, on: { click: apply } }, [
+      text(status.enabled ? t("common.save") : t("push.enable")),
+    ]),
+  ]);
+  ctx.openSheet({ title: t("push.title"), body, footer });
+}
+
+/** The reminder row. Only exists with sync on - the server needs the vault. */
+function reminderRow(ctx) {
+  const status = ctx.push.status;
+  if (!status.supported) {
+    return row("push.title", "push.unsupported", null, null, { disabled: true });
+  }
+  if (status.permission === "denied") {
+    return row("push.title", "push.error.denied", null, null, { disabled: true });
+  }
+  return status.enabled
+    ? row("push.title", "push.onDesc", hourLabel(status.hour), () => reminderSheet(ctx))
+    : row("push.enable", "push.enableDesc", null, () => reminderSheet(ctx));
+}
+
 /** The whole sync group: off = one row, on = status, pairing code, off switch. */
 function syncGroup(ctx) {
   if (!ctx.sync.enabled) {
@@ -190,6 +276,7 @@ function syncGroup(ctx) {
   return group("settings.group.sync", [
     syncStatusRow(ctx),
     row("sync.pairing", "sync.pairingDesc", null, () => pairingSheet(ctx)),
+    reminderRow(ctx),
     row("sync.disable", "sync.disableDesc", null, () => disableSheet(ctx), { danger: true }),
   ]);
 }
@@ -223,6 +310,15 @@ function plaintextSheet(ctx) {
 
 export function render(ctx) {
   const settings = ctx.doc.settings || {};
+
+  // Whether a push subscription exists is a fact of the browser, not of the
+  // document, so it can only be read asynchronously. The row is drawn from the
+  // last known state and repainted once - and only if - that turns out stale.
+  if (ctx.sync.enabled) {
+    ctx.push.refresh().then((changed) => {
+      if (changed && ctx.view.name === "settings") ctx.repaint();
+    });
+  }
 
   const file = el("input", { class: "sr-only", attrs: { type: "file", accept: ".tenfold,application/json" } });
   file.addEventListener("change", async () => {

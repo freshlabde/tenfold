@@ -20,8 +20,14 @@ const SWIPE_START = 8;
 const SWIPE_COMMIT = 92;
 const LONG_PRESS_MS = 420;
 
-function subLine(ctx, node) {
+/**
+ * The small line under a title. `opts.path` is the chain a step hangs in - the
+ * today list needs it, because there a row is torn out of its context and
+ * "call the physio" alone says nothing about which goal it serves.
+ */
+function subLine(ctx, node, opts = {}) {
   const parts = [];
+  if (opts.path) parts.push(opts.path);
   if (node.status === "doing") parts.push(t("status.doing"));
   if (typeof node.due === "number" && node.status !== "done") {
     parts.push(dueLabel(node.due, ctx.now()));
@@ -33,7 +39,7 @@ function subLine(ctx, node) {
  * One row.
  * @param {Object} ctx app context
  * @param {Object} node
- * @param {{rank:number,total:number,lead:boolean,showRank:boolean}} opts
+ * @param {{rank:number,total:number,lead:boolean,showRank:boolean,path:string}} opts
  */
 export function nodeRow(ctx, node, opts = {}) {
   const nodes = ctx.doc.nodes;
@@ -55,7 +61,7 @@ export function nodeRow(ctx, node, opts = {}) {
   const body = el("div", { class: "row-body" }, [
     el("div", { class: "row-title" }, [text(node.title || t("editor.newTitle"))]),
   ]);
-  const sub = subLine(ctx, node);
+  const sub = subLine(ctx, node, opts);
   if (sub) body.appendChild(el("div", { class: "row-sub" }, [text(sub)]));
 
   // The mono rail on the right: the machine figure, and - unless it is

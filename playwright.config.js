@@ -24,6 +24,10 @@ export default defineConfig({
     env: {
       PORT: String(TEST_PORT),
       TENFOLD_DATA: TEST_DATA,
+      // Lets the push tests point a subscription at a local http sink so the
+      // VAPID header can be read back and verified. Off everywhere else - a
+      // deployed server accepts https push endpoints only.
+      TENFOLD_PUSH_ALLOW_INSECURE: "1",
     },
   },
 });

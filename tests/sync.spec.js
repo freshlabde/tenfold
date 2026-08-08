@@ -436,7 +436,7 @@ test("an oversized blob is refused", async ({ request }) => {
 
 // --------------------------------------------------------------- source rules
 
-test("sync.js is the only module that reaches the network", async () => {
+test("only sync.js and push.js reach the network", async () => {
   const dir = join(ROOT, "web", "js");
   const walk = async (base) => {
     const out = [];
@@ -450,13 +450,15 @@ test("sync.js is the only module that reaches the network", async () => {
   const strip = (source) =>
     source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
+  // Contract rule 7: two named modules, nothing else.
+  const allowed = [join("web", "js", "sync.js"), join("web", "js", "push.js")];
   const offenders = [];
   for (const file of await walk(dir)) {
     const code = strip(await readFile(file, "utf8"));
     const reaches = /\bfetch\s*\(|XMLHttpRequest|new\s+WebSocket|navigator\.sendBeacon|EventSource/.test(
       code,
     );
-    if (reaches && !file.endsWith(join("web", "js", "sync.js"))) offenders.push(file.replace(ROOT, ""));
+    if (reaches && !allowed.some((a) => file.endsWith(a))) offenders.push(file.replace(ROOT, ""));
   }
   expect(offenders).toEqual([]);
 
@@ -467,6 +469,14 @@ test("sync.js is the only module that reaches the network", async () => {
   // The endpoint builder only ever produces same-origin /api/vault paths.
   expect(sync).toMatch(/API_BASE\s*=\s*location\.pathname/);
   expect(sync).not.toMatch(/https?:\/\//);
+
+  // The same rule for push: same-origin builder, no absolute URL in the source.
+  const pushSource = strip(await readFile(join(dir, "push.js"), "utf8"));
+  const pushUrls = [...pushSource.matchAll(/fetch\s*\(\s*([^,)]+)/g)].map((m) => m[1].trim());
+  expect(pushUrls.length).toBeGreaterThan(0);
+  for (const url of pushUrls) expect(url).toMatch(/endpointUrl\(/);
+  expect(pushSource).toMatch(/API_BASE\s*=\s*location\.pathname/);
+  expect(pushSource).not.toMatch(/https?:\/\//);
 });
 
 test("the server has no key material, no cipher and no decrypt path", async () => {
@@ -487,7 +497,19 @@ test("the server has no key material, no cipher and no decrypt path", async () =
   ];
   const hits = forbidden.filter((rx) => rx.test(stripped)).map(String);
   expect(hits).toEqual([]);
-  // The one-way digest of the write token is all the hashing there is.
-  expect(stripped.match(/subtle\./g) || []).toHaveLength(1);
+
+  // The allowlist of WebCrypto operations this server may perform. It grew by
+  // exactly one feature in stage 2: the VAPID pair that signs the push
+  // identity JWT (generateKey / exportKey / importKey / sign, all ECDSA
+  // P-256). That is a SIGNING key - ECDSA has no decrypt operation at all -
+  // and the pushes it authorises carry no payload, so there is not even a
+  // message it could be pointed at. Anything beyond this list is drift.
+  const ops = [...new Set([...stripped.matchAll(/subtle\.(\w+)/g)].map((m) => m[1]))].sort();
+  expect(ops).toEqual(["digest", "exportKey", "generateKey", "importKey", "sign"]);
+  // The one-way digest of the write token is still the only hashing there is.
+  expect(stripped.match(/subtle\.digest\(/g) || []).toHaveLength(1);
   expect(stripped).toMatch(/subtle\.digest\("SHA-256"/);
+  // The key that exists is a P-256 signing key and nothing else.
+  expect(stripped).toMatch(/name:\s*"ECDSA"/);
+  expect(stripped).not.toMatch(/ECDH|RSA|encrypt|unwrapKey|wrapKey/);
 });
