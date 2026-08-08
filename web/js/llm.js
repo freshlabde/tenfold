@@ -224,6 +224,17 @@ export function answerText(data) {
   const choice = data && Array.isArray(data.choices) ? data.choices[0] : null;
   const message = choice && choice.message;
   const content = message && message.content;
+  // Reasoning models spend tokens thinking before they answer. When the
+  // budget ran out mid-thought the content comes back empty with
+  // finish_reason "length" - a distinct, explainable failure, not a
+  // malformed answer (verified live against gemma via LM Studio).
+  if (
+    choice &&
+    choice.finish_reason === "length" &&
+    (content === "" || content === null || content === undefined)
+  ) {
+    throw new LlmError("budget");
+  }
   if (typeof content === "string") return content;
   // Some providers answer with content parts instead of a plain string.
   if (Array.isArray(content)) {

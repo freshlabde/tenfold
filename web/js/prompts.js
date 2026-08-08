@@ -173,7 +173,7 @@ export const OPERATIONS = [
     descKey: "llm.op.breakdownDesc",
     intent: "break this goal down into three to seven concrete substeps",
     interview: true,
-    maxTokens: 900,
+    maxTokens: 4000,
     fits: (node) => node.status !== "done",
     task: [
       "Task: propose three to seven substeps for this goal.",
@@ -201,7 +201,7 @@ export const OPERATIONS = [
     descKey: "llm.op.smallestDesc",
     intent: "name the smallest next step that takes under thirty minutes",
     interview: true,
-    maxTokens: 400,
+    maxTokens: 3000,
     fits: (node) => node.status !== "done",
     task: [
       "Task: name the single smallest next step for this goal - something that takes under thirty minutes and can be done today.",
@@ -226,7 +226,7 @@ export const OPERATIONS = [
     descKey: "llm.op.blockersDesc",
     intent: "name what stands in the way and what has to be in place first",
     interview: true,
-    maxTokens: 700,
+    maxTokens: 4000,
     fits: (node) => node.status !== "done",
     task: [
       "Task: name what realistically stands in the way of this goal, and what has to be in place before it can move.",
@@ -254,7 +254,7 @@ export const OPERATIONS = [
     descKey: "llm.op.sharpenDesc",
     intent: "turn this vague line into one that can be checked",
     interview: false,
-    maxTokens: 400,
+    maxTokens: 3000,
     field: "title",
     fits: () => true,
     task: [
@@ -275,7 +275,7 @@ export const OPERATIONS = [
     descKey: "llm.op.doneDesc",
     intent: "say how this will be recognised as finished",
     interview: false,
-    maxTokens: 400,
+    maxTokens: 3000,
     field: "doneWhen",
     fits: (node) => node.status !== "done",
     task: [
@@ -296,7 +296,7 @@ export const OPERATIONS = [
     descKey: "llm.op.rankDesc",
     intent: "put the parts of this goal into the order they should be done in",
     interview: false,
-    maxTokens: 800,
+    maxTokens: 4000,
     fits: (node, info) => info.childCount >= 2,
     task: [
       "Task: put the numbered parts of this goal into the order in which they should be done.",
@@ -326,7 +326,7 @@ export const OPERATIONS = [
     descKey: "llm.op.understandDesc",
     intent: "understand what this goal really is about",
     interview: false,
-    maxTokens: 500,
+    maxTokens: 3000,
     fits: () => true,
     task: [
       `Task: ask the at most ${MAX_QUESTIONS} questions whose answers would most change how this goal gets broken down.`,

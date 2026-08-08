@@ -39,6 +39,8 @@ const PROVIDERS = [
 
 /** What LM Studio serves on by default - the most likely local case. */
 const DEFAULT_LOCAL_URL = "http://127.0.0.1:1234/v1";
+/** The owner's standing local setup; picking "local" starts from it. */
+const DEFAULT_LOCAL_MODEL = "google/gemma-4-26b-a4b";
 const THEMES = ["dark", "light"];
 const DEPTH = ["on", "off"];
 
@@ -328,7 +330,7 @@ function localSheet(ctx, llm) {
     class: "input",
     attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.model") },
   });
-  model.value = llm.model || "";
+  model.value = llm.model || DEFAULT_LOCAL_MODEL;
 
   const body = el("div", {}, [
     el("div", { class: "field" }, [
@@ -455,7 +457,11 @@ function pickMode(ctx, llm, next) {
   }
   if (next === "local") {
     const cloudUrl = PROVIDERS.some((p) => p.url === llm.baseUrl);
-    ctx.setLlm({ mode: "local", baseUrl: !llm.baseUrl || cloudUrl ? DEFAULT_LOCAL_URL : llm.baseUrl });
+    ctx.setLlm({
+      mode: "local",
+      baseUrl: !llm.baseUrl || cloudUrl ? DEFAULT_LOCAL_URL : llm.baseUrl,
+      model: llm.model || DEFAULT_LOCAL_MODEL,
+    });
     return;
   }
   const toCloud = () => {

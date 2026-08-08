@@ -532,7 +532,8 @@ export const de = {
   "llm.error.busy": "Gerade zu viele Anfragen.",
   "llm.error.timeout": "Das Modell hat zu lange gebraucht.",
   "llm.error.server": "Der Modell-Server hat nicht sauber geantwortet.",
-  "llm.error.malformed": "Die Antwort kam nicht in der erwarteten Form. Es wurde nichts geaendert.",
+  "llm.error.malformed": "Die Antwort kam nicht in der erwarteten Form. Es wurde nichts geändert.",
+  "llm.error.budget": "Das Modell hat sein Antwort-Budget beim Nachdenken verbraucht und kam nie zur Antwort. Versuch es noch einmal — oder wähle ein Modell ohne langes internes Denken.",
   "llm.error.tooBig": "Diese Datei ist größer als 15 MB. Sie wurde nicht gelesen und nichts gesendet.",
   "llm.error.unreadable": "Auf dem Bild war nichts Lesbares. Es wurde nichts geändert.",
 

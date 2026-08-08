@@ -533,6 +533,7 @@ export const es = {
   "llm.error.timeout": "El modelo ha tardado demasiado.",
   "llm.error.server": "El servidor del modelo no ha respondido bien.",
   "llm.error.malformed": "La respuesta no ha llegado en la forma esperada. No se ha cambiado nada.",
+  "llm.error.budget": "El modelo agotó su presupuesto de respuesta pensando y nunca llegó a responder. Inténtalo de nuevo — o elige un modelo sin razonamiento interno largo.",
   "llm.error.tooBig": "Ese archivo pasa de 15 MB. No se ha leído y no se ha enviado nada.",
   "llm.error.unreadable": "No se ha encontrado nada legible en esa imagen. No se ha cambiado nada.",
 

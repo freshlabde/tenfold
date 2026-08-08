@@ -33,7 +33,7 @@ export const MAX_EDGE = 1600;
 export const JPEG_QUALITY = 0.8;
 
 /** How much of the model's answer we are prepared to read back. */
-const MAX_TOKENS = 2400;
+const MAX_TOKENS = 4000;
 
 /** The payload size of a data URL, in bytes - base64 is four chars per three. */
 export function dataUrlBytes(dataUrl) {
