@@ -331,6 +331,11 @@ function localSheet(ctx, llm) {
     attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.model") },
   });
   model.value = llm.model || DEFAULT_LOCAL_MODEL;
+  const visionModel = el("input", {
+    class: "input",
+    attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.visionModel") },
+  });
+  visionModel.value = llm.visionModel || "";
 
   const body = el("div", {}, [
     el("div", { class: "field" }, [
@@ -342,6 +347,11 @@ function localSheet(ctx, llm) {
       el("span", { class: "field-label" }, [text(t("llm.model"))]),
       model,
       el("p", { class: "field-hint" }, [text(t("llm.modelHint"))]),
+    ]),
+    el("div", { class: "field" }, [
+      el("span", { class: "field-label" }, [text(t("llm.visionModel"))]),
+      visionModel,
+      el("p", { class: "field-hint" }, [text(t("llm.visionModelHint"))]),
     ]),
   ]);
   const footer = el("div", { class: "sheet-foot" }, [
@@ -356,7 +366,11 @@ function localSheet(ctx, llm) {
         on: {
           click: () => {
             closeSheet();
-            ctx.setLlm({ baseUrl: url.value.trim(), model: model.value.trim() });
+            ctx.setLlm({
+              baseUrl: url.value.trim(),
+              model: model.value.trim(),
+              visionModel: visionModel.value.trim(),
+            });
             ctx.toast(t("toast.saved"));
           },
         },

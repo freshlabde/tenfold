@@ -377,8 +377,82 @@ test("a fourth level is summed up on its level-three ancestor", async ({ page })
   await expect(page.locator(".map-more")).toHaveText("+6");
 });
 
+test("rank is legible before any label is: size, light and a numeral", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await openMap(page);
+
+  // 1 - the size ladder. Rank one is more than twice rank ten, and every step
+  // down the list is a step down in size; a flat sky is the bug this guards.
+  const radii = await page
+    .locator(`${roots} > .map-disc`)
+    .evaluateAll((list) => list.map((c) => Number(c.getAttribute("r"))));
+  expect(radii).toHaveLength(10);
+  expect(radii[0] / radii[9]).toBeGreaterThan(2.15);
+  for (let i = 1; i < radii.length; i += 1) expect(radii[i]).toBeLessThan(radii[i - 1]);
+
+  // 2 - the light ladder, on the same accent: the share of accent in a body's
+  // fill falls with its rank, and the two ends are far apart.
+  const mix = await page.locator(roots).evaluateAll((list) =>
+    list.map((g) => Number(getComputedStyle(g).getPropertyValue("--rm").replace("%", ""))),
+  );
+  for (let i = 1; i < mix.length; i += 1) expect(mix[i]).toBeLessThan(mix[i - 1]);
+  expect(mix[0] - mix[9]).toBeGreaterThan(40);
+
+  // 3 - the numeral. On every root, in rank order, and a number rather than a
+  // translated string - no locale owns it.
+  await expect(page.locator(`${roots} > .map-rank`)).toHaveCount(10);
+  const figures = await page
+    .locator(`${roots} > .map-rank`)
+    .evaluateAll((list) => list.map((n) => n.textContent));
+  expect(figures).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+});
+
+test("families whisper: one accent, a different turn of it per root", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await openMap(page);
+
+  // Every family gets its own hue offset, and the offsets stay small - this is
+  // one metal seen from ten angles, never ten colours.
+  const turns = await page.locator(roots).evaluateAll((list) =>
+    list.map((g) => Number(getComputedStyle(g).getPropertyValue("--tint-h"))),
+  );
+  expect(new Set(turns).size).toBe(10);
+  for (const turn of turns) expect(Math.abs(turn)).toBeLessThanOrEqual(24);
+
+});
+
+test("a part inherits its family's tint and its family's light", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES.slice(0, 4));
+  // The last of the four gets the parts, so the family it inherits from is
+  // demonstrably not the default one.
+  await page.locator(".row-shell").nth(3).locator(".row").click();
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  await page.locator(".composer input").fill("A part");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".crumb-pill").first().click();
+
+  await openMap(page);
+  const read = (locator) =>
+    locator.evaluate((g) => {
+      const s = getComputedStyle(g);
+      return { turn: s.getPropertyValue("--tint-h").trim(), rm: s.getPropertyValue("--rm").trim() };
+    });
+  const root = await read(page.locator(`${roots} >> nth=3`));
+  const part = await read(page.locator(".map-body.is-d1").first());
+  expect(part).toEqual(root);
+  // And the family really is off the default, so this proves inheritance.
+  expect(root.turn).not.toBe("0");
+});
+
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v13"');
+  expect(sw).toContain('const VERSION = "tenfold-v14"');
   expect(sw).toContain('"./js/ui/map.js"');
 });

@@ -400,7 +400,11 @@ export function openImageImport(layer, ctx, parentId) {
     paintWorking();
     try {
       upload = await shrinkImage(file);
-      const text = await callForText(llmSettings(ctx.doc), importMessages(upload.dataUrl), {
+      // Reading a photo needs a vision model, which is often a different one
+      // than the text model - the optional visionModel setting wins here.
+      const base = llmSettings(ctx.doc);
+      const vision = base.visionModel ? { ...base, model: base.visionModel } : base;
+      const text = await callForText(vision, importMessages(upload.dataUrl), {
         maxTokens: MAX_TOKENS,
       });
       const parsed = parseImportItems(extractJson(text));

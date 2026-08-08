@@ -301,25 +301,52 @@ dark and a light variant (`data-theme="dark|light"`, dark default). The choice p
 
 A calm, readable screen inside the app (`web/js/ui/about.js`), reachable from settings and
 from the lock screen — it must be readable *before* unlocking, since it explains what the
-app is and what happens to the data. Content (all through i18n):
+app is and what happens to the data. On the very first entry into a vault it is shown once
+as an intro with a single "Begin" action (`ctx.introAbout` / `ctx.finishIntro`); after that
+it never appears uninvited. Outline (v4, all through i18n, key prefix `about.`):
 
-1. **The method** — one list of the ten things you truly want; ranking them honestly
-   (pairwise duels, because a real order is hard); breaking each one down, level by level,
-   until single actionable steps appear; working from the top of the list, not the bottom.
-   **The handwritten ritual stays**: once a month, or whenever life shifts, the ten are
-   written by hand on paper — writing by hand is the thinking, no app replaces it; the app
-   then carries what paper cannot (breakdown, honest ordering, encryption, always in the
-   pocket). Inspired by Raymond Hull's classic self-management advice — named as
-   inspiration, no quoted material.
-2. **Why stories matter** — a goal without its story cannot be broken down well; the app
-   asks and remembers so the steps fit your life, not a template.
-3. **Privacy in one paragraph** — everything is encrypted on the device with your keys;
-   the server (when sync exists) stores unreadable blobs; nobody, including the operator,
-   can read the list. Honest limits: an unlocked device in foreign hands, and whoever runs
-   the model sees plaintext while it thinks.
-4. **The claim** — "tenfold — get what you want."
+1. **Opening**, no heading (`intro.p1..p3`) — you know what matters; it sinks in the
+   everyday; it is not a question of effort but of nobody ever settling what comes first.
+   tenfold holds one list: the ten things you truly want, in an honest order, broken down
+   to the one step you can take tomorrow.
+2. **What this looks like** (`walk.*`) — one worked goal, end to end: "get fit" stays on
+   every list because you cannot derive a Tuesday from it, so tenfold asks about the
+   circumstances first; then four labelled question/answer lines (`walk.li1..li4`: what do
+   you mean, what stands in the way, what works anyway, when exactly), the concrete first
+   step (`walk.step`), and the point of it (`walk.p3`): a goal without context cannot be
+   broken down.
+3. **Exactly ten. Not twenty.** (`ten.*`) — ten is a limit, not a round number; the order
+   is the hard part, so the duel asks one pair at a time (at most 25 questions for ten
+   entries, stoppable at any time — the reached order stays; binary insertion, so
+   contradictions cannot arise); work from the top down; done goals stay visible and the
+   attention moves on, the list itself is re-decided at the next paper ritual.
+4. **Where the method comes from** (`origin.*`) — Raymond Hull (1919–1985), British-Canadian
+   author in Vancouver; *How to Get What You Want* (1969), same year as *The Peter
+   Principle*, of which he was co-author; his observation and his tool. Plus the honest
+   demarcation: tenfold takes the ordered list and the writing ritual, leaves the rest of
+   the book, and the limit of exactly ten is ours. Named as origin, no quoted material.
+5. **Paper and app share the work** (`paper.*`) — the monthly handwritten ritual stays
+   (writing is the thinking), then the four things the app adds (`paper.li1..li4`):
+   lossless, depth (level by level — hence the name: *ten* goals, *fold* levels), memory of
+   your circumstances, confidentiality.
+6. **What tenfold is not** (`not.*`) — not a task manager, not a habit app, not a calendar.
+7. **Privacy — and three honest limits** (`privacy.*`) — encrypted on the device with your
+   passphrase (PBKDF2 600k rounds, AES-256-GCM); stored and transmitted is an unreadable
+   block; no accounts, no plaintext on servers; how a second device gets the block (QR
+   pairing) and the two export formats. The three limits: lost passphrase *and* recovery
+   key with no export file means the data is gone; an unlocked device in foreign hands;
+   AI assistance as a deliberate opt-in, where the stored context travels with the goal —
+   hence the recommendation to point it at your own LM Studio / Ollama server.
+8. **Closing + the claim** (`close.p1`, `claim.p1`) — none of this is new, and that is the
+   strength; "tenfold — get what you want."
+
+Rendering: headings are plain `h2`s, lists use the `leadItem` helper, which sets everything
+up to the first colon or question mark in `strong` — built from text nodes only, never from
+markup in a catalogue value (ground rule 2). The same helper renders `walk.step` as a
+paragraph.
 
 No marketing tone, no self-praise, no AI-tell phrasing. Short paragraphs, generous type.
+Every factual claim on this screen must match what the code actually does.
 
 ## Zero-knowledge sync (stage 2)
 

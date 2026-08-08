@@ -3,7 +3,13 @@
 // What it does: draws every living node of the tree as a floating body. The
 // ten roots descend the screen in rank order - rank one largest and highest -
 // alternating around a vertical axis and widest in the middle, their parts
-// orbit them, and the parts of those parts orbit again. Where the tree goes
+// orbit them, and the parts of those parts orbit again. Rank is carried by
+// size AND by light: rank one is about 2.3x the radius of rank ten and stands
+// at nearly full accent, rank ten is a dim ember, and a quiet mono figure
+// inside each root says which is which. Each family turns the accent hue by a
+// few fixed degrees so a branch is its own when the camera comes close, while
+// the sky as a whole stays one metal - the app has one accent per skin and
+// this screen does not get a second. Where the tree goes
 // deeper than three levels the rest is summed up into a small figure on its
 // level-three ancestor. A circle would have been the obvious arrangement and
 // is the wrong one: a phone is tall, and two ranks at the same height put two
@@ -34,13 +40,48 @@ const MAX_DEPTH = 3;
 /** Above this many bodies the deepest level is dropped rather than crammed. */
 const CROWD = 380;
 
-/** Body radius by depth; a root additionally shrinks with its rank. */
-const R_BASE = [30, 11.5, 7.6, 5];
-const R_RANK_STEP = 1.35;
+/**
+ * The rank ladder. A root's radius, the strength of its light and the reach of
+ * its halo are all one number - its rank - read through three ramps. Rank one
+ * is roughly 2.3x the radius of rank ten and stands at nearly full accent;
+ * rank ten is a dim ember. Nobody should have to read a label to see what
+ * matters: the size and the light say it first.
+ */
+const R_ROOT_MAX = 34;
+const R_ROOT_MIN = 14.6;
+/** >1 spends more of the ladder on the top of the list, where it is read. */
+const R_ROOT_CURVE = 1.35;
+/** Percent of accent in a root's fill, brightest rank first. */
+const MIX_MAX = 80;
+const MIX_MIN = 28;
+/**
+ * A short list must not be spread across the whole ladder - two goals would
+ * read as a planet and a speck. Below four roots the ramp is compressed.
+ */
+const RANK_DENOM_MIN = 3;
+
+/** Body radius by depth; index 0 is unused, a root reads the ladder above. */
+const R_BASE = [0, 10.6, 7, 4.8];
 /** Rest length of the spring that ties a body to its parent, by child depth. */
 const REST = [0, 74, 40, 24];
 /** Clearance kept between two bodies, by the deeper of the two. */
 const CLEAR = [18, 10, 6.5, 5];
+
+/**
+ * One accent, ten families. Each root turns the skin's accent hue by a few
+ * fixed degrees - never enough to become a second colour, just enough that a
+ * branch is recognisable as its own when the camera comes close. The table is
+ * fixed and read by rank, so the same list always tints the same way, and it
+ * cycles if a vault ever holds more than ten roots.
+ *
+ * Deliberately not symmetric. Turning a warm accent upwards runs into green
+ * within twenty degrees, and a green orb in a brass sky is a second colour,
+ * not a family - so the ladder leans downhill, where gold becomes copper and
+ * vermilion becomes carmine, and only whispers in the other direction.
+ */
+const TINT_H = [0, -9, 6, -15, 9, -19, 3, -12, 7, -17];
+/** Chroma is pulled back as the hue turns, so the sky stays one metal. */
+const TINT_C_FALLOFF = 160;
 
 /**
  * The ranked slots the roots are anchored to. Not a circle: a circle would
@@ -90,6 +131,40 @@ function unit(h) {
   return (h >>> 8) / 16777216;
 }
 
+// ---------------------------------------------------------------- the ladder
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/**
+ * 1 at rank one, 0 at the last rank - the single number every root-sized
+ * decision on this screen is made from.
+ */
+function rankLight(index, siblings) {
+  const denom = Math.max(RANK_DENOM_MIN, siblings - 1);
+  return 1 - clamp01(index / denom);
+}
+
+/** Everything a root's rank decides: how big, how bright, how far it glows. */
+function rankLook(index, siblings) {
+  const light = rankLight(index, siblings);
+  const mix = MIX_MIN + (MIX_MAX - MIX_MIN) * light;
+  const hue = TINT_H[index % TINT_H.length];
+  return {
+    r: R_ROOT_MIN + (R_ROOT_MAX - R_ROOT_MIN) * Math.pow(light, R_ROOT_CURVE),
+    mix,
+    glow: 0.3 + 0.7 * light,
+    // The numeral flips between the two inks the tokens already guarantee:
+    // the one that is readable on accent, and the one that is readable on the
+    // background. The flip is deliberately narrow - a wide blend would put a
+    // mid grey on the mid ranks, which is the one thing neither ink is. Both
+    // themes are covered by this single number, because both inks are defined
+    // per theme.
+    ink: clamp01((mix - 50) / 6) * 100,
+    hue,
+    chroma: 1 - Math.abs(hue) / TINT_C_FALLOFF,
+  };
+}
+
 // ------------------------------------------------------------- scene building
 
 /**
@@ -131,10 +206,16 @@ function collect(nodes, node, depth, parent, index, siblings, maxDepth, out) {
       pyc: 0,
       pys: 0,
       seed: h,
+      look: null,
       g: null,
       chain: null,
     };
-    body.r = depth === 0 ? R_BASE[0] - index * R_RANK_STEP : R_BASE[depth];
+    if (depth === 0) {
+      body.look = rankLook(index, siblings);
+      body.r = body.look.r;
+    } else {
+      body.r = R_BASE[depth];
+    }
     if (node.status === "done") body.r *= 0.72;
     const amp = depth === 0 ? 5.5 : Math.min(3, 1.6 + depth * 0.5);
     const px = unit(h) * Math.PI * 2;
@@ -393,6 +474,18 @@ function drawBody(body) {
   // The reveal cascades from the ten outwards; the step is a fraction of a
   // token duration, so reduced motion collapses it to nothing along with it.
   g.style.setProperty("--i", String(body.depth));
+  // The rank ladder enters the stylesheet as five plain numbers on the root
+  // group: no colour is ever written here. What they mean - which mix of
+  // accent, which turn of the hue - is decided in app.css, where the skins
+  // are, and the whole family inherits it from the root.
+  if (body.look) {
+    const look = body.look;
+    g.style.setProperty("--rm", `${look.mix.toFixed(1)}%`);
+    g.style.setProperty("--glow", look.glow.toFixed(3));
+    g.style.setProperty("--ink", `${look.ink.toFixed(1)}%`);
+    g.style.setProperty("--tint-h", String(look.hue));
+    g.style.setProperty("--tint-c", look.chroma.toFixed(3));
+  }
   body.g = g;
 
   // Connectors live in the parent, so the whole family drifts together and a
@@ -437,6 +530,22 @@ function drawBody(body) {
   }
 
   g.appendChild(sel("circle", { class: "map-disc", attrs: { r: body.r.toFixed(2) } }));
+
+  // The rank, inside the body it belongs to. It is information, not ornament,
+  // so it is always there - but it is set quietly, and a low rank carries it
+  // small enough that it only becomes readable once the camera comes closer.
+  // A number, not a string: nothing here has to be translated.
+  if (body.depth === 0) {
+    const figure = String(body.rank + 1);
+    const size = Math.max(8.4, body.r * (figure.length > 1 ? 0.42 : 0.52));
+    g.appendChild(
+      sel("text", {
+        class: "map-rank",
+        text: figure,
+        attrs: { x: 0, y: 0, "font-size": size.toFixed(1) },
+      }),
+    );
+  }
 
   if (body.hidden > 0) {
     g.appendChild(
@@ -496,7 +605,9 @@ export function render(ctx) {
       sel("stop", { attrs: { offset: "100%", "stop-color": "var(--accent)", "stop-opacity": "0" } }),
     ]),
     sel("radialGradient", { attrs: { id: "tf-core" } }, [
-      sel("stop", { attrs: { offset: "0%", "stop-color": "var(--accent)", "stop-opacity": ".16" } }),
+      // Faint on purpose: in the light theme anything stronger stops reading as
+      // a light behind the sky and starts reading as a mark on the paper.
+      sel("stop", { attrs: { offset: "0%", "stop-color": "var(--accent)", "stop-opacity": ".09" } }),
       sel("stop", { attrs: { offset: "100%", "stop-color": "var(--accent)", "stop-opacity": "0" } }),
     ]),
   ]);

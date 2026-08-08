@@ -779,6 +779,7 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .prose h2:first-child { margin-top: 4px; }
 .prose p { margin: 11px 0 0; font-size: 14.5px; line-height: 1.62; color: var(--text-2); }
+.prose p:first-child { margin-top: 4px; }
 .prose .claim {
   margin-top: 30px;
   font-family: var(--font-display);
@@ -787,6 +788,7 @@ button { -webkit-tap-highlight-color: transparent; }
   color: var(--text);
 }
 .prose .prose-lead { margin-top: 14px; color: var(--text); }
+.prose .prose-lead strong { font-weight: 600; }
 .prose .prose-list { margin: 8px 0 0; padding-left: 0; list-style: none; }
 .prose .prose-list li {
   margin: 8px 0 0; padding-left: 16px; position: relative;
@@ -1085,7 +1087,15 @@ button { -webkit-tap-highlight-color: transparent; }
 /* The map is the one screen that fills the frame edge to edge: the header
    floats on top of the sky instead of pushing it down. Every colour is mixed
    out of --accent and --bg, because two of the three skins define --surface as
-   transparent - a body has to stay a body there too. */
+   transparent - a body has to stay a body there too.
+
+   The rank ladder: map.js writes five numbers onto each root group - --rm (how
+   much accent is in its fill), --glow (how far its halo reaches), --ink (which
+   ink its numeral is set in) and --tint-h / --tint-c (how far its family turns
+   the accent hue). Not one of them is a colour; what they mean is decided
+   here, once, so a skin change still owns every pixel of this screen. The
+   whole family inherits its root's numbers, which is what makes a branch read
+   as one thing. */
 
 /* The map keeps the frame's own insets: pulling the screen out of them with
    negative margins made the frame scrollable by exactly those pixels, and a
@@ -1117,6 +1127,28 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .map-core { pointer-events: none; }
 
+/* The defaults every body falls back to: the seed body, and any skin or
+   browser that never receives the ladder. */
+.map-scene {
+  --tint: var(--accent);
+  --tint-h: 0;
+  --tint-c: 1;
+  --rm: 46%;
+  --m: 26%;
+  --glow: .7;
+  --ink: 0%;
+}
+
+/* One accent, ten families. The hue turn is small and the chroma is pulled
+   back with it, so zooming into a branch shows its own light while the sky as
+   a whole still reads as one metal. Where relative colour is not available the
+   family tint is simply the accent - a quieter map, never a broken one. */
+@supports (color: oklch(from white l c h)) {
+  .map-tree > .map-body {
+    --tint: oklch(from var(--accent) l calc(c * var(--tint-c)) calc(h + var(--tint-h)));
+  }
+}
+
 /* The sky lights up from the ten outwards: one step per level, opacity only,
    so it never fights the transforms the animation frame is writing. */
 @keyframes map-rise { from { opacity: 0; } to { opacity: 1; } }
@@ -1130,19 +1162,18 @@ button { -webkit-tap-highlight-color: transparent; }
 /* Looking at one branch means letting go of the other nine. */
 .map-body { transition: opacity var(--dur) var(--ease); }
 .map-tree.has-focus > .map-body:not(.is-path) { opacity: .22; }
-.map-body.is-focus > .map-disc {
-  stroke: var(--accent-2);
-  stroke-width: 2;
-}
 
+/* A connector belongs to the family it ties together, not to the sky. */
 .map-link {
-  stroke: color-mix(in srgb, var(--accent) 26%, transparent);
+  stroke: color-mix(in srgb, var(--tint) 30%, transparent);
   stroke-width: 1;
   fill: none;
   pointer-events: none;
 }
 
-.map-halo { pointer-events: none; }
+/* The halo is the rank ladder's outer half: rank one carries a real glow,
+   rank ten barely more than a breath around it. */
+.map-halo { pointer-events: none; opacity: var(--glow); }
 
 .map-arcbase {
   fill: none;
@@ -1152,40 +1183,63 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .map-arc {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--tint);
   stroke-width: 1.8;
   stroke-linecap: round;
   opacity: .85;
   pointer-events: none;
 }
 
+/* Every selector below is a CHILD selector on purpose. A part sits inside its
+   goal's group, so a descendant selector would hand the goal's light to the
+   whole branch - which is exactly how the sky ended up flat. */
 .map-disc {
-  fill: color-mix(in srgb, var(--accent) 26%, var(--bg));
-  stroke: color-mix(in srgb, var(--accent) 40%, transparent);
+  fill: color-mix(in srgb, var(--tint) var(--m), var(--bg));
+  stroke: color-mix(in srgb, var(--tint) min(100%, calc(var(--m) + 22%)), transparent);
   stroke-width: 1;
   pointer-events: none;
 }
-.map-body.is-d0 .map-disc {
-  fill: color-mix(in srgb, var(--accent) 46%, var(--bg));
-  stroke: color-mix(in srgb, var(--accent) 68%, transparent);
-  stroke-width: 1.4;
+/* The ladder does not stop at the ten: a part of the leading goal is brighter
+   than a part of the last one, because it inherits its family's --rm. */
+.map-body.is-d0 > .map-disc { --m: var(--rm); stroke-width: 1.4; }
+.map-body.is-d1 > .map-disc { --m: calc(var(--rm) * .66); }
+.map-body.is-d2 > .map-disc { --m: calc(var(--rm) * .48); }
+.map-body.is-d3 > .map-disc { --m: calc(var(--rm) * .38); }
+.map-body.is-lead > .map-disc { stroke-width: 1.8; }
+
+/* The body the camera has come to. Written after the ladder, because it has
+   to win against it. */
+.map-body.is-focus > .map-disc {
+  stroke: var(--accent-2);
+  stroke-width: 2;
 }
-.map-body.is-lead .map-disc {
-  fill: color-mix(in srgb, var(--accent) 74%, var(--bg));
-  stroke: var(--accent);
+
+/* The rank, set inside the body. Mono and tabular so ten figures share one
+   width, and mixed between the two inks the tokens guarantee: the one that is
+   readable on accent, and the one that is readable on the background. */
+.map-rank {
+  fill: color-mix(in srgb, var(--accent-ink) var(--ink), var(--text));
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-anchor: middle;
+  dominant-baseline: central;
+  opacity: .78;
+  pointer-events: none;
 }
-.map-body.is-d2 .map-disc { fill: color-mix(in srgb, var(--accent) 20%, var(--bg)); }
-.map-body.is-d3 .map-disc { fill: color-mix(in srgb, var(--accent) 15%, var(--bg)); }
 
 /* Finished work has not gone away, it has gone quiet. */
-.map-body.is-done .map-disc {
+.map-body.is-done > .map-disc {
   fill: color-mix(in srgb, var(--text) 13%, var(--bg));
   stroke: color-mix(in srgb, var(--text) 16%, transparent);
 }
-.map-body.is-done .map-link { opacity: .5; }
+.map-body.is-done > .map-rank { fill: var(--text-2); opacity: .6; }
+.map-body.is-done > .map-halo { opacity: calc(var(--glow) * .4); }
+.map-body.is-done > .map-link { opacity: .5; }
 
-.map-body.is-seed .map-disc { fill: none; stroke: var(--line); }
-.map-body.is-seed .map-arcbase { stroke-dasharray: 3 7; }
+.map-body.is-seed > .map-disc { fill: none; stroke: var(--line); }
+.map-body.is-seed > .map-arcbase { stroke-dasharray: 3 7; }
 
 .map-more {
   fill: var(--text-4);

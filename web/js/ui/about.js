@@ -1,11 +1,13 @@
 // ui/about.js - what this is, and what happens to what you write.
 //
-// What it does: a calm long-form reading screen - the method, the list of
-// what the app adds over paper, why the story matters, privacy with its two
-// honest limits, the claim. Reachable from settings and from the lock screen:
-// somebody has to be able to read this before typing a secret into the app.
-// On the very first entry into a vault it is shown once as an intro with a
-// single "Begin" action; after that it never appears uninvited again.
+// What it does: a calm long-form reading screen - the opening, a worked
+// walkthrough of one goal, why the list is exactly ten, where the method comes
+// from, how paper and app divide the work, what tenfold is not, privacy with
+// its three honest limits, the claim. Reachable from settings and from the
+// lock screen: somebody has to be able to read this before typing a secret
+// into the app. On the very first entry into a vault it is shown once as an
+// intro with a single "Begin" action; after that it never appears uninvited
+// again.
 //
 // What it deliberately does NOT do: it touches no document content. This
 // screen must render with the vault sealed, so it reads nothing but the i18n
@@ -14,27 +16,33 @@
 import { el, text, icon } from "./dom.js";
 import { t } from "../i18n.js";
 
-const METHOD_TOP = [
-  "about.method.p0",
-  "about.method.o1",
-  "about.method.o2",
-  "about.method.p1",
-  "about.method.p2",
-];
-const METHOD_LIS = ["about.method.li1", "about.method.li2", "about.method.li3", "about.method.li4"];
-const METHOD_END = ["about.method.p4", "about.method.p5"];
-const STORY = ["about.story.p1", "about.story.p2", "about.story.p3"];
-const PRIVACY_LIS = ["about.privacy.li1", "about.privacy.li2"];
+const INTRO = ["about.intro.p1", "about.intro.p2", "about.intro.p3"];
+const WALK_TOP = ["about.walk.p1", "about.walk.p2"];
+const WALK_LIS = ["about.walk.li1", "about.walk.li2", "about.walk.li3", "about.walk.li4"];
+const TEN = ["about.ten.p1", "about.ten.p2", "about.ten.p3", "about.ten.p4", "about.ten.p5"];
+const ORIGIN = ["about.origin.p1", "about.origin.p2", "about.origin.p3", "about.origin.p4"];
+const PAPER_LIS = ["about.paper.li1", "about.paper.li2", "about.paper.li3", "about.paper.li4"];
+const PRIVACY_LIS = ["about.privacy.li1", "about.privacy.li2", "about.privacy.li3"];
+
+/** The lead of a line: everything up to and including the first colon or
+ * question mark, if that happens early enough to read as a label. */
+function leadCut(s) {
+  const marks = [s.indexOf(":"), s.indexOf("?")].filter((i) => i >= 1);
+  if (!marks.length) return -1;
+  const cut = Math.min(...marks);
+  return cut > 60 ? -1 : cut;
+}
 
 /**
- * A list item whose lead word (up to the first colon) is set in strong type.
- * Built strictly from text nodes - never from markup in catalogue values.
+ * An element whose lead (up to the first colon or question mark) is set in
+ * strong type. Built strictly from text nodes - never from markup in
+ * catalogue values.
  */
-function leadItem(key) {
+function leadItem(key, tag = "li", opts = {}) {
   const s = t(key);
-  const cut = s.indexOf(":");
-  if (cut < 1 || cut > 40) return el("li", {}, [text(s)]);
-  return el("li", {}, [
+  const cut = leadCut(s);
+  if (cut < 0) return el(tag, opts, [text(s)]);
+  return el(tag, opts, [
     el("strong", {}, [text(s.slice(0, cut + 1))]),
     text(s.slice(cut + 1)),
   ]);
@@ -65,20 +73,36 @@ export function render(ctx) {
   ]);
 
   const prose = el("div", { class: "scroll prose" }, [
-    el("h2", {}, [text(t("about.method.heading"))]),
-    ...METHOD_TOP.map((k) => el("p", {}, [text(t(k))])),
-    el("p", { class: "prose-lead" }, [text(t("about.method.lead"))]),
-    el("ul", { class: "prose-list" }, METHOD_LIS.map(leadItem)),
-    ...METHOD_END.map((k) => el("p", {}, [text(t(k))])),
+    ...INTRO.map((k) => el("p", {}, [text(t(k))])),
 
-    el("h2", {}, [text(t("about.story.heading"))]),
-    ...STORY.map((k) => el("p", {}, [text(t(k))])),
+    el("h2", {}, [text(t("about.walk.heading"))]),
+    ...WALK_TOP.map((k) => el("p", {}, [text(t(k))])),
+    el("p", { class: "prose-lead" }, [text(t("about.walk.lead"))]),
+    el("ul", { class: "prose-list" }, WALK_LIS.map((k) => leadItem(k))),
+    leadItem("about.walk.step", "p", { class: "prose-lead" }),
+    el("p", {}, [text(t("about.walk.p3"))]),
+
+    el("h2", {}, [text(t("about.ten.heading"))]),
+    ...TEN.map((k) => el("p", {}, [text(t(k))])),
+
+    el("h2", {}, [text(t("about.origin.heading"))]),
+    ...ORIGIN.map((k) => el("p", {}, [text(t(k))])),
+
+    el("h2", {}, [text(t("about.paper.heading"))]),
+    el("p", {}, [text(t("about.paper.p1"))]),
+    el("p", { class: "prose-lead" }, [text(t("about.paper.lead"))]),
+    el("ul", { class: "prose-list" }, PAPER_LIS.map((k) => leadItem(k))),
+
+    el("h2", {}, [text(t("about.not.heading"))]),
+    el("p", {}, [text(t("about.not.p1"))]),
 
     el("h2", {}, [text(t("about.privacy.heading"))]),
     el("p", {}, [text(t("about.privacy.p1"))]),
+    el("p", {}, [text(t("about.privacy.p2"))]),
     el("p", { class: "prose-lead" }, [text(t("about.privacy.lead"))]),
-    el("ul", { class: "prose-list" }, PRIVACY_LIS.map(leadItem)),
+    el("ul", { class: "prose-list" }, PRIVACY_LIS.map((k) => leadItem(k))),
 
+    el("p", {}, [text(t("about.close.p1"))]),
     el("p", { class: "claim" }, [text(t("about.claim.p1"))]),
   ]);
 
