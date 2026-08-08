@@ -18,9 +18,11 @@ test("createNode fills every contract field with a defined value", async ({ page
   });
   expect(r.keys).toEqual([
     "confidence", "createdAt", "deletedAt", "doneWhen", "due", "effort",
-    "effortMinutes", "id", "impact", "llmOptout", "note", "origin",
-    "parentId", "rank", "status", "title", "updatedAt",
+    "effortMinutes", "entityRefs", "id", "impact", "llmOptout", "note", "origin",
+    "parentId", "rank", "status", "story", "title", "updatedAt",
   ]);
+  expect(r.node.story).toBe("");
+  expect(r.node.entityRefs).toEqual([]);
   expect(r.node.parentId).toBeNull();
   expect(r.node.status).toBe("open");
   expect(r.node.deletedAt).toBeNull();
@@ -403,6 +405,140 @@ test("mergeDocs is order independent even on an updatedAt tie", async ({ page })
   expect(r.stable).toBe(true);
   expect(r.ids).toEqual(["w", "x", "z"]);
   expect(r.settings).toEqual({ lang: "de", theme: "dark" });
+});
+
+test("createEntity fills every contract field with a defined value", async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const m = await import("/web/js/model.js");
+    const e = m.createEntity({ name: "Anna", aliases: ["Anni", "Anni", " "], kind: "nonsense", createdAt: 5 });
+    return { entity: e, keys: Object.keys(e).sort() };
+  });
+  expect(r.keys).toEqual([
+    "aliases", "createdAt", "deletedAt", "id", "kind", "name", "notes",
+    "relation", "sensitivity", "updatedAt",
+  ]);
+  expect(r.entity.aliases).toEqual(["Anni"]); // de-duplicated, blanks dropped
+  expect(r.entity.kind).toBe("person"); // unknown kind falls back
+  expect(r.entity.sensitivity).toBe("normal");
+  expect(r.entity.createdAt).toBe(5);
+  expect(r.entity.updatedAt).toBe(5);
+});
+
+test("upgradeDoc lifts a schema-1 document and is idempotent", async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const m = await import("/web/js/model.js");
+    // A raw schema-1 document, written before the story layer existed.
+    const legacy = {
+      schema: 1,
+      nodes: [
+        { id: "a", parentId: null, rank: 0, title: "Ziel", note: "n", status: "open", doneWhen: "",
+          impact: null, confidence: null, effort: null, due: null, effortMinutes: null,
+          origin: "manual", llmOptout: false, createdAt: 10, updatedAt: 20, deletedAt: null,
+          futureField: "keep me" },
+      ],
+      settings: { lang: "de" },
+    };
+    const once = m.upgradeDoc(legacy);
+    const twice = m.upgradeDoc(once);
+    return {
+      schema: once.schema,
+      entities: once.entities,
+      story: once.nodes[0].story,
+      refs: once.nodes[0].entityRefs,
+      kept: once.nodes[0].futureField,
+      title: once.nodes[0].title,
+      updatedAt: once.nodes[0].updatedAt,
+      settings: once.settings,
+      idempotent: JSON.stringify(twice) === JSON.stringify(once),
+      sameReference: twice === once,
+      legacyUntouched: legacy.nodes[0].story === undefined && legacy.entities === undefined,
+      broken: m.upgradeDoc(null),
+    };
+  });
+  expect(r.schema).toBe(2);
+  expect(r.entities).toEqual([]);
+  expect(r.story).toBe("");
+  expect(r.refs).toEqual([]);
+  expect(r.kept).toBe("keep me"); // an unknown field is never dropped
+  expect(r.title).toBe("Ziel");
+  expect(r.updatedAt).toBe(20); // no edit happened, so nothing looks younger
+  expect(r.settings).toEqual({ lang: "de" });
+  expect(r.idempotent).toBe(true);
+  expect(r.sameReference).toBe(true);
+  expect(r.legacyUntouched).toBe(true);
+  expect(r.broken).toEqual({ schema: 2, nodes: [], entities: [], settings: {} });
+});
+
+test("storyDepth counts presence, never length", async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const m = await import("/web/js/model.js");
+    const d = (p) => m.storyDepth(m.createNode({ createdAt: 1, updatedAt: 1, ...p }));
+    return {
+      empty: d({}),
+      story: d({ story: "because" }),
+      longStory: d({ story: "because ".repeat(200) }),
+      all: d({ story: "s", doneWhen: "d", note: "n", entityRefs: ["x"] }),
+      whitespace: d({ story: "   \n " }),
+      none: m.storyDepth(null),
+    };
+  });
+  expect(r.empty).toBe(0);
+  expect(r.story).toBe(0.4);
+  expect(r.longStory).toBe(0.4); // length is not depth
+  expect(r.all).toBe(1);
+  expect(r.whitespace).toBe(0);
+  expect(r.none).toBe(0);
+});
+
+test("mergeDocs merges entities under the same rule as nodes", async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const m = await import("/web/js/model.js");
+    const mk = (p) => m.createEntity({ createdAt: 100, ...p });
+    const a = {
+      schema: 2,
+      nodes: [],
+      entities: [
+        mk({ id: "x", name: "Anna", notes: "note A", updatedAt: 200 }),
+        mk({ id: "onlyA", name: "Only A", updatedAt: 100 }),
+        mk({ id: "gone", name: "Removed", updatedAt: 300, deletedAt: 300 }),
+      ],
+      settings: {},
+    };
+    const b = {
+      schema: 2,
+      nodes: [],
+      entities: [
+        mk({ id: "x", name: "Anna Meier", notes: "note B", updatedAt: 300 }),
+        mk({ id: "onlyB", name: "Only B", updatedAt: 100 }),
+        mk({ id: "gone", name: "Removed", updatedAt: 500 }),
+      ],
+      settings: {},
+    };
+    const ab = m.mergeDocs(a, b);
+    const ba = m.mergeDocs(b, a);
+    const byId = {};
+    for (const e of ab.entities) byId[e.id] = e;
+    return {
+      ids: ab.entities.map((e) => e.id),
+      name: byId.x.name,
+      notes: byId.x.notes,
+      marker: m.CONFLICT_MARKER,
+      resurrected: byId.gone.deletedAt,
+      sameBothWays: JSON.stringify(ab) === JSON.stringify(ba),
+      idempotent: JSON.stringify(m.mergeDocs(ab, ab)) === JSON.stringify(ab),
+      schemaOne: m.mergeDocs({ schema: 1, nodes: [], settings: {} }, { schema: 1, nodes: [], settings: {} }).entities,
+    };
+  });
+  expect(r.ids).toEqual(["gone", "onlyA", "onlyB", "x"]); // sorted by id, canonical
+  expect(r.name).toBe("Anna Meier"); // younger updatedAt wins
+  expect(r.notes).toContain(r.marker);
+  expect(r.notes).toContain("Anna"); // the losing name is kept, not dropped
+  expect(r.notes).toContain("note A");
+  expect(r.notes).toContain("note B");
+  expect(r.resurrected).toBeNull(); // a tombstone loses against a younger edit
+  expect(r.sameBothWays).toBe(true);
+  expect(r.idempotent).toBe(true);
+  expect(r.schemaOne).toEqual([]);
 });
 
 test("search is accent and case insensitive and ranks title before note", async ({ page }) => {

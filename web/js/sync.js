@@ -14,7 +14,7 @@
 // IndexedDB either; storing is the app layer's job.
 
 import { deriveSyncAuthToken, newAuthSalt, openFromVault } from "./crypto.js";
-import { mergeDocs } from "./model.js";
+import { mergeDocs, upgradeDoc } from "./model.js";
 
 /**
  * Sync id alphabet: the recovery-key alphabet in lower case (I, L, O, U, 0, 1
@@ -227,18 +227,26 @@ function looksLikeVault(vault) {
  *  string comparison instead of a deep walk with its own bugs. */
 function canonical(doc) {
   if (!doc || typeof doc !== "object") return "";
-  const nodes = [...(doc.nodes || [])]
-    .map((n) => {
-      const keys = Object.keys(n).sort();
-      const flat = {};
-      for (const k of keys) flat[k] = n[k];
-      return flat;
-    })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const flatten = (list) =>
+    [...(list || [])]
+      .map((n) => {
+        const keys = Object.keys(n).sort();
+        const flat = {};
+        for (const k of keys) flat[k] = n[k];
+        return flat;
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const settingsKeys = Object.keys(doc.settings || {}).sort();
   const settings = {};
   for (const k of settingsKeys) settings[k] = doc.settings[k];
-  return JSON.stringify({ schema: doc.schema || 1, nodes, settings });
+  return JSON.stringify({
+    schema: doc.schema || 1,
+    nodes: flatten(doc.nodes),
+    // The context index counts as content: a merge that only brought a new
+    // card back must still be saved and pushed.
+    entities: flatten(doc.entities),
+    settings,
+  });
 }
 
 // ------------------------------------------------------------------ scheduling
@@ -387,14 +395,17 @@ async function pushRounds(ctx, meta) {
     if (data.vault) {
       let remoteDoc;
       try {
-        remoteDoc = await openFromVault(data.vault, ctx.masterKey);
+        // The other device may still write schema 1; both sides are lifted to
+        // the current schema before they meet, so a merge never has to guess
+        // what a missing field meant.
+        remoteDoc = upgradeDoc(await openFromVault(data.vault, ctx.masterKey));
       } catch {
         // The blob under this id was not sealed with our key. Overwriting it
         // would destroy somebody's data; stop and say so.
         setPhase("denied");
         return;
       }
-      const merged = mergeDocs(ctx.doc, remoteDoc);
+      const merged = mergeDocs(upgradeDoc(ctx.doc), remoteDoc);
       // Nothing new up there: the next round simply re-sends the same blob
       // with the version the server just told us about.
       if (canonical(merged) !== canonical(ctx.doc)) await ctx.applyMerged(merged);
@@ -428,12 +439,12 @@ export async function pull(ctx) {
   state.version = record.version;
   let remoteDoc;
   try {
-    remoteDoc = await openFromVault(record.vault, ctx.masterKey);
+    remoteDoc = upgradeDoc(await openFromVault(record.vault, ctx.masterKey));
   } catch {
     setPhase("denied");
     return "offline";
   }
-  const merged = mergeDocs(ctx.doc, remoteDoc);
+  const merged = mergeDocs(upgradeDoc(ctx.doc), remoteDoc);
   if (canonical(merged) === canonical(ctx.doc)) {
     state.lastSyncedAt = Date.now();
     setPhase("idle");

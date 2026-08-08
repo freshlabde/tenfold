@@ -1,8 +1,10 @@
 // ui/search.js - find a line anywhere in the tree.
 //
 // What it does: types straight into search.js and paints the hits with their
-// ancestor path, so a result is readable without opening it. Tapping a result
-// jumps to that node in the normal navigation, not into a special result view.
+// ancestor path, so a result is readable without opening it. Titles, stories,
+// notes and the cards of the context index are all searched. Tapping a result
+// jumps to that node - or to that card - in the normal navigation, not into a
+// special result view.
 //
 // What it deliberately does NOT do: it does not re-render the whole screen per
 // keystroke (that would take the keyboard focus with it) - only the result
@@ -45,24 +47,36 @@ export function render(ctx) {
       count.appendChild(text(t("search.hint")));
       return;
     }
-    const hits = search(ctx.doc.nodes, q, { limit: 40 });
+    const hits = search(ctx.doc.nodes, q, { limit: 40, entities: ctx.entities });
     count.appendChild(text(hits.length ? t("search.count", { n: hits.length }) : t("search.none")));
     const list = el("ul", { class: "list" });
     hits.forEach((hit, i) => {
+      // A hit is either a line of the tree or a card of the context index;
+      // the card says so instead of pretending to be a step.
+      const card = hit.entity || null;
+      const label = card ? card.name : hit.node.title;
       const row = el("div", {
         class: "row",
-        attrs: { role: "button", tabindex: "0", "aria-label": t("a11y.openNode", { title: hit.node.title }) },
+        attrs: {
+          role: "button",
+          tabindex: "0",
+          "aria-label": card ? t("a11y.openEntity", { name: label }) : t("a11y.openNode", { title: label }),
+        },
       });
       row.appendChild(el("span", { class: "row-chip", attrs: { "aria-hidden": "true" }, text: "·" }));
-      const body = el("div", { class: "row-body" }, [
-        el("div", { class: "row-title" }, [text(hit.node.title)]),
-      ]);
-      if (hit.path) body.appendChild(el("div", { class: "result-path" }, [text(hit.path)]));
+      const body = el("div", { class: "row-body" }, [el("div", { class: "row-title" }, [text(label)])]);
+      if (card && card.relation) body.appendChild(el("div", { class: "result-path" }, [text(card.relation)]));
+      else if (hit.path) body.appendChild(el("div", { class: "result-path" }, [text(hit.path)]));
       row.appendChild(body);
-      row.appendChild(el("span", { class: "m" }, [text(metricFor(ctx.doc.nodes, hit.node))]));
+      row.appendChild(
+        el("span", { class: "m" }, [
+          text(card ? t("search.entityLabel") : metricFor(ctx.doc.nodes, hit.node)),
+        ]),
+      );
       const open = () => {
         reset();
-        ctx.openNode(hit.node, row);
+        if (card) ctx.openEntity(card.id);
+        else ctx.openNode(hit.node, row);
       };
       row.addEventListener("click", open);
       row.addEventListener("keydown", (ev) => {

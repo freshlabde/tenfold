@@ -10,9 +10,10 @@
 // shortened in the middle, never wrapped - and no separate "add" screen. The
 // composer appears in place, where the new line will be.
 
-import { el, text, icon } from "./dom.js";
+import { el, text, icon, depthMark } from "./dom.js";
 import { nodeList, composer } from "./rows.js";
 import { t } from "../i18n.js";
+import { storyDepth } from "../model.js";
 import { progressOf, relativeTime } from "./format.js";
 import { nameTransition, clearTransition } from "../motion.js";
 
@@ -70,11 +71,17 @@ function hero(ctx, node) {
   const rank = siblings.findIndex((n) => n.id === node.id);
   const p = progressOf(ctx.doc.nodes, node.id);
 
+  const showDepth = (ctx.doc.settings || {}).storyDepth !== false;
+
   const card = el("div", { class: "hero-card" }, [
-    el("div", { class: "hero-rank" }, [
-      text(t("focus.rank", { rank: rank + 1, total: siblings.length })),
+    el("div", { class: "hero-head" }, [
+      el("div", { class: "hero-rank" }, [
+        text(t("focus.rank", { rank: rank + 1, total: siblings.length })),
+      ]),
+      showDepth ? depthMark(storyDepth(node)) : null,
     ]),
     el("h1", { class: "hero-title" }, [text(node.title)]),
+    node.story ? el("p", { class: "hero-story" }, [text(node.story)]) : null,
     node.note ? el("p", { class: "hero-note" }, [text(node.note)]) : null,
     el("div", { class: "hero-meta" }, [
       el("span", { class: "m is-mid" }, [text(t("focus.progress", { done: p.done, total: p.total }))]),

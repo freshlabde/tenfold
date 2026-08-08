@@ -18,6 +18,7 @@ import { relativeTime } from "./format.js";
 
 const SKINS = ["slate", "register", "breath"];
 const THEMES = ["dark", "light"];
+const DEPTH = ["on", "off"];
 
 function group(titleKey, children) {
   return el("div", { class: "group" }, [
@@ -293,6 +294,17 @@ export function render(ctx) {
       segment("settings.language", LOCALES, settings.lang || getLocale(), (v) => t(`settings.lang.${v}`), (v) =>
         ctx.setSettings({ lang: v }),
       ),
+    ]),
+    group("settings.group.story", [
+      row("entities.open", "entities.openDesc", null, () => ctx.go("entities")),
+      segment(
+        "story.depth",
+        DEPTH,
+        settings.storyDepth === false ? "off" : "on",
+        (v) => t(`story.depth.${v}`),
+        (v) => ctx.setSettings({ storyDepth: v === "on" }),
+      ),
+      el("p", { class: "field-hint", style: { padding: "0 2px" } }, [text(t("story.depthDesc"))]),
     ]),
     group("settings.group.data", [
       row("settings.export", "settings.exportDesc", null, () => {

@@ -1,9 +1,10 @@
-// search.js - local full text search over title and note.
+// search.js - local full text search over title, story, note and the cards of
+// the context index.
 //
 // What it does: folds accents and case away (NFD plus combining-mark strip),
-// matches partial words, ranks title hits above note hits and word-start hits
-// above hits in the middle of a word, and returns the ancestor path so a
-// result is readable without opening the tree.
+// matches partial words, ranks title hits above story and note hits and
+// word-start hits above hits in the middle of a word, and returns the ancestor
+// path so a result is readable without opening the tree.
 //
 // What it deliberately does NOT do: no index is ever written to disk or to
 // IndexedDB - an index of a zero knowledge app would be a plaintext leak. It
@@ -50,15 +51,47 @@ function fieldHit(haystack, term) {
 }
 
 /**
- * Search living nodes. All terms of the query must be found (AND), each of
- * them in the title or in the note.
+ * Score one item over a list of weighted fields. All terms must be found (AND),
+ * each of them in one of the fields.
+ * @param {{name: string, text: string, weight: number}[]} fields best first
+ * @returns {{score: number, matchField: string}|null}
+ */
+function scoreFields(fields, terms) {
+  let total = 0;
+  let best = null;
+  for (const term of terms) {
+    let hitHere = 0;
+    let hitField = null;
+    for (const f of fields) {
+      const h = fieldHit(f.text, term);
+      if (!h) continue;
+      const value = f.weight * h;
+      if (value > hitHere) {
+        hitHere = value;
+        hitField = f.name;
+      }
+    }
+    if (!hitHere) return null;
+    total += hitHere;
+    // The label follows the strongest field the query touched anywhere.
+    if (!best || fields.findIndex((f) => f.name === hitField) < fields.findIndex((f) => f.name === best)) {
+      best = hitField;
+    }
+  }
+  return { score: total, matchField: best };
+}
+
+/**
+ * Search living nodes, and - when they are passed in - the living cards of the
+ * context index. All terms of the query must be found (AND).
  * @param {Array} nodes
  * @param {string} query
- * @param {{limit?: number}} [opts]
- * @returns {{node: Object, path: string, matchField: string}[]}
+ * @param {{limit?: number, entities?: Array}} [opts]
+ * @returns {{node?: Object, entity?: Object, path: string, matchField: string}[]}
  */
 export function search(nodes, query, opts = {}) {
   const list = Array.isArray(nodes) ? nodes : [];
+  const cards = Array.isArray(opts.entities) ? opts.entities : [];
   const terms = fold(query).split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
   const limit = typeof opts.limit === "number" && opts.limit >= 0 ? opts.limit : 50;
@@ -66,40 +99,47 @@ export function search(nodes, query, opts = {}) {
   const scored = [];
   for (const node of list) {
     if (node.deletedAt) continue; // tombstones never surface
-    const title = fold(node.title);
-    const note = fold(node.note);
-    let total = 0;
-    let titleHits = 0;
-    let ok = true;
-    for (const term of terms) {
-      const t = fieldHit(title, term);
-      const n = fieldHit(note, term);
-      if (!t && !n) {
-        ok = false;
-        break;
-      }
-      if (t) titleHits += 1;
-      // Title weight 100, note weight 10; word-start bonus inside each field.
-      total += t ? 100 * t : 10 * n;
-    }
-    if (!ok) continue;
-    const matchField = titleHits > 0 ? "title" : "note";
-    scored.push({ node, score: total, matchField });
+    const hit = scoreFields(
+      [
+        { name: "title", text: fold(node.title), weight: 100 },
+        { name: "story", text: fold(node.story), weight: 20 },
+        { name: "note", text: fold(node.note), weight: 10 },
+      ],
+      terms,
+    );
+    if (hit) scored.push({ node, sort: fold(node.title), ...hit });
+  }
+  for (const card of cards) {
+    if (!card || card.deletedAt) continue;
+    const hit = scoreFields(
+      [
+        { name: "entity", text: fold(card.name), weight: 100 },
+        { name: "entityAlias", text: fold((card.aliases || []).join(" ")), weight: 60 },
+        { name: "entityRelation", text: fold(card.relation), weight: 20 },
+        { name: "entityNotes", text: fold(card.notes), weight: 10 },
+      ],
+      terms,
+    );
+    if (hit) scored.push({ entity: card, sort: fold(card.name), ...hit });
   }
 
   scored.sort((x, y) => {
     if (x.score !== y.score) return y.score - x.score;
-    const tx = fold(x.node.title);
-    const ty = fold(y.node.title);
-    if (tx !== ty) return tx < ty ? -1 : 1;
-    return x.node.id < y.node.id ? -1 : x.node.id > y.node.id ? 1 : 0;
+    if (x.sort !== y.sort) return x.sort < y.sort ? -1 : 1;
+    const ix = x.node ? x.node.id : x.entity.id;
+    const iy = y.node ? y.node.id : y.entity.id;
+    return ix < iy ? -1 : ix > iy ? 1 : 0;
   });
 
-  return scored.slice(0, limit).map((s) => ({
-    node: s.node,
-    path: ancestorsOf(list, s.node.id)
-      .map((a) => a.title)
-      .join(PATH_SEPARATOR),
-    matchField: s.matchField,
-  }));
+  return scored.slice(0, limit).map((s) =>
+    s.node
+      ? {
+          node: s.node,
+          path: ancestorsOf(list, s.node.id)
+            .map((a) => a.title)
+            .join(PATH_SEPARATOR),
+          matchField: s.matchField,
+        }
+      : { entity: s.entity, path: "", matchField: s.matchField },
+  );
 }

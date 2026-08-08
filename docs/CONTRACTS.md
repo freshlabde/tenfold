@@ -84,7 +84,14 @@ Anyone who wants to change an interface changes this file first.
   already tried, what typically gets in the way, how will you know it is done - whose answers
   are appended to `story` / `doneWhen` with plain labels. No new schema.
 - **Story-depth marker**: a silent 0..1 derived from presence of story, doneWhen, entityRefs,
-  note. Subtle visual mark only, hideable via settings; it never nags.
+  note (weights .4/.2/.2/.2). Subtle visual mark only, hideable via settings; it never nags.
+  Rendered as a small ring (`dom.depthMark`) in the mono rail of a row, in the focus hero head
+  and next to the leaf title; hidden when `settings.storyDepth === false` (default on).
+- **Story UI**: `story` sits above everything measurable on the leaf screen and as its own
+  field in the editor sheet. The guide lives in `ui/storyguide.js`, the index and its two
+  sheets in `ui/entity.js`; route `entities` in app.js SCREENS, reachable from settings, the
+  entity chips and search results.
+- `exportPlaintextMarkdown` writes the story of a node under a `story:` line, indented.
 
 ## Today & the daily question (stage 2)
 
@@ -157,12 +164,44 @@ export function softDelete(nodes, id): Node[]                // tombstones the w
 export function isOptedOut(nodes, id): boolean               // own flag or inherited
 export function score(node): number|null                     // impact*confidence/effort
 export function todayList(nodes, opts): Node[]               // rule: see plan; max 7; opts.now injectable
-export function mergeDocs(a, b): Doc                         // per node, younger updatedAt wins
+export function mergeDocs(a, b): Doc                         // per item, younger updatedAt wins
+// stage 2
+export const SCHEMA = 2
+export const ENTITY_KINDS = ["person","place","org","topic"]
+export function createEntity(partial): Entity
+export function storyDepth(node): number                     // 0..1, presence only
+export function upgradeDoc(doc): Doc                         // schema 1 -> 2, in memory, idempotent
 ```
 
-`mergeDocs`: on conflict the younger `updatedAt` wins; the losing `title`/`note` is appended
-to the winner's `note` under a "--- divergent version ---" marker instead of being discarded.
-Tombstones never beat a younger live edit. Deterministic and argument-order independent.
+`mergeDocs`: on conflict the younger `updatedAt` wins; the losing `title`/`note`/`story` is
+appended to the winner's `note` (for an entity: `name`/`relation`/`notes` into `notes`) under a
+"--- divergent version ---" marker instead of being discarded. Tombstones never beat a younger
+live edit. Deterministic and argument-order independent. `nodes` and `entities` follow exactly
+the same rule.
+
+`upgradeDoc` returns its input by reference when the document already is schema 2, keeps fields
+it does not know about (a newer version's data is never dropped), and touches no timestamp.
+Every `openFromVault` in app.js and sync.js passes through it before anything else sees the doc.
+
+## `web/js/entities.js` (BUILT, stage 2) — the context index, pure
+
+```js
+export function listEntities(entities): Entity[]             // living, by name
+export function entityById(entities, id): Entity|null
+export function entitiesForNode(entities, node): Entity[]
+export function nodesForEntity(nodes, entityId): Node[]
+export function addEntity(entities, partial, opts): Entity[]
+export function updateEntity(entities, id, patch, opts): Entity[]   // no-op patch = no updatedAt bump
+export function deleteEntity(entities, id, opts): Entity[]          // tombstone
+export function linkEntity(nodes, nodeId, entityId, opts): Node[]
+export function unlinkEntity(nodes, nodeId, entityId, opts): Node[]
+export function detectNames(nodes, entities, opts): {name, count}[] // opts: locale, dismissed, minCount
+export function rememberDismissal(dismissed, name): string[]        // folded, capped at 50
+export function foldName(value): string
+```
+
+Dismissed names live in `doc.settings.dismissedNames` (folded, max 50), so the answer to
+"who is X?" travels with the vault.
 
 ## `web/js/store.js` (BUILT) — IndexedDB, ciphertext only
 
@@ -201,10 +240,13 @@ Binary insertion: ten items in at most 25 comparisons. No `Math.random()` — re
 ## `web/js/search.js` (BUILT)
 
 ```js
-export function search(nodes, query, opts): { node, path, matchField }[]
+export function search(nodes, query, opts): { node?, entity?, path, matchField }[]
 ```
 
 Local, accent-insensitive, partial-word matches, relevance-ordered. No index on disk.
+Fields and weights: node `title` 100, `story` 20, `note` 10; with `opts.entities` also card
+`name` 100, `aliases` 60, `relation` 20, `notes` 10. A result carries either `node` or
+`entity`; `matchField` names the strongest field the query touched.
 
 ## `web/js/i18n.js` (stage 1, wave 2)
 

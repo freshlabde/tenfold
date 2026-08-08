@@ -10,8 +10,8 @@
 // the context to mutate the document and re-render; it never writes to the
 // document itself and never touches storage.
 
-import { el, text, icon } from "./dom.js";
-import { childrenOf, isLeaf } from "../model.js";
+import { el, text, icon, depthMark } from "./dom.js";
+import { childrenOf, isLeaf, storyDepth } from "../model.js";
 import { metricFor, progressOf, dueLabel } from "./format.js";
 import { t } from "../i18n.js";
 import { spring, rubberBand, collapse, prefersReducedMotion } from "../motion.js";
@@ -58,7 +58,14 @@ export function nodeRow(ctx, node, opts = {}) {
   const sub = subLine(ctx, node);
   if (sub) body.appendChild(el("div", { class: "row-sub" }, [text(sub)]));
 
-  const metric = el("span", { class: "m" }, [text(metricFor(nodes, node))]);
+  // The mono rail on the right: the machine figure, and - unless it is
+  // switched off - the story-depth ring in front of it.
+  const showDepth = (ctx.doc.settings || {}).storyDepth !== false;
+  const depth = storyDepth(node);
+  const metric = el("div", { class: "row-meta" }, [
+    showDepth && depth > 0 ? depthMark(depth) : null,
+    el("span", { class: "m" }, [text(metricFor(nodes, node))]),
+  ]);
 
   const row = el("div", {
     class: `row${opts.lead ? " is-lead" : ""}${node.status === "done" ? " is-done" : ""}${

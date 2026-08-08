@@ -10,7 +10,7 @@
 // are not same-origin GETs are passed through untouched, so nothing can be
 // smuggled through this worker.
 
-const VERSION = "tenfold-v3";
+const VERSION = "tenfold-v4";
 
 const SHELL = [
   "./",
@@ -22,6 +22,7 @@ const SHELL = [
   "./js/app.js",
   "./js/crypto.js",
   "./js/model.js",
+  "./js/entities.js",
   "./js/store.js",
   "./js/portability.js",
   "./js/prioritize.js",
@@ -37,6 +38,8 @@ const SHELL = [
   "./js/ui/rows.js",
   "./js/ui/sheet.js",
   "./js/ui/editor.js",
+  "./js/ui/entity.js",
+  "./js/ui/storyguide.js",
   "./js/ui/setup.js",
   "./js/ui/langswitch.js",
   "./js/ui/lock.js",

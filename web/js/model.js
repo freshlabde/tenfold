@@ -1,17 +1,24 @@
 // model.js - pure tree functions over the node list of a tenfold document.
 //
-// What it does: create nodes, walk the tree, move/reorder/soft-delete nodes,
-// derive the prioritisation score, build the short "today" list and merge two
-// documents node by node. Every mutating function returns a NEW array and
-// touches `updatedAt` only on nodes that actually changed.
+// What it does: create nodes and context entities, walk the tree,
+// move/reorder/soft-delete nodes, derive the prioritisation score, build the
+// short "today" list, upgrade a schema-1 document to schema 2 and merge two
+// documents item by item. Every mutating function returns a NEW array and
+// touches `updatedAt` only on items that actually changed.
 //
 // What it deliberately does NOT do: no IO, no DOM, no crypto, no network, no
-// imports at all. It never removes a node physically - deletions are
+// imports at all. It never removes an item physically - deletions are
 // tombstones so a later merge still knows about them. Wall-clock time is only
 // read through an injectable `opts.now`, so every result is reproducible.
 
 /** Statuses that count as "still to be done". */
 const OPEN_STATUSES = new Set(["open", "doing"]);
+
+/** The document schema this module writes. */
+export const SCHEMA = 2;
+
+/** The four kinds a context card can have (contract, schema 2). */
+export const ENTITY_KINDS = ["person", "place", "org", "topic"];
 
 /** Marker used by mergeDocs when it has to keep two divergent texts. */
 export const CONFLICT_MARKER = "--- abweichende Fassung ---";
@@ -51,6 +58,20 @@ function cmpStr(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+function str(v) {
+  return typeof v === "string" ? v : "";
+}
+
+/** A list of unique, non-empty id strings - defensive against corrupt input. */
+function idList(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const x of v) {
+    if (typeof x === "string" && x && !out.includes(x)) out.push(x);
+  }
+  return out;
+}
+
 /**
  * Build a fresh node. Every field of the contract gets a defined value so no
  * consumer has to guard against `undefined`.
@@ -74,11 +95,101 @@ export function createNode(partial = {}) {
     due: num(partial.due),
     effortMinutes: num(partial.effortMinutes),
     doneWhen: typeof partial.doneWhen === "string" ? partial.doneWhen : "",
+    story: str(partial.story),
+    entityRefs: idList(partial.entityRefs),
     origin: partial.origin === "llm" ? "llm" : "manual",
     llmOptout: partial.llmOptout === true,
     createdAt: created,
     updatedAt: num(partial.updatedAt) ?? created,
     deletedAt: num(partial.deletedAt),
+  };
+}
+
+/**
+ * Build a fresh context entity - one card of the private index. Same rules as
+ * createNode: every contract field carries a defined value.
+ * @param {Object} [partial]
+ * @returns {Object} Entity
+ */
+export function createEntity(partial = {}) {
+  const created = num(partial.createdAt) ?? nowOf(partial);
+  const aliases = [];
+  if (Array.isArray(partial.aliases)) {
+    for (const a of partial.aliases) {
+      const value = str(a).trim();
+      if (value && !aliases.includes(value)) aliases.push(value);
+    }
+  }
+  return {
+    id: typeof partial.id === "string" && partial.id ? partial.id : newId(),
+    name: str(partial.name),
+    aliases,
+    kind: ENTITY_KINDS.includes(partial.kind) ? partial.kind : "person",
+    relation: str(partial.relation),
+    notes: str(partial.notes),
+    sensitivity: partial.sensitivity === "high" ? "high" : "normal",
+    createdAt: created,
+    updatedAt: num(partial.updatedAt) ?? created,
+    deletedAt: num(partial.deletedAt),
+  };
+}
+
+/**
+ * How much context a node already carries, 0..1. Presence only - length is
+ * not quality, and a marker that rewards typing would be a nag.
+ * @param {Object} node
+ * @returns {number}
+ */
+export function storyDepth(node) {
+  if (!node) return 0;
+  let d = 0;
+  if (str(node.story).trim()) d += 0.4;
+  if (str(node.doneWhen).trim()) d += 0.2;
+  if (idList(node.entityRefs).length) d += 0.2;
+  if (str(node.note).trim()) d += 0.2;
+  return Math.round(d * 100) / 100;
+}
+
+/** True when a node still carries the shape of schema 1. */
+function nodeNeedsUpgrade(n) {
+  return typeof n.story !== "string" || !Array.isArray(n.entityRefs);
+}
+
+/**
+ * Bring a document up to the current schema, in memory only. Schema 1 knows
+ * neither `story`/`entityRefs` on a node nor `entities` at all; both are
+ * filled with empty defaults and nothing else is touched. Unknown fields
+ * (something a newer version wrote) are preserved, so an upgrade on an old
+ * device cannot silently delete what a new one added.
+ *
+ * Idempotent: a document that is already schema 2 comes back unchanged, by
+ * reference, so callers can run this after every open without cost.
+ * @param {Object} doc
+ * @returns {Object} Doc
+ */
+export function upgradeDoc(doc) {
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    return { schema: SCHEMA, nodes: [], entities: [], settings: {} };
+  }
+  const nodes = Array.isArray(doc.nodes) ? doc.nodes : [];
+  const entities = Array.isArray(doc.entities) ? doc.entities : null;
+  const settingsOk = doc.settings && typeof doc.settings === "object" && !Array.isArray(doc.settings);
+  if (doc.schema === SCHEMA && entities && settingsOk && !nodes.some(nodeNeedsUpgrade)) return doc;
+
+  const fill = (item, base) => {
+    const out = { ...base };
+    for (const [k, v] of Object.entries(item)) {
+      if (v !== undefined && !(k in out)) out[k] = v;
+    }
+    return out;
+  };
+
+  return {
+    ...doc,
+    schema: SCHEMA,
+    nodes: nodes.map((n) => (nodeNeedsUpgrade(n) ? fill(n, createNode(n)) : n)),
+    entities: (entities || []).map((e) => fill(e, createEntity(e))),
+    settings: settingsOk ? doc.settings : {},
   };
 }
 
@@ -351,33 +462,47 @@ function pickWinner(x, y) {
 }
 
 /**
- * Merge one node that exists on both sides. When BOTH sides were edited after
+ * Merge one item that exists on both sides. When BOTH sides were edited after
  * creation and the texts differ, the loser's text is appended to the winner's
- * note instead of being dropped. Without vector clocks "edited after creation"
- * (`updatedAt > createdAt`) is the honest approximation of "changed since the
- * last common state": a pristine copy carries no divergent intent.
+ * long text field instead of being dropped. Without vector clocks "edited
+ * after creation" (`updatedAt > createdAt`) is the honest approximation of
+ * "changed since the last common state": a pristine copy carries no divergent
+ * intent.
  */
-function mergeNode(x, y) {
+function mergeItem(x, y, fields, sink) {
   const [win, lose] = pickWinner(x, y);
   const bothEdited = x.updatedAt > x.createdAt && y.updatedAt > y.createdAt;
-  const textDiffers = win.title !== lose.title || win.note !== lose.note;
-  if (!bothEdited || !textDiffers) return win;
+  const differs = fields.some((f) => str(win[f]) !== str(lose[f]));
+  if (!bothEdited || !differs) return win;
 
   const parts = [];
-  if (lose.title !== win.title && lose.title) parts.push(lose.title);
-  if (lose.note !== win.note && lose.note) parts.push(lose.note);
+  for (const f of fields) {
+    if (str(lose[f]) !== str(win[f]) && str(lose[f])) parts.push(str(lose[f]));
+  }
   if (!parts.length) return win;
 
   const block = `${CONFLICT_MARKER}\n${parts.join("\n")}`;
-  if (win.note.includes(block)) return win;
+  const kept = str(win[sink]);
+  if (kept.includes(block)) return win;
   // The winner's updatedAt is kept on purpose: merging must be repeatable and
   // must not make the merged copy look younger than any real edit.
-  return { ...win, note: win.note ? `${win.note}\n\n${block}` : block };
+  return { ...win, [sink]: kept ? `${kept}\n\n${block}` : block };
+}
+
+/** A node: title, note and story diverge into the note. */
+function mergeNode(x, y) {
+  return mergeItem(x, y, ["title", "note", "story"], "note");
+}
+
+/** The same rule for a context card; its long text field is `notes`. */
+function mergeEntity(x, y) {
+  return mergeItem(x, y, ["name", "relation", "notes"], "notes");
 }
 
 function newestUpdatedAt(doc) {
   let max = -Infinity;
   for (const n of doc.nodes || []) if (n.updatedAt > max) max = n.updatedAt;
+  for (const e of doc.entities || []) if (e.updatedAt > max) max = e.updatedAt;
   return max;
 }
 
@@ -400,28 +525,35 @@ function mergeSettings(a, b) {
   return out;
 }
 
-/**
- * Merge two documents node by node. Same inputs always give the same output,
- * and mergeDocs(a, b) equals mergeDocs(b, a). The node array of the result is
- * sorted by id so the result is canonical; ordering inside the tree lives in
- * `rank`, not in the array order.
- */
-export function mergeDocs(a, b) {
-  const da = a && typeof a === "object" ? a : { schema: 1, nodes: [], settings: {} };
-  const db = b && typeof b === "object" ? b : { schema: 1, nodes: [], settings: {} };
-  const mapA = new Map((da.nodes || []).map((n) => [n.id, n]));
-  const mapB = new Map((db.nodes || []).map((n) => [n.id, n]));
+/** One id-keyed collection merged with `one`, sorted by id. */
+function mergeList(listA, listB, one) {
+  const mapA = new Map((listA || []).map((n) => [n.id, n]));
+  const mapB = new Map((listB || []).map((n) => [n.id, n]));
   const ids = [...new Set([...mapA.keys(), ...mapB.keys()])].sort(cmpStr);
-  const nodes = ids.map((id) => {
+  return ids.map((id) => {
     const x = mapA.get(id);
     const y = mapB.get(id);
     if (x && !y) return x;
     if (y && !x) return y;
-    return mergeNode(x, y);
+    return one(x, y);
   });
+}
+
+/**
+ * Merge two documents item by item - nodes and context entities under exactly
+ * the same rule. Same inputs always give the same output, and mergeDocs(a, b)
+ * equals mergeDocs(b, a). Both arrays of the result are sorted by id so the
+ * result is canonical; ordering inside the tree lives in `rank`, not in the
+ * array order.
+ */
+export function mergeDocs(a, b) {
+  const empty = { schema: SCHEMA, nodes: [], entities: [], settings: {} };
+  const da = a && typeof a === "object" ? a : empty;
+  const db = b && typeof b === "object" ? b : empty;
   return {
     schema: Math.max(da.schema || 1, db.schema || 1),
-    nodes,
+    nodes: mergeList(da.nodes, db.nodes, mergeNode),
+    entities: mergeList(da.entities, db.entities, mergeEntity),
     settings: mergeSettings(da, db),
   };
 }

@@ -153,6 +153,48 @@ export function icon(name, size = 18) {
   return svg;
 }
 
+/**
+ * The story-depth mark: a ring that is drawn as far as a line carries its own
+ * context. Deliberately not a progress bar - it sits in the mono rail, has no
+ * label, no colour of its own and no percentage, so it can be read at a glance
+ * and ignored just as easily.
+ * @param {number} ratio 0..1
+ * @returns {SVGElement}
+ */
+export function depthMark(ratio) {
+  const p = Math.max(0, Math.min(1, ratio || 0));
+  const r = 5;
+  const circumference = 2 * Math.PI * r;
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "depth");
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
+  svg.setAttribute("viewBox", "0 0 14 14");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.dataset.depth = String(p);
+
+  const base = document.createElementNS(SVG_NS, "circle");
+  base.setAttribute("cx", "7");
+  base.setAttribute("cy", "7");
+  base.setAttribute("r", String(r));
+  base.setAttribute("class", "depth-base");
+  svg.appendChild(base);
+
+  if (p > 0) {
+    const arc = document.createElementNS(SVG_NS, "circle");
+    arc.setAttribute("cx", "7");
+    arc.setAttribute("cy", "7");
+    arc.setAttribute("r", String(r));
+    arc.setAttribute("class", "depth-arc");
+    arc.setAttribute("stroke-dasharray", `${(circumference * p).toFixed(2)} ${circumference.toFixed(2)}`);
+    arc.setAttribute("transform", "rotate(-90 7 7)");
+    svg.appendChild(arc);
+  }
+  return svg;
+}
+
 /** A horizontal fill bar, used for progress everywhere. */
 export function track(ratio, cls = "track") {
   return el("span", { class: cls, vars: { "--p": String(Math.max(0, Math.min(1, ratio || 0))) } }, [

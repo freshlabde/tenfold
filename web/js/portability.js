@@ -93,8 +93,9 @@ function liveChildren(nodes, parentId) {
 }
 
 /**
- * The whole tree as an indented Markdown list, status and due date included.
- * Tombstones are left out. Pure text - no HTML is ever produced here.
+ * The whole tree as an indented Markdown list - status, due date, definition
+ * of done, story and note included. Tombstones are left out. Pure text - no
+ * HTML is ever produced here.
  * @param {Object} doc Doc
  * @returns {Blob}
  */
@@ -111,6 +112,13 @@ export function exportPlaintextMarkdown(doc) {
       if (typeof n.effortMinutes === "number") meta.push(`effort: ${n.effortMinutes} min`);
       lines.push(`${indent}- ${box} ${n.title} (${meta.join(", ")})`);
       if (n.doneWhen) lines.push(`${indent}  done when: ${n.doneWhen}`);
+      const story = String(n.story || "")
+        .split("\n")
+        .filter((l) => l.trim());
+      if (story.length) {
+        lines.push(`${indent}  story:`);
+        for (const l of story) lines.push(`${indent}    ${l}`);
+      }
       for (const noteLine of String(n.note || "").split("\n")) {
         if (noteLine.trim()) lines.push(`${indent}  ${noteLine}`);
       }

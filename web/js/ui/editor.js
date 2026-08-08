@@ -1,8 +1,9 @@
 // ui/editor.js - the edit sheet for one node.
 //
-// What it does: the full field set of a node - title, note, definition of done,
-// due date, effort in minutes, state - in one bottom sheet, with a single save
-// that hands a patch to the context.
+// What it does: the full field set of a node - title, the story behind it,
+// note, definition of done, due date, effort in minutes, state - in one bottom
+// sheet, with a single save that hands a patch to the context. The story field
+// is generous on purpose: it is prose, not a form entry.
 //
 // What it deliberately does NOT do: no partial autosave while typing (a half
 // typed title should not be what survives a lock), no markdown, no rich text,
@@ -30,6 +31,12 @@ export function openEditor(layer, ctx, node) {
     attrs: { type: "text", placeholder: t("editor.titlePlaceholder"), autocomplete: "off" },
   });
   title.value = node.title || "";
+
+  const story = el("textarea", {
+    class: "textarea is-story",
+    attrs: { placeholder: t("story.placeholder"), rows: "6", spellcheck: "false" },
+  });
+  story.value = node.story || "";
 
   const note = el("textarea", {
     class: "textarea",
@@ -80,6 +87,7 @@ export function openEditor(layer, ctx, node) {
   const body = el("div", {}, [
     field("editor.title", title),
     error,
+    field("story.label", story),
     field("editor.noteLabel", note),
     field("editor.doneWhenLabel", doneWhen),
     field("editor.dueLabel", due),
@@ -102,6 +110,7 @@ export function openEditor(layer, ctx, node) {
     const minutes = Number.parseInt(effort.value, 10);
     ctx.updateNode(node.id, {
       title: value,
+      story: story.value,
       note: note.value,
       doneWhen: doneWhen.value,
       due: dateInputToTs(due.value),

@@ -25,7 +25,17 @@ import {
   moveNode,
   reorder,
   softDelete,
+  upgradeDoc,
 } from "./model.js";
+import {
+  addEntity,
+  updateEntity,
+  deleteEntity,
+  entityById,
+  linkEntity,
+  unlinkEntity,
+  rememberDismissal,
+} from "./entities.js";
 import * as sync from "./sync.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
@@ -39,8 +49,10 @@ import * as duelScreen from "./ui/duel.js";
 import * as searchScreen from "./ui/search.js";
 import * as settingsScreen from "./ui/settings.js";
 import * as aboutScreen from "./ui/about.js";
+import * as entityScreen from "./ui/entity.js";
 import { openSheet, closeSheet, isSheetOpen } from "./ui/sheet.js";
 import { openEditor } from "./ui/editor.js";
+import { openStoryGuide } from "./ui/storyguide.js";
 
 /** Minutes of inactivity after which the document is wiped from memory. */
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -64,6 +76,7 @@ const SCREENS = {
   search: searchScreen,
   settings: settingsScreen,
   about: aboutScreen,
+  entities: entityScreen,
 };
 
 const state = {
@@ -274,6 +287,20 @@ function mutate(fn, opts = {}) {
   scheduleSave();
   touchIdle();
   if (opts.silent !== true) render(opts.direction || "none");
+}
+
+/**
+ * The same cycle for the context index. Cards have no undo step: a card is
+ * created deliberately in a sheet and deleted behind a confirmation, so the
+ * toast-undo that guards a stray swipe on a row has nothing to protect here.
+ */
+function mutateEntities(fn) {
+  if (!state.doc) return;
+  const entities = fn(state.doc.entities || []);
+  state.doc = { ...state.doc, entities };
+  scheduleSave();
+  touchIdle();
+  render("none");
 }
 
 function undo() {
@@ -526,12 +553,98 @@ const ctx = {
     openEditor(layerEl, ctx, node);
   },
 
+  /** The four questions. Answers land in the node's story as they are given. */
+  startStoryGuide(node) {
+    openStoryGuide(layerEl, ctx, node);
+  },
+
+  // --- the context index ----------------------------------------------------
+
+  get entities() {
+    return (state.doc && state.doc.entities) || [];
+  },
+
+  entityById: (id) => entityById((state.doc && state.doc.entities) || [], id),
+
+  /** @returns {string|null} the id of the new card */
+  addEntity(partial) {
+    let id = null;
+    mutateEntities((list) => {
+      const next = addEntity(list, partial);
+      id = next[next.length - 1].id;
+      return next;
+    });
+    return id;
+  },
+
+  updateEntity(id, patch) {
+    mutateEntities((list) => updateEntity(list, id, patch));
+    return id;
+  },
+
+  deleteEntity(id) {
+    // A card that goes also leaves the steps that pointed at it.
+    mutate((list) =>
+      list.map((n) =>
+        Array.isArray(n.entityRefs) && n.entityRefs.includes(id)
+          ? { ...n, entityRefs: n.entityRefs.filter((r) => r !== id), updatedAt: Date.now() }
+          : n,
+      ),
+      { silent: true },
+    );
+    mutateEntities((list) => deleteEntity(list, id));
+  },
+
+  linkEntity(nodeId, entityId) {
+    mutate((list) => linkEntity(list, nodeId, entityId));
+  },
+
+  toggleEntityLink(nodeId, entityId) {
+    const node = state.doc.nodes.find((n) => n.id === nodeId);
+    const linked = node && Array.isArray(node.entityRefs) && node.entityRefs.includes(entityId);
+    mutate((list) =>
+      linked ? unlinkEntity(list, nodeId, entityId) : linkEntity(list, nodeId, entityId),
+    );
+  },
+
+  /** Open the add/edit sheet. `id` null = a new card, `opts` may prefill it. */
+  editEntity(id, opts = {}) {
+    entityScreen.openEntitySheet(layerEl, ctx, id ? ctx.entityById(id) : null, opts);
+  },
+
+  /** The link picker for one node. */
+  pickEntities(node) {
+    entityScreen.openEntityPicker(layerEl, ctx, node);
+  },
+
+  /** Jump to the index and open that card. */
+  openEntity(id) {
+    go("entities");
+    queueMicrotask(() => ctx.editEntity(id));
+  },
+
+  /**
+   * "Do not ask about this name again." The memory is a short, capped list of
+   * folded names in doc.settings - it travels with the vault, so the question
+   * stays answered on every device.
+   */
+  dismissName(name) {
+    const settings = state.doc.settings || {};
+    setSettings({ dismissedNames: rememberDismissal(settings.dismissedNames, name) });
+    toast(t("entities.dismissed"));
+  },
+
   openRowMenu(node) {
     const nodes = state.doc.nodes;
     const siblings = childrenOf(nodes, node.parentId);
     const i = siblings.findIndex((n) => n.id === node.id);
     const actions = [
       { label: t("common.edit"), icon: "pencil", run: () => ctx.editNode(node) },
+      {
+        label: node.story ? t("story.continue") : t("story.tell"),
+        icon: "mark",
+        run: () => ctx.startStoryGuide(node),
+      },
       {
         label: node.status === "done" ? t("leaf.markOpen") : t("leaf.markDone"),
         icon: "check",
@@ -598,7 +711,7 @@ const ctx = {
     const { vault, recoveryKey, masterKey } = await createVault({ passphrase });
     state.vault = vault;
     state.masterKey = masterKey;
-    state.doc = await openFromVault(vault, masterKey);
+    state.doc = upgradeDoc(await openFromVault(vault, masterKey));
     // A language chosen on the welcome screen (localStorage pref) must win
     // over browser detection when the vault is created.
     const prefLang = readUiPrefs().lang;
@@ -634,7 +747,10 @@ const ctx = {
         ? await unlockWithRecoveryKey(state.vault, secret)
         : await unlockWithPassphrase(state.vault, secret);
     state.masterKey = key;
-    state.doc = await openFromVault(state.vault, key);
+    // Every document that comes out of the vault is lifted to the current
+    // schema right here, before any screen or merge can see it. Invisible:
+    // an old vault simply has empty stories and an empty index.
+    state.doc = upgradeDoc(await openFromVault(state.vault, key));
     state.autoLocked = false;
     applyPresentation(state.doc.settings || {});
     state.savedAt = await lastSavedAt();
@@ -716,7 +832,7 @@ const syncCtx = {
   /** Result of a merge: becomes the open document, is sealed and repainted. */
   async applyMerged(doc) {
     if (!state.doc || !state.masterKey) return;
-    state.doc = doc;
+    state.doc = upgradeDoc(doc);
     applyPresentation(state.doc.settings || {});
     await flushSave({ fromSync: true });
     render("none");
