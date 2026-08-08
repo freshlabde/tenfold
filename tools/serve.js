@@ -750,10 +750,21 @@ function upstreamTarget(value) {
     return null;
   }
   if (url.search || url.hash || url.username || url.password) return null;
-  if (url.protocol === "https:" && LLM_CLOUD_HOSTS.has(url.hostname)) return `${cleaned}/chat/completions`;
-  if (LLM_LOCAL_UPSTREAMS.includes(cleaned)) return `${cleaned}/chat/completions`;
+  if (url.protocol === "https:" && LLM_CLOUD_HOSTS.has(url.hostname)) {
+    return { url: `${cleaned}/chat/completions`, local: false, host: url.hostname };
+  }
+  if (LLM_LOCAL_UPSTREAMS.includes(cleaned)) {
+    return { url: `${cleaned}/chat/completions`, local: true, host: url.hostname };
+  }
   return null;
 }
+
+/**
+ * Providers that expect the token cap as max_completion_tokens - their
+ * reasoning models reject the older max_tokens outright. The others still
+ * reject unknown fields, so the name is chosen per host, never sent twice.
+ */
+const MAX_COMPLETION_HOSTS = new Set(["api.openai.com", "api.groq.com", "openrouter.ai"]);
 
 /** True when the messages carry an image part - the only reason for 8 MB. */
 function carriesImage(messages) {
@@ -836,7 +847,7 @@ function sendRaw(res, status, body) {
  */
 function askUpstream(target, payload, apiKey) {
   return new Promise((done) => {
-    const url = new URL(target);
+    const url = new URL(target.url);
     const body = Buffer.from(JSON.stringify(payload), "utf8");
     const send = url.protocol === "https:" ? httpsRequest : httpRequest;
     const headers = {
@@ -923,11 +934,22 @@ async function handleLlm(req, res) {
     return;
   }
 
-  // Exactly four fields travel. Anything else the client might have sent -
-  // and anything a future client might send by accident - stops here.
+  // A fixed, tiny set of fields travels. Anything else the client might have
+  // sent - and anything a future client might send by accident - stops here.
   const forwarded = { model: payload.model, messages: payload.messages };
-  if (Number.isFinite(payload.maxTokens)) forwarded.max_tokens = Math.trunc(payload.maxTokens);
+  if (Number.isFinite(payload.maxTokens)) {
+    const cap = Math.trunc(payload.maxTokens);
+    if (MAX_COMPLETION_HOSTS.has(target.host)) forwarded.max_completion_tokens = cap;
+    else forwarded.max_tokens = cap;
+  }
   if (Number.isFinite(payload.temperature)) forwarded.temperature = payload.temperature;
+  // Reasoning throttle, LOCAL upstreams only: LM Studio honours it (verified
+  // live: gemma's thinking shrinks to a third and the answer arrives), and
+  // servers that do not know it ignore it. Cloud providers instead reject
+  // unknown parameters, so it never travels to the allowlist hosts.
+  if (target.local && (payload.reasoningEffort === "low" || payload.reasoningEffort === "none")) {
+    forwarded.reasoning_effort = payload.reasoningEffort;
+  }
 
   const answer = await askUpstream(target, forwarded, typeof payload.apiKey === "string" ? payload.apiKey : "");
   if (answer.error === "timeout") {

@@ -19,7 +19,7 @@
 import { el, text, icon, clear } from "./dom.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { t } from "../i18n.js";
-import { answerText, call, extractJson, llmMode, llmSettings, LlmError } from "../llm.js";
+import { callForText, extractJson, llmMode, llmSettings, LlmError } from "../llm.js";
 import { importMessages, parseImportItems } from "../prompts.js";
 import { thinkingLine, errorLine, WAIT_AFTER_MS } from "./assist.js";
 
@@ -400,10 +400,10 @@ export function openImageImport(layer, ctx, parentId) {
     paintWorking();
     try {
       upload = await shrinkImage(file);
-      const data = await call(llmSettings(ctx.doc), importMessages(upload.dataUrl), {
+      const text = await callForText(llmSettings(ctx.doc), importMessages(upload.dataUrl), {
         maxTokens: MAX_TOKENS,
       });
-      const parsed = parseImportItems(extractJson(answerText(data)));
+      const parsed = parseImportItems(extractJson(text));
       paintProposal(parsed.items);
     } catch (err) {
       paintError(err);

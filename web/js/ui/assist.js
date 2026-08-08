@@ -18,7 +18,7 @@ import { el, text, icon, clear } from "./dom.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { t, getLocale } from "../i18n.js";
 import { prefersReducedMotion } from "../motion.js";
-import { answerText, buildContext, call, extractJson, llmMode, llmSettings } from "../llm.js";
+import { buildContext, callForText, extractJson, llmMode, llmSettings } from "../llm.js";
 import {
   interviewMessages,
   operationMessages,
@@ -526,8 +526,9 @@ export function openAssist(layer, ctx, node) {
   // ------------------------------------------------------------------- run
 
   async function ask(messages, maxTokens) {
-    const data = await call(settings(), messages, { maxTokens });
-    return extractJson(answerText(data));
+    // callForText retries once at twice the budget when a reasoning model
+    // thought its whole allowance away - local and cloud alike.
+    return extractJson(await callForText(settings(), messages, { maxTokens }));
   }
 
   async function run(op) {

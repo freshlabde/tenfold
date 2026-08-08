@@ -220,14 +220,26 @@ export function extractJson(text) {
 }
 
 /** The assistant's text out of an OpenAI-shaped answer. */
+/**
+ * Some reasoning models put their thinking INSIDE the content as
+ * <think>...</think> blocks (DeepSeek-R1 style). That text may contain
+ * stray braces, so it must go before any JSON is extracted. An unclosed
+ * block (thinking cut off by the budget) strips to the end.
+ */
+function stripThinking(text) {
+  return text.replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
+}
+
 export function answerText(data) {
   const choice = data && Array.isArray(data.choices) ? data.choices[0] : null;
   const message = choice && choice.message;
-  const content = message && message.content;
+  let content = message && message.content;
+  if (typeof content === "string") content = stripThinking(content);
   // Reasoning models spend tokens thinking before they answer. When the
-  // budget ran out mid-thought the content comes back empty with
-  // finish_reason "length" - a distinct, explainable failure, not a
-  // malformed answer (verified live against gemma via LM Studio).
+  // budget ran out mid-thought the content comes back empty (or was pure
+  // thinking) with finish_reason "length" - a distinct, explainable and
+  // RETRYABLE failure, not a malformed answer (verified live against
+  // gemma via LM Studio; cloud reasoning models behave the same way).
   if (
     choice &&
     choice.finish_reason === "length" &&
@@ -305,6 +317,9 @@ export async function call(llm, messages, opts = {}) {
     temperature: typeof opts.temperature === "number" ? opts.temperature : 0.2,
   };
   if (Number.isFinite(opts.maxTokens)) body.maxTokens = Math.trunc(opts.maxTokens);
+  // Local reasoning models otherwise think their whole budget away before
+  // answering; the relay forwards this to local upstreams only.
+  if (settings.mode === "local") body.reasoningEffort = "low";
   // A local model usually wants no key; when one is set it is sent for both
   // modes, because some local servers are configured to ask for one.
   if (line(settings.apiKey)) body.apiKey = line(settings.apiKey);
@@ -330,4 +345,27 @@ export async function call(llm, messages, opts = {}) {
   const data = await res.json().catch(() => null);
   if (!data || typeof data !== "object") throw new LlmError("malformed");
   return data;
+}
+
+/** The retry ceiling: generous for local models, still a sane cloud cap. */
+const BUDGET_RETRY_MAX = 8000;
+
+/**
+ * call() plus answerText(), with ONE automatic retry at twice the budget
+ * when the model thought its whole allowance away (LlmError "budget").
+ * Local and cloud reasoning models fail the same way, so this is the
+ * provider-agnostic robustness layer; every other error passes through
+ * untouched and nothing ever retries more than once.
+ */
+export async function callForText(llm, messages, opts = {}) {
+  try {
+    return answerText(await call(llm, messages, opts));
+  } catch (err) {
+    const budget = Number.isFinite(opts.maxTokens) ? opts.maxTokens : 0;
+    if (!(err instanceof LlmError) || err.code !== "budget" || !budget || budget >= BUDGET_RETRY_MAX) {
+      throw err;
+    }
+    const raised = Math.min(BUDGET_RETRY_MAX, budget * 2);
+    return answerText(await call(llm, messages, { ...opts, maxTokens: raised }));
+  }
 }

@@ -18,7 +18,7 @@ import { exportEncrypted, importEncrypted, exportPlaintextMarkdown, suggestedVau
 import { openSheet, closeSheet } from "./sheet.js";
 import { qrCard } from "./qrview.js";
 import { relativeTime } from "./format.js";
-import { answerText, call, llmSettings } from "../llm.js";
+import { call, llmSettings } from "../llm.js";
 
 const SKINS = ["slate", "register", "breath"];
 const LLM_MODES = ["off", "local", "cloud"];
@@ -476,8 +476,10 @@ function pickMode(ctx, llm, next) {
 async function testConnection(ctx) {
   ctx.toast(t("llm.test.running"));
   try {
-    const data = await call(llmSettings(ctx.doc), [{ role: "user", content: "ping" }], { maxTokens: 8 });
-    answerText(data);
+    // The connection test proves the connection, not the model's chattiness:
+    // a reasoning model may spend these few tokens thinking and answer with
+    // an empty string - that is still a reachable, working upstream.
+    await call(llmSettings(ctx.doc), [{ role: "user", content: "ping" }], { maxTokens: 8 });
     ctx.toast(t("llm.test.ok"));
   } catch (err) {
     ctx.toast(t("llm.test.fail", { reason: t(`llm.error.${err && err.code ? err.code : "server"}`) }));

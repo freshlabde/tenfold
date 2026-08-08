@@ -241,7 +241,10 @@ test("what the model said comes back verbatim, and only four fields go out", asy
       messages: [{ role: "user", content: "hello" }],
       maxTokens: 64,
       temperature: 0.1,
-      // Anything beyond the four fields stops at the relay.
+      // The reasoning throttle travels to LOCAL upstreams only (this sink is
+      // one); cloud hosts never see it because they reject unknown fields.
+      reasoningEffort: "low",
+      // Anything beyond the allowed fields stops at the relay.
       syncId: "should-not-travel",
       user: "should-not-travel",
     },
@@ -251,8 +254,15 @@ test("what the model said comes back verbatim, and only four fields go out", asy
 
   const seen = sink.received[0];
   expect(seen.authorization).toBe("Bearer sk-test-key");
-  expect(Object.keys(seen.body).sort()).toEqual(["max_tokens", "messages", "model", "temperature"]);
+  expect(Object.keys(seen.body).sort()).toEqual([
+    "max_tokens",
+    "messages",
+    "model",
+    "reasoning_effort",
+    "temperature",
+  ]);
   expect(seen.body.max_tokens).toBe(64);
+  expect(seen.body.reasoning_effort).toBe("low");
 
   // An error from the provider is also its own answer, passed on unchanged.
   sink.reply({ error: { message: "no credit", type: "billing" } }, 402);
