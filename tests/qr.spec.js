@@ -538,7 +538,7 @@ async function freshAdoptStep(page) {
 test.describe("scanner", () => {
   test.describe.configure({ timeout: 120_000 });
 
-  test("without a BarcodeDetector the scan button does not exist at all", async ({ page }) => {
+  test("without a BarcodeDetector the live scanner is not offered", async ({ page }) => {
     // This browser has none; the assertion is made explicit anyway, and the
     // property is deleted so the test still holds if a future build adds it.
     await page.addInitScript(() => {
@@ -546,7 +546,12 @@ test.describe("scanner", () => {
     });
     await freshAdoptStep(page);
     expect(await page.evaluate(() => "BarcodeDetector" in window)).toBe(false);
-    await expect(page.getByRole("button", { name: "Scan code" })).toHaveCount(0);
+    // The button is still there - it is the photo fallback now, which is the
+    // whole point of tests/qrread.spec.js - but no live preview can open, so
+    // nothing here asks the camera for a stream.
+    await expect(page.getByRole("button", { name: "Scan code" })).toHaveCount(1);
+    await expect(page.locator("input.photoscan-file")).toHaveCount(1);
+    await expect(page.locator(".scanbox video")).toHaveCount(0);
     // The typed path is untouched.
     await expect(page.locator(".input.is-mono")).toBeVisible();
     await expect(page.getByRole("button", { name: /Fetch the vault/ })).toBeVisible();

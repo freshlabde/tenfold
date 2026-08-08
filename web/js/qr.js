@@ -29,8 +29,12 @@ export const MAX_VERSION = 10;
  * how the data codewords are cut into blocks. `groups` is a list of
  * [blockCount, dataCodewordsPerBlock] - two entries where the spec asks for
  * blocks of two different sizes. Straight out of the standard's tables.
+ *
+ * Exported because the reader in qrread.js has to cut the same blocks the
+ * other way round. One table, transcribed once - two copies of it would be
+ * two chances to mistype a number that nothing else would catch.
  */
-const EC_TABLE = {
+export const EC_TABLE = {
   1: { ec: 10, groups: [[1, 16]] },
   2: { ec: 16, groups: [[1, 28]] },
   3: { ec: 26, groups: [[1, 44]] },
@@ -43,8 +47,13 @@ const EC_TABLE = {
   10: { ec: 26, groups: [[4, 43], [1, 44]] },
 };
 
-/** Centre coordinates of the alignment patterns, per version. */
-const ALIGNMENT = {
+/**
+ * Centre coordinates of the alignment patterns, per version. Exported for the
+ * same reason as EC_TABLE: the reader needs the identical geometry to know
+ * which modules are function patterns and where to look for the bottom-right
+ * alignment ring when it straightens a photograph.
+ */
+export const ALIGNMENT = {
   1: [],
   2: [6, 18],
   3: [6, 22],
@@ -67,8 +76,11 @@ const N4 = 10;
 
 // The field the standard uses: bytes modulo x^8 + x^4 + x^3 + x^2 + 1, with 2
 // as the primitive element. Two lookup tables make multiplication a lookup.
-const EXP = new Uint8Array(512);
-const LOG = new Uint8Array(256);
+// Both are exported (read-only by convention - nothing in this repo writes to
+// them) so the reader's error correction works in the same field as the
+// parity that was written here, rather than in a second copy of it.
+export const EXP = new Uint8Array(512);
+export const LOG = new Uint8Array(256);
 
 (function buildTables() {
   let x = 1;
@@ -81,9 +93,17 @@ const LOG = new Uint8Array(256);
   for (let i = 255; i < 512; i += 1) EXP[i] = EXP[i - 255];
 })();
 
-function gfMul(a, b) {
+/** Product in GF(256). Zero is absorbing; everything else is a log lookup. */
+export function gfMul(a, b) {
   if (a === 0 || b === 0) return 0;
   return EXP[LOG[a] + LOG[b]];
+}
+
+/** Quotient in GF(256). Dividing by zero is a programming error, not a value. */
+export function gfDiv(a, b) {
+  if (b === 0) throw new RangeError("qr: division by zero in GF(256)");
+  if (a === 0) return 0;
+  return EXP[LOG[a] + 255 - LOG[b]];
 }
 
 /**

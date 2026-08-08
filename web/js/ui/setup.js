@@ -17,6 +17,7 @@ import { formatRecoveryKey } from "../crypto.js";
 import { importEncrypted } from "../portability.js";
 import { langSwitch } from "./langswitch.js";
 import { scanSupported, openScanner } from "./scan.js";
+import { photoScanSupported, photoScanControl } from "./photoscan.js";
 
 const TEMPLATE_KEYS = [
   "template.health",
@@ -192,27 +193,29 @@ function adopt(ctx) {
     if (ev.key === "Enter") submit();
   });
 
-  // Progressive enhancement, and nothing more: where the browser has no
-  // barcode detector this button does not exist at all - the typed code and
-  // the pairing link opened by the native camera app are the paths that work
-  // everywhere, iOS included.
-  const scan = scanSupported()
+  const took = (code) => {
+    input.value = code;
+    submit();
+  };
+
+  // One button, two mechanisms. Where the browser brings a barcode detector
+  // and a camera the live scanner opens; where it does not - iOS Safari has no
+  // BarcodeDetector at all - the native camera takes one photograph and our
+  // own reader decodes it. The typed code stays the path that always works,
+  // and the pairing link opened from the camera app is still the shortest one.
+  const live = scanSupported();
+  const photo = !live && photoScanSupported() ? photoScanControl(ctx, took) : null;
+  const scan = live
     ? el(
         "button",
         {
           class: "btn-ghost",
           attrs: { type: "button" },
-          on: {
-            click: () =>
-              openScanner(ctx, (code) => {
-                input.value = code;
-                submit();
-              }),
-          },
+          on: { click: () => openScanner(ctx, took) },
         },
         [text(t("sync.scan.action"))],
       )
-    : null;
+    : photo && photo.button;
 
   return screen([
     head("sync.adopt.eyebrow", "sync.adopt.title", "sync.adopt.body"),
@@ -221,6 +224,7 @@ function adopt(ctx) {
         el("span", { class: "field-label" }, [text(t("sync.adopt.label"))]),
         el("div", { class: "field-row" }, [input, scan]),
       ]),
+      photo ? photo.input : null,
       adoptReplaces ? el("p", { class: "field-hint" }, [text(t("sync.adopt.replaces"))]) : null,
       err,
     ]),
