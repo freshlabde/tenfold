@@ -234,7 +234,7 @@ function templateStep(ctx) {
   const choose = (withFrame) => {
     if (withFrame) ctx.seedTemplate(TEMPLATE_KEYS.map((k) => t(k)));
     reset();
-    ctx.go("outline", null, { replace: true });
+    ctx.enterApp();
   };
 
   const option = (labelKey, descKey, onClick, primary) =>

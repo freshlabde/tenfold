@@ -60,7 +60,7 @@ export function render(ctx) {
       input.value = "";
       failed = false;
       busy = false;
-      ctx.go("outline", null, { replace: true });
+      ctx.enterApp();
     } catch {
       busy = false;
       failed = true;

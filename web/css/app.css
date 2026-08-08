@@ -609,6 +609,17 @@ button { -webkit-tap-highlight-color: transparent; }
   letter-spacing: var(--tracking-display);
   color: var(--text);
 }
+.prose .prose-lead { margin-top: 14px; color: var(--text); }
+.prose .prose-list { margin: 8px 0 0; padding-left: 0; list-style: none; }
+.prose .prose-list li {
+  margin: 8px 0 0; padding-left: 16px; position: relative;
+  font-size: 14.5px; line-height: 1.62; color: var(--text-2);
+}
+.prose .prose-list li::before {
+  content: ""; position: absolute; left: 0; top: 0.72em;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+}
+.prose .prose-list strong { color: var(--text); font-weight: 600; }
 .prose ol { margin: 12px 0 0; padding-left: 0; list-style: none; counter-reset: step; }
 .prose ol li {
   counter-increment: step;

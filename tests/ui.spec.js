@@ -53,6 +53,8 @@ async function setupVault(page, { frame = false } = {}) {
   await page.locator(".check").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: frame ? /Start with a frame/ : /Start empty/ }).click();
+  // First entry into a vault offers the About text once; dismiss it.
+  await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
   return key;
 }

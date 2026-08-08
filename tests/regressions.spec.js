@@ -41,8 +41,35 @@ async function setupVault(page, { frame = false } = {}) {
   await page.locator(".check").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: frame ? /Start with a frame/ : /Start empty/ }).click();
+  // First entry into a vault offers the About text once; dismiss it.
+  await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 }
+
+test("the About intro appears exactly once per vault", async ({ page }) => {
+  await freshApp(page);
+  await page.getByRole("button", { name: "Set up the vault" }).click();
+  await page.locator('input[type="password"]').first().fill(PASS);
+  await page.locator('input[type="password"]').nth(1).fill(PASS);
+  await page.getByRole("button", { name: /Create the vault/ }).click();
+  await page.waitForSelector(".keygrid", { timeout: 30000 });
+  await page.locator(".check").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: /Start empty/ }).click();
+
+  // The intro: the About prose with a single Begin action.
+  await expect(page.locator(".prose")).toBeVisible();
+  await expect(page.locator(".prose .prose-list li").first()).toBeVisible();
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+
+  // Lock and unlock again: straight to the outline, no second intro.
+  await page.reload();
+  await page.waitForSelector(".lock-title");
+  await page.locator('input[type="password"]').fill(PASS);
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 30000 });
+});
 
 test("a mouse hover over rows never swipes them away", async ({ page }) => {
   // Desktop-sized viewport: this is a mouse-only regression.

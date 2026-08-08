@@ -340,6 +340,37 @@ const ctx = {
   undo,
   setSettings,
   setLanguage,
+
+  get introAbout() {
+    return state.introAbout;
+  },
+
+  /**
+   * The way into the outline after a successful unlock or setup. The very
+   * first time a vault is entered, the About text is offered for reading -
+   * once dismissed it never appears uninvited again (flag in doc.settings,
+   * so the decision travels with the vault).
+   */
+  enterApp() {
+    if (state.doc && !state.doc.settings.aboutRead) {
+      state.introAbout = true;
+      state.view = { name: "about", id: null };
+      state.stack = [];
+      render();
+      return;
+    }
+    ctx.go("outline", null, { replace: true });
+  },
+
+  finishIntro() {
+    state.introAbout = false;
+    state.view = { name: "outline", id: null };
+    state.stack = [];
+    setSettings({ aboutRead: true });
+    // Persist immediately - the debounced autosave loses this flag when the
+    // page is closed right after the intro, and the intro would reappear.
+    flushSave();
+  },
   openSheet: (spec) => openSheet(layerEl, spec),
   closeSheet,
   maxRoots: MAX_ROOTS,
@@ -549,9 +580,17 @@ const ctx = {
     state.vault = vault;
     state.masterKey = masterKey;
     state.doc = await openFromVault(vault, masterKey);
+    // A language chosen on the welcome screen (localStorage pref) must win
+    // over browser detection when the vault is created.
+    const prefLang = readUiPrefs().lang;
     state.doc = {
       ...state.doc,
-      settings: { ...state.doc.settings, lang: detectLocale(), skin: "slate", theme: "dark" },
+      settings: {
+        ...state.doc.settings,
+        lang: LOCALES.includes(prefLang) ? prefLang : detectLocale(),
+        skin: "slate",
+        theme: "dark",
+      },
     };
     applyPresentation(state.doc.settings);
     await flushSave();
