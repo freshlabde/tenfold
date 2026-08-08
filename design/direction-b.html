@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tenfold — Richtung B · Schiefer</title>
+<style>
+/* =========================================================================
+   RICHTUNG B — "Schiefer"
+   Haltung: haptisch, materiell, geschichtet. Die Zehn sind ein Stapel echter
+   Platten mit Lichtkante oben und Schatten darunter. Was wichtig ist, liegt
+   weiter vorn; was unten steht, sinkt zurück. Priorität wird als Tiefe
+   erfahrbar, nicht nur gelesen. Genau eine Akzentfarbe: Messing.
+   ========================================================================= */
+
+:root[data-theme="dark"]{
+  --bg:        #0F1115;
+  --bg-2:      #171A20;
+  --plate-hi:  #262B35;
+  --plate-lo:  #1B1F27;
+  --sunk:      #12151A;
+  --edge:      rgba(255,255,255,.085);
+  --edge-soft: rgba(255,255,255,.045);
+  --hairline:  rgba(255,255,255,.06);
+  --ink:       #E9ECF2;
+  --ink-2:     #97A0AE;
+  --ink-3:     #666F7D;
+  --ink-4:     #454C58;
+  --accent:    #D6A441;
+  --accent-2:  #F0C368;
+  --accent-ink:#171106;
+  --accent-glow:rgba(214,164,65,.16);
+  --sh-1:      0 1px 2px rgba(0,0,0,.4);
+  --sh-2:      0 6px 14px -4px rgba(0,0,0,.6);
+  --sh-3:      0 22px 44px -12px rgba(0,0,0,.72);
+  --sunk-in:   inset 0 1px 3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(0,0,0,.25);
+  --grain:     .055;
+  --chrome-bg: #0A0C0F;
+  --chrome-ink:#8A93A2;
+}
+:root[data-theme="light"]{
+  --bg:        #E4E6EA;
+  --bg-2:      #EFF1F4;
+  --plate-hi:  #FFFFFF;
+  --plate-lo:  #F3F4F7;
+  --sunk:      #E7E9ED;
+  --edge:      rgba(255,255,255,.95);
+  --edge-soft: rgba(255,255,255,.7);
+  --hairline:  rgba(18,22,30,.09);
+  --ink:       #13161B;
+  --ink-2:     #545C69;
+  --ink-3:     #79808C;
+  --ink-4:     #A2A8B2;
+  --accent:    #9E7118;
+  --accent-2:  #7E590F;
+  --accent-ink:#FFF7E6;
+  --accent-glow:rgba(158,113,24,.12);
+  --sh-1:      0 1px 1px rgba(18,22,30,.09);
+  --sh-2:      0 5px 12px -4px rgba(18,22,30,.18);
+  --sh-3:      0 20px 38px -12px rgba(18,22,30,.26);
+  --sunk-in:   inset 0 1px 3px rgba(18,22,30,.14), inset 0 0 0 1px rgba(18,22,30,.05);
+  --grain:     .03;
+  --chrome-bg: #D3D6DC;
+  --chrome-ink:#4A515C;
+}
+
+:root{
+  --sans: -apple-system, ui-sans-serif, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+  --num:  ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --sa-top:44px; --sa-bot:34px;
+  --gut:20px;
+  --r-l:20px; --r-m:15px; --r-s:10px;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  background:var(--chrome-bg); color:var(--chrome-ink); font-family:var(--sans);
+  min-height:100dvh; padding:52px 32px 96px; overflow-x:hidden;
+}
+
+/* ---------- Seiten-Chrome ---------- */
+.doc{ max-width:1720px; margin:0 auto; }
+.doc-head{ max-width:64ch; margin-bottom:56px; }
+.kicker{ font:600 10px/1 var(--sans); letter-spacing:.3em; text-transform:uppercase; color:var(--accent); margin-bottom:20px; }
+.doc-head h1{ font-size:44px; font-weight:700; letter-spacing:-.038em; line-height:1.04; color:var(--ink); }
+.doc-head h1 span{ color:var(--ink-3); font-weight:400; }
+.doc-head p{ margin-top:18px; font-size:15.5px; line-height:1.65; letter-spacing:-.006em; color:var(--chrome-ink); max-width:60ch; }
+.tokens{ margin-top:26px; display:flex; flex-wrap:wrap; gap:9px 22px; font:600 10px/1 var(--sans); letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3); }
+.swatch{ display:inline-flex; align-items:center; gap:8px; }
+.swatch i{ width:13px; height:13px; border-radius:4px; display:block; box-shadow:0 0 0 1px var(--hairline); }
+.themeswitch{
+  margin-top:30px; border:0; border-radius:11px; cursor:pointer;
+  background:linear-gradient(180deg,var(--plate-hi),var(--plate-lo)); color:var(--ink-2);
+  box-shadow:inset 0 1px 0 var(--edge), var(--sh-2);
+  font:600 10px/1 var(--sans); letter-spacing:.18em; text-transform:uppercase; padding:13px 20px;
+}
+.themeswitch:hover{ color:var(--ink); }
+
+.rack{ display:flex; flex-wrap:wrap; gap:74px 60px; align-items:flex-start; }
+.slot{ width:390px; }
+.slot figcaption{ margin-top:26px; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 11px; font:600 10px/1 var(--sans); letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); }
+.slot figcaption b{ color:var(--ink); white-space:nowrap; }
+.slot figcaption>:nth-child(2){ white-space:nowrap; }
+.slot figcaption span{ font-size:12.5px; letter-spacing:-.005em; text-transform:none; font-weight:400; color:var(--chrome-ink); }
+
+/* ---------- Telefon ---------- */
+.screen{
+  position:relative; width:390px; height:844px;   /* App: 100dvh */
+  overflow:hidden; border-radius:46px; isolation:isolate;
+  background:
+    radial-gradient(120% 62% at 50% -14%, var(--bg-2) 0%, transparent 62%),
+    var(--bg);
+  color:var(--ink); font-family:var(--sans);
+  box-shadow:0 0 0 10px #06070A, 0 0 0 11px var(--hairline), 0 46px 90px -30px rgba(0,0,0,.8);
+}
+.screen::after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:30;
+  opacity:var(--grain); mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.app{
+  position:relative; z-index:2; height:100%; display:flex; flex-direction:column;
+  padding-top:max(var(--sa-top), env(safe-area-inset-top));
+  padding-bottom:max(var(--sa-bot), env(safe-area-inset-bottom));
+}
+.status{
+  height:24px; flex:none; display:flex; align-items:center; justify-content:space-between;
+  padding:0 24px; color:var(--ink-2); font:600 12.5px/1 var(--sans); letter-spacing:.01em;
+}
+.status .sig{ display:flex; align-items:center; gap:6px; opacity:.85; }
+.status svg{ display:block; }
+.homebar{ flex:none; height:5px; width:134px; margin:9px auto 0; border-radius:3px; background:var(--ink-4); }
+
+/* ---------- Kopf ---------- */
+.head{ flex:none; padding:12px var(--gut) 10px; }
+.eyebrow{ font:700 9.5px/1 var(--sans); letter-spacing:.32em; text-transform:uppercase; color:var(--ink-4); }
+.h-title{ margin-top:8px; font-size:25px; font-weight:700; letter-spacing:-.035em; line-height:1.05; }
+.h-sub{ margin-top:6px; font-size:11.5px; line-height:1.3; color:var(--ink-3); letter-spacing:-.005em; }
+.h-sub b{ color:var(--accent); font-weight:600; }
+
+/* ---------- Plattenstapel ---------- */
+.stack{ flex:1 1 auto; min-height:0; padding:2px var(--gut) 0; display:flex; flex-direction:column; gap:5px; overflow:hidden; }
+.plate{
+  position:relative; border-radius:var(--r-m); padding:8px 12px 9px;
+  display:grid; grid-template-columns:22px 1fr auto; align-items:center; column-gap:11px;
+  background:linear-gradient(180deg, var(--plate-hi), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge-soft), var(--sh-1);
+  opacity:var(--z,1);
+}
+.plate .chip{
+  width:22px; height:22px; border-radius:7px; background:var(--sunk);
+  box-shadow:var(--sunk-in);
+  display:flex; align-items:center; justify-content:center;
+  font:700 11px/1 var(--num); color:var(--ink-3); letter-spacing:-.04em;
+}
+.plate .t{ font-size:14px; font-weight:600; letter-spacing:-.017em; line-height:1.24; }
+.plate .s{ margin-top:3px; font-size:10px; color:var(--ink-3); letter-spacing:-.002em; }
+.plate .n{ font:600 10.5px/1 var(--num); color:var(--ink-4); letter-spacing:-.02em; white-space:nowrap; }
+.plate .track{
+  grid-column:2 / 3; margin-top:6px; height:2px; border-radius:2px; background:var(--sunk);
+  opacity:.85; position:relative;
+}
+.plate .track i{ position:absolute; inset:0 auto 0 0; width:calc(var(--p)*100%); border-radius:2px; background:var(--ink-3); }
+
+.plate.lead{
+  padding:12px 13px 13px;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--plate-hi) 88%, var(--accent) 12%), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent-glow), var(--sh-3);
+}
+.plate.lead .chip{ background:linear-gradient(180deg,var(--accent-2),var(--accent)); color:var(--accent-ink); box-shadow:inset 0 1px 0 rgba(255,255,255,.4), var(--sh-1); }
+.plate.lead .t{ font-size:16px; font-weight:700; letter-spacing:-.028em; }
+.plate.lead .track i{ background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+.plate.lead .n{ color:var(--accent); }
+
+/* ---------- Fußleiste ---------- */
+.bar{
+  flex:none; margin:9px var(--gut) 0; padding:8px; border-radius:var(--r-l);
+  display:grid; grid-template-columns:1fr 1fr; gap:9px;
+  background:linear-gradient(180deg, var(--plate-lo), var(--sunk));
+  box-shadow:inset 0 1px 0 var(--edge-soft), var(--sh-2);
+}
+.btn{
+  border:0; cursor:pointer; border-radius:12px; padding:13px 10px;
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  font:600 12.5px/1 var(--sans); letter-spacing:-.012em;
+  background:linear-gradient(180deg, var(--plate-hi), var(--plate-lo)); color:var(--ink-2);
+  box-shadow:inset 0 1px 0 var(--edge), var(--sh-1);
+}
+.btn svg{ display:block; }
+.btn.gold{
+  background:linear-gradient(180deg, var(--accent-2), var(--accent)); color:var(--accent-ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 6px 16px -6px var(--accent-glow), var(--sh-2);
+  font-weight:700;
+}
+
+/* ---------- Fokus ---------- */
+.crumb{ flex:none; padding:12px var(--gut) 0; display:flex; align-items:center; gap:8px; }
+.crumb .back{
+  width:28px; height:28px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(180deg,var(--plate-hi),var(--plate-lo)); color:var(--ink-2);
+  box-shadow:inset 0 1px 0 var(--edge), var(--sh-1); flex:none;
+}
+.crumb .pill{
+  font:600 10px/1 var(--sans); letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
+  padding:7px 10px; border-radius:8px; background:var(--sunk); box-shadow:var(--sunk-in);
+}
+.crumb .caret{ color:var(--ink-4); }
+
+.peek{      /* die Geschwister, aus denen heraus gezoomt wurde — oben angeschnitten */
+  position:relative; height:16px; margin:10px var(--gut) 0; flex:none;
+}
+.peek i{
+  position:absolute; left:14px; right:14px; height:26px; border-radius:var(--r-m);
+  background:linear-gradient(180deg,var(--plate-hi),var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge-soft); opacity:.4; filter:blur(.4px);
+}
+.peek i:nth-child(1){ top:-15px; left:24px; right:24px; opacity:.32; }
+.peek i:nth-child(2){ top:-3px; opacity:.6; }
+
+.hero{ position:relative; margin:0 var(--gut); flex:none; }
+.hero .ghost{   /* Aufblendung: die Platte kommt noch aus der Tiefe */
+  position:absolute; inset:0; border-radius:var(--r-l); transform:scale(1.085);
+  background:var(--plate-hi); opacity:.22; filter:blur(1.5px);
+  box-shadow:0 0 0 1px var(--accent-glow);
+}
+.hero .card{
+  position:relative; border-radius:var(--r-l); padding:17px 17px 16px;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--plate-hi) 90%, var(--accent) 10%), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent-glow), var(--sh-3);
+}
+.hero .rank{
+  display:inline-flex; align-items:center; gap:7px; font:700 9.5px/1 var(--sans);
+  letter-spacing:.2em; text-transform:uppercase; color:var(--accent);
+}
+.hero h2{ margin-top:11px; font-size:25px; font-weight:700; letter-spacing:-.035em; line-height:1.08; }
+.hero .meta{ margin-top:13px; display:flex; align-items:center; gap:11px; font-size:11px; color:var(--ink-3); }
+.hero .meta .track{ flex:1; height:4px; border-radius:3px; background:var(--sunk); box-shadow:var(--sunk-in); position:relative; }
+.hero .meta .track i{ position:absolute; inset:0 auto 0 0; width:44%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+
+.kids{ flex:1 1 auto; min-height:0; overflow:hidden; margin:14px 0 0; padding:0 var(--gut) 0 calc(var(--gut) + 20px); position:relative; display:flex; flex-direction:column; gap:7px; }
+.rail{ position:absolute; left:calc(var(--gut) + 7px); top:6px; bottom:10px; width:1px; background:var(--hairline); }
+.kid{
+  position:relative; border-radius:var(--r-m); padding:11px 13px;
+  background:linear-gradient(180deg, var(--plate-hi), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge-soft), var(--sh-1);
+  display:grid; grid-template-columns:1fr auto; align-items:center; column-gap:12px;
+}
+.kid::before{ content:""; position:absolute; left:-13px; top:50%; width:12px; height:1px; background:var(--hairline); }
+.kid .t{ font-size:14px; font-weight:600; letter-spacing:-.016em; line-height:1.26; }
+.kid .s{ margin-top:5px; font-size:10.5px; color:var(--ink-3); }
+.kid .n{ font:600 10px/1 var(--num); color:var(--ink-4); white-space:nowrap; }
+.kid.on{ box-shadow:inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent-glow), var(--sh-2); }
+.kid.on .n{ color:var(--accent); }
+.kid.on::after{ content:""; position:absolute; left:0; top:11px; bottom:11px; width:3px; border-radius:3px; background:var(--accent); }
+.kid.leafnode .t::before{
+  content:""; display:inline-block; width:6px; height:6px; border-radius:2px; margin-right:8px;
+  background:var(--sunk); box-shadow:var(--sunk-in); vertical-align:1px;
+}
+.kid.fin{ opacity:.5; }
+
+/* ---------- Duell ---------- */
+.duel{ flex:1; min-height:0; display:flex; flex-direction:column; }
+.d-head{ flex:none; padding:16px var(--gut) 0; text-align:center; }
+.d-head h2{ font-size:22px; font-weight:700; letter-spacing:-.032em; }
+.d-head .prog{
+  margin:14px auto 0; display:flex; align-items:center; gap:10px; max-width:280px;
+  font:600 10px/1 var(--num); color:var(--ink-3); letter-spacing:-.02em;
+}
+.d-head .prog .track{ flex:1; height:4px; border-radius:3px; background:var(--sunk); box-shadow:var(--sunk-in); position:relative; }
+.d-head .prog .track i{ position:absolute; inset:0 auto 0 0; width:31.8%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+
+.beam{ flex:1; min-height:0; position:relative; overflow:hidden; display:flex; align-items:center; padding:0 var(--gut); }
+.beam .glow{ position:absolute; inset:0; pointer-events:none; opacity:.55;
+  background:linear-gradient(270deg, var(--accent-glow), transparent 42%); }
+.beam .scalegrp{
+  position:relative; width:100%; display:flex; flex-direction:column; gap:16px;
+  transform:translateX(26px) rotate(2.4deg); transform-origin:50% 50%;
+}
+.pivot{
+  position:absolute; left:50%; top:50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px;
+  border-radius:50%; background:var(--sunk); box-shadow:var(--sunk-in), 0 0 0 1px var(--hairline); z-index:3;
+}
+.card{
+  border-radius:var(--r-l); padding:18px 16px;
+  background:linear-gradient(180deg, var(--plate-hi), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge-soft), var(--sh-2);
+}
+.card .lab{ font:700 9.5px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; color:var(--ink-4); }
+.card .t{ margin-top:11px; font-size:19px; font-weight:700; letter-spacing:-.032em; line-height:1.12; }
+.card .s{ margin-top:11px; font-size:11px; color:var(--ink-3); }
+.card.down{ transform:scale(.955) translateY(6px); opacity:.42; filter:blur(.5px); box-shadow:var(--sh-1); }
+.card.up{
+  transform:scale(1.035);
+  background:linear-gradient(180deg, color-mix(in srgb, var(--plate-hi) 86%, var(--accent) 14%), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent), var(--sh-3);
+}
+.card.up .lab{ color:var(--accent); }
+.dirs{ display:flex; align-items:center; justify-content:space-between; padding:0 34px 0 6px; }
+.dirs span{ display:flex; align-items:center; gap:7px; font:700 9.5px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase; color:var(--ink-4); }
+.dirs span.on{ color:var(--accent); }
+.d-foot{ flex:none; margin:0 var(--gut); padding-top:12px; display:flex; justify-content:space-between; }
+.ghostbtn{ background:none; border:0; cursor:pointer; color:var(--ink-3); font:600 11.5px/1 var(--sans); letter-spacing:-.01em; padding:10px 2px; }
+
+/* ---------- Blatt ---------- */
+.leaf{ flex:1; min-height:0; overflow:hidden; padding:14px var(--gut) 0; display:flex; flex-direction:column; gap:11px; }
+.leaf h2{ font-size:24px; font-weight:700; letter-spacing:-.036em; line-height:1.1; margin-top:2px; }
+.sunkpanel{
+  border-radius:var(--r-m); padding:14px; background:var(--sunk); box-shadow:var(--sunk-in);
+  font-size:13.5px; line-height:1.58; color:var(--ink-2); letter-spacing:-.006em;
+}
+.cells{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.cell{
+  border-radius:var(--r-m); padding:11px 13px 12px;
+  background:linear-gradient(180deg, var(--plate-hi), var(--plate-lo));
+  box-shadow:inset 0 1px 0 var(--edge-soft), var(--sh-1);
+}
+.cell.wide{ grid-column:1 / -1; }
+.cell .k{ font:700 9px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase; color:var(--ink-4); }
+.cell .v{ margin-top:8px; font-size:14.5px; font-weight:600; letter-spacing:-.018em; line-height:1.3; }
+.cell .v.norm{ font-weight:500; font-size:13.5px; line-height:1.45; color:var(--ink-2); letter-spacing:-.006em; }
+.cell .v em{ font-style:normal; color:var(--accent); font-size:11px; display:block; margin-top:5px; font-weight:600; }
+.leaf-bar{ flex:none; margin:0 var(--gut); padding-top:10px; }
+.bigdone{
+  width:100%; border:0; cursor:pointer; border-radius:17px; padding:18px;
+  display:flex; align-items:center; justify-content:center; gap:11px;
+  background:linear-gradient(180deg, var(--accent-2), var(--accent)); color:var(--accent-ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 10px 26px -10px var(--accent-glow), var(--sh-2);
+  font:700 15px/1 var(--sans); letter-spacing:-.02em;
+}
+.leaf-alt{ display:flex; justify-content:space-between; padding:6px 6px 0; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="doc-head">
+    <div class="kicker">tenfold — Gestaltungsrichtung B</div>
+    <h1>Schiefer <span>— Rang als Tiefe</span></h1>
+    <p>
+      Die Zehn liegen als Stapel echter Platten übereinander: Lichtkante oben,
+      Schatten darunter, Rangziffern in eingelassenen Feldern. Platz eins liegt
+      spürbar vorn und trägt als einziger das Messing; nach unten sinken die
+      Platten flacher, dunkler, näher an den Grund. Das Duell ist eine Waage —
+      das Paar kippt physisch in die gewählte Richtung. Wer die App zum ersten
+      Mal öffnet, soll denken, er hält ein Gerät in der Hand, keine Webseite.
+    </p>
+    <div class="tokens">
+      <span class="swatch"><i style="background:#0F1115"></i>Grund #0F1115</span>
+      <span class="swatch"><i style="background:linear-gradient(180deg,#262B35,#1B1F27)"></i>Platte</span>
+      <span class="swatch"><i style="background:#D6A441"></i>Akzent Messing #D6A441</span>
+      <span>Radius 20/15/10</span>
+      <span>Lichtkante inset 0 1px 0</span>
+      <span>3 Schattenstufen</span>
+    </div>
+    <button class="themeswitch" id="tsw">Helles Thema prüfen</button>
+  </header>
+
+  <div class="rack">
+
+    <!-- =============== 1 · DIE ZEHN =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="head">
+            <div class="eyebrow">tenfold</div>
+            <h2 class="h-title">Die Zehn</h2>
+            <div class="h-sub">Vier in Arbeit &middot; <b>zuletzt geordnet vor 11 Tagen</b></div>
+          </div>
+
+          <div class="stack">
+            <div class="plate lead">
+              <div class="chip">1</div>
+              <div><div class="t">Schulden abbauen</div><div class="s">In Arbeit &middot; nächste Rate am 28.</div></div>
+              <div class="n">3/8</div>
+              <div class="track" style="--p:.375"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.97">
+              <div class="chip">2</div>
+              <div><div class="t">Das Unternehmen verkaufsfähig machen</div></div>
+              <div class="n">2/14</div>
+              <div class="track" style="--p:.14"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.93">
+              <div class="chip">3</div>
+              <div><div class="t">Wieder laufen bis 10&nbsp;km</div></div>
+              <div class="n">4/9</div>
+              <div class="track" style="--p:.44"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.88">
+              <div class="chip">4</div>
+              <div><div class="t">Verhältnis zu Anna klären</div></div>
+              <div class="n">0/3</div>
+              <div class="track" style="--p:0"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.82">
+              <div class="chip">5</div>
+              <div><div class="t">Vater regelmäßig besuchen</div></div>
+              <div class="n">5/7</div>
+              <div class="track" style="--p:.71"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.75">
+              <div class="chip">6</div>
+              <div><div class="t">Rücken dauerhaft schmerzfrei</div></div>
+              <div class="n">2/5</div>
+              <div class="track" style="--p:.4"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.68">
+              <div class="chip">7</div>
+              <div><div class="t">Spanisch bis B2</div></div>
+              <div class="n">1/6</div>
+              <div class="track" style="--p:.17"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.6">
+              <div class="chip">8</div>
+              <div><div class="t">Testament und Vorsorge regeln</div></div>
+              <div class="n">0/4</div>
+              <div class="track" style="--p:0"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.52">
+              <div class="chip">9</div>
+              <div><div class="t">Werkstatt fertig einrichten</div></div>
+              <div class="n">7/11</div>
+              <div class="track" style="--p:.63"><i></i></div>
+            </div>
+            <div class="plate" style="--z:.42">
+              <div class="chip">10</div>
+              <div><div class="t">Weniger abends am Bildschirm</div></div>
+              <div class="n">ruht</div>
+              <div class="track" style="--p:.33"><i></i></div>
+            </div>
+          </div>
+
+          <div class="bar">
+            <button class="btn">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6.5 1.4v10.2M1.4 6.5h10.2"/></svg>
+              Neuer Punkt
+            </button>
+            <button class="btn gold">
+              <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M.8 1.6h13.4M.8 6h9M.8 10.4h4.6"/></svg>
+              Ordnen
+            </button>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>01</b> Die Zehn <span>Platz 1 liegt vorn und trägt Messing, Platz 10 sinkt in den Grund</span></figcaption>
+    </figure>
+
+    <!-- =============== 2 · FOKUS =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="crumb">
+            <span class="back">
+              <svg width="13" height="11" viewBox="0 0 13 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.4 1.4 1.4 5.5l4 4.1M1.6 5.5h10"/></svg>
+            </span>
+            <span class="pill">Die Zehn</span>
+            <span class="caret">
+              <svg width="7" height="10" viewBox="0 0 7 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1.6 1.4 5.4 5l-3.8 3.6"/></svg>
+            </span>
+            <span class="pill">Platz 3</span>
+          </div>
+
+          <div class="peek"><i></i><i></i></div>
+
+          <div class="hero">
+            <div class="ghost"></div>
+            <div class="card">
+              <div class="rank">
+                Platz 3 von 10
+              </div>
+              <h2>Wieder laufen bis 10&nbsp;km</h2>
+              <div class="meta">
+                <span>4 von 9</span>
+                <span class="track"><i></i></span>
+                <span>seit 62 Tagen</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kids">
+            <div class="rail"></div>
+            <div class="kid on">
+              <div><div class="t">Grundlage aufbauen: dreimal pro Woche 30 Minuten</div><div class="s">Läuft &middot; nächster Termin morgen früh</div></div>
+              <div class="n">6/12</div>
+            </div>
+            <div class="kid">
+              <div><div class="t">Knie stabilisieren</div><div class="s">Physio &middot; Termin fehlt</div></div>
+              <div class="n">1/4</div>
+            </div>
+            <div class="kid leafnode">
+              <div><div class="t">Laufschuhe nach Ganganalyse kaufen</div><div class="s">Fällig 22. August</div></div>
+              <div class="n">Blatt</div>
+            </div>
+            <div class="kid">
+              <div><div class="t">Zehn Kilometer im September anmelden</div><div class="s">Meldeschluss 30. August</div></div>
+              <div class="n">0/2</div>
+            </div>
+            <div class="kid fin">
+              <div><div class="t">Alte Laufuhr wieder in Betrieb</div><div class="s">Erledigt am 14. Juni</div></div>
+              <div class="n">fertig</div>
+            </div>
+          </div>
+
+          <div class="bar">
+            <button class="btn">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6.5 1.4v10.2M1.4 6.5h10.2"/></svg>
+              Teilziel
+            </button>
+            <button class="btn gold">
+              <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M.8 1.6h13.4M.8 6h9M.8 10.4h4.6"/></svg>
+              Ordnen
+            </button>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>02</b> Fokus <span>Die Platte steigt aus der Tiefe, die Geschwister bleiben oben angeschnitten</span></figcaption>
+    </figure>
+
+    <!-- =============== 3 · DUELL =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="duel">
+            <div class="d-head">
+              <h2>Was ist dir wichtiger?</h2>
+              <div class="prog">
+                <span>07</span>
+                <span class="track"><i></i></span>
+                <span>~22</span>
+              </div>
+            </div>
+
+            <div class="beam">
+              <div class="glow"></div>
+              <div class="scalegrp">
+                <div class="card down">
+                  <div class="lab">A</div>
+                  <div class="t">Verhältnis zu Anna klären</div>
+                  <div class="s">Zurzeit Platz 4 &middot; seit März offen</div>
+                </div>
+
+                <div class="dirs">
+                  <span>
+                    <svg width="13" height="11" viewBox="0 0 13 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.4 1.4 1.4 5.5l4 4.1M1.6 5.5h11"/></svg>
+                    A
+                  </span>
+                  <span class="on">
+                    B
+                    <svg width="13" height="11" viewBox="0 0 13 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.6 1.4l4 4.1-4 4.1M11.4 5.5H.4"/></svg>
+                  </span>
+                </div>
+
+                <div class="card up">
+                  <div class="lab">B &middot; gewählt</div>
+                  <div class="t">Das Unternehmen verkaufsfähig machen</div>
+                  <div class="s">Zurzeit Platz 2 &middot; 2 von 14 erledigt</div>
+                </div>
+                <div class="pivot"></div>
+              </div>
+            </div>
+
+            <div class="d-foot">
+              <button class="ghostbtn">Zurück</button>
+              <button class="ghostbtn">Gleich wichtig</button>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>03</b> Duell <span>Die Waage kippt: B steigt und fängt Licht, A sinkt weg</span></figcaption>
+    </figure>
+
+    <!-- =============== 4 · EIN BLATT =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="crumb">
+            <span class="back">
+              <svg width="13" height="11" viewBox="0 0 13 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.4 1.4 1.4 5.5l4 4.1M1.6 5.5h10"/></svg>
+            </span>
+            <span class="pill">10&nbsp;km</span>
+            <span class="caret">
+              <svg width="7" height="10" viewBox="0 0 7 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1.6 1.4 5.4 5l-3.8 3.6"/></svg>
+            </span>
+            <span class="pill">Knie stabilisieren</span>
+          </div>
+
+          <div class="leaf">
+            <h2>Termin beim Physiotherapeuten vereinbaren</h2>
+            <div class="sunkpanel">
+              Praxis Ortmann, Waldstraße. Die Überweisung liegt seit Februar in der
+              grauen Mappe. Vormittags anrufen — nach elf geht dort niemand mehr ran.
+            </div>
+            <div class="cells">
+              <div class="cell">
+                <div class="k">Fällig</div>
+                <div class="v">Fr, 15. August<em>in 6 Tagen</em></div>
+              </div>
+              <div class="cell">
+                <div class="k">Aufwand</div>
+                <div class="v">10 Minuten<em>ein Anruf</em></div>
+              </div>
+              <div class="cell wide">
+                <div class="k">Fertig, wenn</div>
+                <div class="v norm">Der Termin steht im Kalender und die Überweisung ist eingereicht.</div>
+              </div>
+              <div class="cell wide">
+                <div class="k">Gehört zu</div>
+                <div class="v norm">Knie stabilisieren &nbsp;&middot;&nbsp; Wieder laufen bis 10&nbsp;km</div>
+              </div>
+              <div class="cell">
+                <div class="k">Angelegt</div>
+                <div class="v norm">14. Juni</div>
+              </div>
+              <div class="cell">
+                <div class="k">Zustand</div>
+                <div class="v norm">offen<em>seit 56 Tagen</em></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="leaf-bar">
+            <button class="bigdone">
+              <svg width="17" height="13" viewBox="0 0 17 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.6 6.8 6 11.2 15.4 1.8"/></svg>
+              Erledigt
+            </button>
+            <div class="leaf-alt">
+              <button class="ghostbtn">Verschieben</button>
+              <button class="ghostbtn">Bearbeiten</button>
+              <button class="ghostbtn">Löschen</button>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>04</b> Ein Blatt <span>Notiz eingelassen, Werte in Fassungen, eine gegossene Handlung unten</span></figcaption>
+    </figure>
+
+  </div>
+</div>
+
+<script>
+  const root = document.documentElement, btn = document.getElementById("tsw");
+  btn.addEventListener("click", () => {
+    const dark = root.getAttribute("data-theme") === "dark";
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+    btn.textContent = dark ? "Dunkles Thema prüfen" : "Helles Thema prüfen";
+  });
+</script>
+</body>
+</html>

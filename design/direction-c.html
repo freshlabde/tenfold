@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tenfold — Richtung C · Atem</title>
+<style>
+/* =========================================================================
+   RICHTUNG C — "Atem"
+   Haltung: radikale Reduktion. Keine Linien, keine Flächen, keine Rahmen,
+   keine Radien, keine Schatten. Es gibt nur Text auf Schwarz. Hierarchie
+   entsteht ausschließlich durch Größe, Helligkeit und Abstand — Rang 1 steht
+   groß und weiß, Rang 10 klein und fast verschwunden. Bewegung ist das
+   einzige Ornament. Genau eine Akzentfarbe: ein kaltes, gedämpftes Blau,
+   das nur zeigt, wo man gerade ist und wohin man zieht.
+   ========================================================================= */
+
+:root[data-theme="dark"]{
+  --void:    #070709;
+  --ink:     #F2F2EF;
+  --ink-70:  rgba(242,242,239,.70);
+  --ink-46:  rgba(242,242,239,.46);
+  --ink-28:  rgba(242,242,239,.28);
+  --ink-16:  rgba(242,242,239,.16);
+  --accent:  #7FA8BF;
+  --accent-dim: rgba(127,168,191,.34);
+  --accent-wash: rgba(127,168,191,.13);
+  --chrome-bg: #0B0B0D;
+  --chrome-ink: rgba(242,242,239,.44);
+}
+:root[data-theme="light"]{
+  --void:    #FBFBF9;
+  --ink:     #101012;
+  --ink-70:  rgba(16,16,18,.70);
+  --ink-46:  rgba(16,16,18,.50);
+  --ink-28:  rgba(16,16,18,.32);
+  --ink-16:  rgba(16,16,18,.18);
+  --accent:  #2E6A88;
+  --accent-dim: rgba(46,106,136,.38);
+  --accent-wash: rgba(46,106,136,.10);
+  --chrome-bg: #EFEFEC;
+  --chrome-ink: rgba(16,16,18,.55);
+}
+
+:root{
+  --sans: -apple-system, ui-sans-serif, "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Courier New", monospace;
+  --sa-top:44px; --sa-bot:34px;
+  --gut:28px;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  background:var(--chrome-bg); color:var(--chrome-ink); font-family:var(--sans);
+  min-height:100dvh; padding:52px 32px 96px; overflow-x:hidden;
+}
+
+/* ---------- Seiten-Chrome ---------- */
+.doc{ max-width:1720px; margin:0 auto; }
+.doc-head{ max-width:62ch; margin-bottom:60px; }
+.kicker{ font:500 10px/1 var(--mono); letter-spacing:.34em; text-transform:uppercase; color:var(--accent); margin-bottom:22px; }
+.doc-head h1{ font-size:46px; font-weight:300; letter-spacing:-.04em; line-height:1.02; color:var(--ink); }
+.doc-head h1 b{ font-weight:600; }
+.doc-head p{ margin-top:20px; font-size:15.5px; line-height:1.7; letter-spacing:-.008em; color:var(--chrome-ink); max-width:58ch; font-weight:400; }
+.tokens{ margin-top:28px; display:flex; flex-wrap:wrap; gap:10px 24px; font:500 10px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ink-46); }
+.swatch{ display:inline-flex; align-items:center; gap:8px; }
+.swatch i{ width:11px; height:11px; display:block; border-radius:50%; }
+.themeswitch{
+  margin-top:32px; background:none; border:0; padding:0; cursor:pointer; color:var(--ink-46);
+  font:500 10px/1 var(--mono); letter-spacing:.26em; text-transform:uppercase;
+  border-bottom:1px solid var(--ink-16); padding-bottom:9px;
+}
+.themeswitch:hover{ color:var(--accent); border-color:var(--accent-dim); }
+
+.rack{ display:flex; flex-wrap:wrap; gap:74px 60px; align-items:flex-start; }
+.slot{ width:390px; }
+.slot figcaption{ margin-top:26px; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; font:500 10px/1 var(--mono); letter-spacing:.2em; text-transform:uppercase; color:var(--ink-46); }
+.slot figcaption b{ color:var(--ink); font-weight:500; white-space:nowrap; }
+.slot figcaption>:nth-child(2){ white-space:nowrap; }
+.slot figcaption span{ font-family:var(--sans); font-size:12.5px; letter-spacing:-.005em; text-transform:none; color:var(--chrome-ink); }
+
+/* ---------- Telefon ---------- */
+.screen{
+  position:relative; width:390px; height:844px;   /* App: 100dvh */
+  overflow:hidden; border-radius:46px; isolation:isolate;
+  background:var(--void); color:var(--ink); font-family:var(--sans);
+  box-shadow:0 0 0 10px #000, 0 0 0 11px var(--ink-16), 0 46px 90px -30px rgba(0,0,0,.85);
+}
+.app{
+  position:relative; z-index:2; height:100%; display:flex; flex-direction:column;
+  padding-top:max(var(--sa-top), env(safe-area-inset-top));
+  padding-bottom:max(var(--sa-bot), env(safe-area-inset-bottom));
+}
+.status{
+  height:22px; flex:none; display:flex; align-items:center; justify-content:space-between;
+  padding:0 var(--gut); color:var(--ink-28);
+  font:500 10px/1 var(--mono); letter-spacing:.2em;
+}
+.status svg{ display:block; }
+.homebar{ flex:none; height:4px; width:120px; margin:10px auto 0; border-radius:3px; background:var(--ink-16); }
+
+/* mono-Mikroschrift, das einzige wiederkehrende Bauteil */
+.m{ font:500 9.5px/1 var(--mono); letter-spacing:.24em; text-transform:uppercase; color:var(--ink-28); }
+.m.hi{ color:var(--accent); }
+.m.mid{ color:var(--ink-46); }
+
+/* ---------- Die Zehn ---------- */
+.c-head{ flex:none; padding:34px var(--gut) 0; display:flex; justify-content:space-between; align-items:baseline; }
+.ten{
+  flex:1 1 auto; min-height:0; overflow:hidden; padding:20px var(--gut) 0;
+  -webkit-mask-image:linear-gradient(#000 93%, transparent 100%);
+          mask-image:linear-gradient(#000 93%, transparent 100%);
+}
+.line{
+  position:relative; display:grid; grid-template-columns:26px 1fr auto; align-items:baseline;
+  column-gap:16px; padding:19px 0;
+}
+.line .r{ font:500 10px/1.6 var(--mono); letter-spacing:.06em; color:var(--ink-16); }
+.line .t{
+  font-size:var(--fs,17px); font-weight:400; line-height:1.2; letter-spacing:-.026em;
+  color:var(--ink); opacity:var(--o,1);
+}
+.line .p{ font:500 9.5px/1.6 var(--mono); letter-spacing:.1em; color:var(--ink-16); white-space:nowrap; }
+.line.top .t{ font-weight:500; }
+.line.top .r{ color:var(--accent-dim); }
+
+/* der eben berührte Punkt — die Bewegung beginnt */
+.line.tapped .r{ color:var(--accent); }
+.line.tapped .p{ color:var(--accent-dim); }
+.line.tapped .t{ opacity:1; }
+.line.tapped::after{
+  content:""; position:absolute; left:42px; right:0; bottom:5px; height:1px;
+  background:linear-gradient(90deg, var(--accent) 0%, var(--accent-dim) 46%, transparent 62%);
+}
+.line.shifted{ transform:translateY(4px); }
+
+.c-foot{
+  flex:none; margin-top:auto; padding:22px var(--gut) 0;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.word{
+  background:none; border:0; padding:8px 0; cursor:pointer;
+  font:500 10px/1 var(--mono); letter-spacing:.26em; text-transform:uppercase; color:var(--ink-46);
+  display:inline-flex; align-items:center; gap:10px;
+}
+.word.go{ color:var(--accent); }
+.word svg{ display:block; }
+
+/* ---------- Fokus ---------- */
+.crumbs{ flex:none; padding:30px var(--gut) 0; display:flex; align-items:center; gap:10px; }
+.zoom{ position:relative; flex:none; padding:0 var(--gut); margin-top:44px; }
+.zoom .from{      /* wo der Titel eine Sekunde vorher stand */
+  position:absolute; left:var(--gut); top:-30px; transform-origin:left top; transform:scale(.6);
+  font-size:34px; font-weight:400; letter-spacing:-.032em; line-height:1.06; color:var(--ink);
+  opacity:.12; white-space:nowrap; pointer-events:none;
+}
+.zoom h2{ font-size:34px; font-weight:400; letter-spacing:-.036em; line-height:1.06; }
+.zoom .under{ margin-top:26px; height:1px; background:var(--ink-16); position:relative; }
+.zoom .under i{ position:absolute; left:0; top:0; height:1px; width:44%; background:var(--accent); }
+.zoom .stand{ margin-top:14px; display:flex; justify-content:space-between; }
+
+.kids{
+  flex:1 1 auto; min-height:0; overflow:hidden; padding:40px var(--gut) 0;
+  -webkit-mask-image:linear-gradient(#000 92%, transparent 100%);
+          mask-image:linear-gradient(#000 92%, transparent 100%);
+}
+.kid{ display:grid; grid-template-columns:1fr auto; align-items:baseline; column-gap:18px; padding:15px 0; }
+.kid .t{ font-size:18px; font-weight:400; letter-spacing:-.024em; line-height:1.28; }
+.kid .s{ margin-top:9px; grid-column:1 / -1; }
+.kid .p{ font:500 9.5px/1.4 var(--mono); letter-spacing:.1em; color:var(--ink-16); white-space:nowrap; }
+.kid.here .p{ color:var(--accent); }
+.kid.leafy .t::before{
+  content:""; display:inline-block; width:4px; height:4px; border-radius:50%;
+  background:var(--ink-28); margin-right:11px; vertical-align:.22em;
+}
+.kid.past .t{ color:var(--ink-28); }
+
+/* ---------- Duell ---------- */
+.duel{ flex:1; min-height:0; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+.pull{ position:absolute; inset:0; pointer-events:none; background:linear-gradient(270deg, var(--accent-wash), transparent 52%); }
+.pull-edge{ position:absolute; right:0; top:0; bottom:0; width:3px; z-index:4; opacity:1;
+  background:linear-gradient(180deg, transparent 6%, var(--accent) 50%, transparent 94%);
+  box-shadow:0 0 22px 3px var(--accent-wash); }
+.pull-word{
+  position:absolute; right:6px; top:31%; transform:translateY(-50%) rotate(90deg); transform-origin:center; z-index:4;
+  font:500 9px/1 var(--mono); letter-spacing:.34em; text-transform:uppercase; color:var(--accent);
+  white-space:nowrap;
+}
+.d-top{ flex:none; padding:30px var(--gut) 0; position:relative; z-index:2; }
+.ticks{ margin-top:16px; display:flex; gap:4px; align-items:flex-end; height:9px; }
+.ticks i{ flex:1; height:4px; background:var(--ink-16); }
+.ticks i.on{ background:var(--accent); height:9px; }
+.ticks i.now{ background:var(--accent); height:9px; }
+.d-mid{
+  flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center;
+  padding:0 var(--gut); position:relative; z-index:2;
+  transform:translateX(42px) rotate(1.3deg); transform-origin:50% 60%;
+}
+.ask{ margin-bottom:34px; }
+.opt .t{ font-size:29px; font-weight:400; letter-spacing:-.038em; line-height:1.1; }
+.opt .s{ margin-top:13px; }
+.opt.lost{ opacity:.2; }
+.opt.won .t{ color:var(--accent); font-weight:500; }
+.between{ display:flex; align-items:center; gap:14px; margin:30px 0; }
+.between .m{ flex:none; }
+.between em{ flex:1; height:1px; background:var(--ink-16); display:block; }
+.d-bot{ flex:none; padding:16px var(--gut) 0; display:flex; justify-content:space-between; position:relative; z-index:2; }
+
+/* ---------- Ein Blatt ---------- */
+.leaf{
+  flex:1 1 auto; min-height:0; overflow:hidden; padding:34px var(--gut) 0;
+  -webkit-mask-image:linear-gradient(#000 94%, transparent 100%);
+          mask-image:linear-gradient(#000 94%, transparent 100%);
+}
+.leaf h2{ margin-top:26px; font-size:27px; font-weight:400; letter-spacing:-.034em; line-height:1.14; }
+.leaf .note{ margin-top:24px; font-size:15.5px; line-height:1.72; letter-spacing:-.01em; color:var(--ink-46); max-width:33ch; }
+.facts{ margin-top:42px; display:flex; flex-direction:column; gap:28px; }
+.fact .v{ margin-top:11px; font-size:16.5px; font-weight:400; letter-spacing:-.022em; line-height:1.42; color:var(--ink-70); }
+.fact .v strong{ font-weight:500; color:var(--ink); }
+.fact .v u{ text-decoration:none; color:var(--accent); }
+.leaf-act{ flex:none; padding:0 var(--gut); }
+.leaf-act .hr{ height:1px; background:var(--accent-dim); }
+.leaf-act button{
+  width:100%; background:none; border:0; cursor:pointer; padding:24px 0 6px;
+  display:flex; align-items:center; justify-content:center; gap:13px;
+  font:500 11px/1 var(--mono); letter-spacing:.3em; text-transform:uppercase; color:var(--accent);
+}
+.leaf-alt{ display:flex; justify-content:space-between; padding-top:14px; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="doc-head">
+    <div class="kicker">tenfold — Gestaltungsrichtung C</div>
+    <h1>Atem — <b>fast nichts</b></h1>
+    <p>
+      Kein Rahmen, keine Fläche, keine Linie außer der einen, die etwas bedeutet.
+      Es gibt nur Text auf Schwarz. Die Rangfolge liest man daran, dass Platz eins
+      groß und weiß dasteht und Platz zehn klein und fast verschwunden — die
+      Hierarchie ist die Typografie selbst, nicht ihre Verpackung. Alles Übrige,
+      Zahlen und Zustände, steht in einer schmalen Maschinenschrift am Rand.
+      Bewegung ist hier das einzige Ornament: Man sieht, woher der Titel kommt und
+      wohin die Karte gezogen wird.
+    </p>
+    <div class="tokens">
+      <span class="swatch"><i style="background:#070709;box-shadow:0 0 0 1px rgba(255,255,255,.18)"></i>Grund #070709</span>
+      <span class="swatch"><i style="background:#F2F2EF"></i>Schrift #F2F2EF</span>
+      <span class="swatch"><i style="background:#7FA8BF"></i>Akzent Eis #7FA8BF</span>
+      <span>Opazitätsleiter 100/70/46/28/16</span>
+      <span>Radius 0 · Schatten 0</span>
+      <span>Satzspiegel 28 px</span>
+    </div>
+    <button class="themeswitch" id="tsw">Helles Thema prüfen</button>
+  </header>
+
+  <div class="rack">
+
+    <!-- =============== 1 · DIE ZEHN =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <svg width="11" height="13" viewBox="0 0 11 13" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x=".6" y="5.4" width="9.8" height="7" rx="1.6"/><path d="M3 5.4V3.6a2.5 2.5 0 0 1 5 0v1.8"/></svg>
+          </div>
+
+          <div class="c-head">
+            <span class="m mid">Die Zehn</span>
+            <span class="m">8. August</span>
+          </div>
+
+          <ol class="ten">
+            <li class="line top" style="--fs:21px;--o:1">
+              <span class="r">01</span><span class="t">Schulden abbauen</span><span class="p">3/8</span>
+            </li>
+            <li class="line" style="--fs:19.5px;--o:.92">
+              <span class="r">02</span><span class="t">Das Unternehmen verkaufsfähig machen</span><span class="p">2/14</span>
+            </li>
+            <li class="line tapped" style="--fs:18.5px;--o:.86">
+              <span class="r">03</span><span class="t">Wieder laufen bis 10&nbsp;km</span><span class="p">4/9</span>
+            </li>
+            <li class="line shifted" style="--fs:17.5px;--o:.72">
+              <span class="r">04</span><span class="t">Verhältnis zu Anna klären</span><span class="p">0/3</span>
+            </li>
+            <li class="line shifted" style="--fs:17px;--o:.63">
+              <span class="r">05</span><span class="t">Vater regelmäßig besuchen</span><span class="p">5/7</span>
+            </li>
+            <li class="line" style="--fs:16.5px;--o:.55">
+              <span class="r">06</span><span class="t">Rücken dauerhaft schmerzfrei</span><span class="p">2/5</span>
+            </li>
+            <li class="line" style="--fs:16px;--o:.47">
+              <span class="r">07</span><span class="t">Spanisch bis B2</span><span class="p">1/6</span>
+            </li>
+            <li class="line" style="--fs:15.5px;--o:.4">
+              <span class="r">08</span><span class="t">Testament und Vorsorge regeln</span><span class="p">0/4</span>
+            </li>
+            <li class="line" style="--fs:15px;--o:.33">
+              <span class="r">09</span><span class="t">Werkstatt fertig einrichten</span><span class="p">7/11</span>
+            </li>
+            <li class="line" style="--fs:14.5px;--o:.26">
+              <span class="r">10</span><span class="t">Weniger abends am Bildschirm</span><span class="p">ruht</span>
+            </li>
+          </ol>
+
+          <div class="c-foot">
+            <button class="word">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5.5 0v11M0 5.5h11"/></svg>
+              Neu
+            </button>
+            <button class="word go">
+              Ordnen
+              <svg width="14" height="11" viewBox="0 0 14 11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M0 3h14M0 8h14M10 0l4 3-4 3M4 5l-4 3 4 3"/></svg>
+            </button>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>01</b> Die Zehn <span>Platz 1 groß und weiß, Platz 10 klein und fast fort — Rang 3 eben berührt</span></figcaption>
+    </figure>
+
+    <!-- =============== 2 · FOKUS =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <svg width="11" height="13" viewBox="0 0 11 13" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x=".6" y="5.4" width="9.8" height="7" rx="1.6"/><path d="M3 5.4V3.6a2.5 2.5 0 0 1 5 0v1.8"/></svg>
+          </div>
+
+          <div class="crumbs">
+            <svg width="13" height="10" viewBox="0 0 13 10" fill="none" stroke="var(--accent)" stroke-width="1.2" aria-hidden="true"><path d="M4.6 1 .8 5l3.8 4M1 5h11.5"/></svg>
+            <span class="m mid">Die Zehn</span>
+            <span class="m">/</span>
+            <span class="m hi">03</span>
+          </div>
+
+          <div class="zoom">
+            <div class="from">Wieder laufen bis 10&nbsp;km</div>
+            <h2>Wieder laufen<br>bis 10&nbsp;km</h2>
+            <div class="under"><i></i></div>
+            <div class="stand">
+              <span class="m mid">4 von 9 Schritten</span>
+              <span class="m">seit 62 Tagen</span>
+            </div>
+          </div>
+
+          <div class="kids">
+            <div class="kid here">
+              <span class="t">Grundlage aufbauen: dreimal pro Woche 30 Minuten</span>
+              <span class="p">6/12</span>
+              <span class="s m hi">läuft · morgen früh</span>
+            </div>
+            <div class="kid">
+              <span class="t">Knie stabilisieren</span>
+              <span class="p">1/4</span>
+              <span class="s m">Physio · Termin fehlt</span>
+            </div>
+            <div class="kid leafy">
+              <span class="t">Laufschuhe nach Ganganalyse kaufen</span>
+              <span class="p">Blatt</span>
+              <span class="s m">fällig 22. August</span>
+            </div>
+            <div class="kid">
+              <span class="t">Zehn Kilometer im September anmelden</span>
+              <span class="p">0/2</span>
+              <span class="s m">Meldeschluss 30. August</span>
+            </div>
+            <div class="kid past">
+              <span class="t">Alte Laufuhr wieder in Betrieb</span>
+              <span class="p">fertig</span>
+            </div>
+          </div>
+
+          <div class="c-foot">
+            <button class="word">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5.5 0v11M0 5.5h11"/></svg>
+              Teilziel
+            </button>
+            <button class="word go">
+              Ordnen
+              <svg width="14" height="11" viewBox="0 0 14 11" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M0 3h14M0 8h14M10 0l4 3-4 3M4 5l-4 3 4 3"/></svg>
+            </button>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>02</b> Fokus <span>Der Titel steht noch als Geist dort, wo er in der Liste stand</span></figcaption>
+    </figure>
+
+    <!-- =============== 3 · DUELL =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <svg width="11" height="13" viewBox="0 0 11 13" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x=".6" y="5.4" width="9.8" height="7" rx="1.6"/><path d="M3 5.4V3.6a2.5 2.5 0 0 1 5 0v1.8"/></svg>
+          </div>
+
+          <div class="duel">
+            <div class="pull"></div>
+            <div class="pull-edge"></div>
+            <div class="pull-word">wichtiger</div>
+
+            <div class="d-top">
+              <div style="display:flex;justify-content:space-between">
+                <span class="m mid">Vergleich 07</span>
+                <span class="m">von etwa 22</span>
+              </div>
+              <div class="ticks">
+                <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+                <i class="now"></i>
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+
+            <div class="d-mid">
+              <div class="ask m mid">Was ist dir wichtiger?</div>
+
+              <div class="opt lost">
+                <div class="t">Verhältnis zu Anna klären</div>
+                <div class="s m">Zurzeit Platz 4 · seit März offen</div>
+              </div>
+
+              <div class="between">
+                <span class="m">oder</span>
+                <em></em>
+              </div>
+
+              <div class="opt won">
+                <div class="t">Das Unternehmen verkaufsfähig machen</div>
+                <div class="s m hi">Zurzeit Platz 2 · 2 von 14 erledigt</div>
+              </div>
+            </div>
+
+            <div class="d-bot">
+              <button class="word">Zurück</button>
+              <button class="word">Gleich wichtig</button>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>03</b> Duell <span>Der Block ist im Zug nach rechts, die Kante zieht, das Verlorene verblasst</span></figcaption>
+    </figure>
+
+    <!-- =============== 4 · EIN BLATT =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <svg width="11" height="13" viewBox="0 0 11 13" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x=".6" y="5.4" width="9.8" height="7" rx="1.6"/><path d="M3 5.4V3.6a2.5 2.5 0 0 1 5 0v1.8"/></svg>
+          </div>
+
+          <div class="leaf">
+            <div style="display:flex;align-items:center;gap:9px">
+              <svg width="13" height="10" viewBox="0 0 13 10" fill="none" stroke="var(--accent)" stroke-width="1.2" aria-hidden="true"><path d="M4.6 1 .8 5l3.8 4M1 5h11.5"/></svg>
+              <span class="m">03 / 10&nbsp;km / Knie</span>
+            </div>
+
+            <h2>Termin beim Physiotherapeuten vereinbaren</h2>
+
+            <p class="note">
+              Praxis Ortmann, Waldstraße. Die Überweisung liegt seit Februar in der
+              grauen Mappe. Vormittags anrufen — nach elf geht dort niemand mehr ran.
+            </p>
+
+            <div class="facts">
+              <div class="fact">
+                <div class="m">Fällig</div>
+                <div class="v"><strong>Freitag, 15. August</strong> — <u>in 6 Tagen</u></div>
+              </div>
+              <div class="fact">
+                <div class="m">Fertig, wenn</div>
+                <div class="v">Der Termin steht im Kalender und die Überweisung ist eingereicht.</div>
+              </div>
+              <div class="fact">
+                <div class="m">Aufwand</div>
+                <div class="v">10 Minuten, ein Anruf</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="leaf-act">
+            <div class="hr"></div>
+            <button>
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.8"/><path d="M4.2 7.7 6.6 10.2 11 4.9"/></svg>
+              Erledigt
+            </button>
+            <div class="leaf-alt">
+              <button class="word">Verschieben</button>
+              <button class="word">Ändern</button>
+              <button class="word">Löschen</button>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>04</b> Ein Blatt <span>Werte ohne Tabelle, die Handlung als einzelnes Wort über der Daumenkante</span></figcaption>
+    </figure>
+
+  </div>
+</div>
+
+<script>
+  const root = document.documentElement, btn = document.getElementById("tsw");
+  btn.addEventListener("click", () => {
+    const dark = root.getAttribute("data-theme") === "dark";
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+    btn.textContent = dark ? "Dunkles Thema prüfen" : "Helles Thema prüfen";
+  });
+</script>
+</body>
+</html>

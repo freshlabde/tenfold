@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tenfold — Richtung A · Register</title>
+<style>
+/* =========================================================================
+   RICHTUNG A — "Register"
+   Haltung: gesetztes Druckwerk. Serifen, Haarlinien, Ziffern als Architektur.
+   Keine Karten, keine Radien, keine Schatten. Nur Satz, Linie und Weißraum.
+   Genau eine Akzentfarbe: Zinnober, ausschließlich für Rang 1, den aktiven
+   Zustand und die eine Primäraktion.
+   ========================================================================= */
+
+:root[data-theme="dark"]{
+  --paper:      #100E0C;
+  --paper-deep: #0A0908;
+  --ink:        #EDE6D9;
+  --ink-2:      #A2988A;
+  --ink-3:      #6A6255;
+  --ink-4:      #453F37;
+  --rule:       rgba(237,230,217,.13);
+  --rule-soft:  rgba(237,230,217,.07);
+  --accent:     #C8532C;
+  --accent-ink: #14100D;
+  --wash:       rgba(200,83,44,.10);
+  --grain:      .05;
+  --chrome-bg:  #0A0908;
+  --chrome-ink: #8E8577;
+}
+:root[data-theme="light"]{
+  --paper:      #F4F0E7;
+  --paper-deep: #E7E1D4;
+  --ink:        #17140F;
+  --ink-2:      #56503F;
+  --ink-3:      #857D6A;
+  --ink-4:      #ABA394;
+  --rule:       rgba(23,20,15,.18);
+  --rule-soft:  rgba(23,20,15,.09);
+  --accent:     #A93B18;
+  --accent-ink: #F8F5EE;
+  --wash:       rgba(169,59,24,.09);
+  --grain:      .035;
+  --chrome-bg:  #DCD5C6;
+  --chrome-ink: #4A4437;
+}
+
+:root{
+  --serif: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+  --sans:  ui-sans-serif, -apple-system, "Helvetica Neue", "Segoe UI", sans-serif;
+  --sa-top: 44px;      /* env(safe-area-inset-top)  — hier simuliert */
+  --sa-bot: 34px;      /* env(safe-area-inset-bottom) */
+  --gut: 26px;         /* Satzspiegel links/rechts */
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  background:var(--chrome-bg);
+  color:var(--chrome-ink);
+  font-family:var(--sans);
+  min-height:100dvh;
+  padding:52px 32px 96px;
+  overflow-x:hidden;
+}
+
+/* ---------- Seiten-Chrome (nicht Teil des Entwurfs) ---------- */
+.doc{ max-width:1720px; margin:0 auto; }
+.doc-head{ max-width:62ch; margin-bottom:56px; }
+.kicker{
+  font:600 10px/1 var(--sans); letter-spacing:.34em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:20px;
+}
+.doc-head h1{
+  font-family:var(--serif); font-weight:400; font-size:44px; line-height:1.06;
+  letter-spacing:-.015em; color:var(--ink); margin-bottom:6px;
+}
+.doc-head h1 em{ font-style:italic; color:var(--ink-2); }
+.doc-head p{
+  font:400 15.5px/1.62 var(--serif); color:var(--chrome-ink);
+  margin-top:18px; max-width:58ch;
+}
+.doc-head .tokens{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:8px 22px;
+  font:500 10px/1 var(--sans); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.swatch{ display:inline-flex; align-items:center; gap:8px; }
+.swatch i{ width:11px; height:11px; border:1px solid var(--rule); display:block; }
+.themeswitch{
+  margin-top:30px; background:none; border:1px solid var(--rule); color:var(--chrome-ink);
+  font:500 10px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase;
+  padding:11px 18px; cursor:pointer;
+}
+.themeswitch:hover{ color:var(--ink); border-color:var(--ink-3); }
+
+.rack{ display:flex; flex-wrap:wrap; gap:74px 60px; align-items:flex-start; }
+.slot{ width:390px; }
+.slot figcaption{
+  margin-top:26px; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px;
+  font:500 10px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.slot figcaption b{ color:var(--ink); font-weight:600; white-space:nowrap; }
+.slot figcaption>:nth-child(2){ white-space:nowrap; }
+.slot figcaption span{ font-family:var(--serif); font-size:13px; letter-spacing:0;
+  text-transform:none; color:var(--chrome-ink); }
+
+/* ---------- Telefon ---------- */
+.screen{
+  position:relative; width:390px; height:844px;   /* App: 100dvh */
+  overflow:hidden; border-radius:46px; isolation:isolate;
+  background:var(--paper); color:var(--ink);
+  font-family:var(--serif);
+  box-shadow:
+    0 0 0 10px var(--paper-deep),
+    0 0 0 11px var(--rule),
+    0 46px 90px -30px rgba(0,0,0,.75);
+}
+.screen::after{  /* Papierkorn */
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:9;
+  opacity:var(--grain); mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.app{
+  position:relative; z-index:2; height:100%; display:flex; flex-direction:column;
+  padding-top:max(var(--sa-top), env(safe-area-inset-top));
+  padding-bottom:max(var(--sa-bot), env(safe-area-inset-bottom));
+}
+
+/* Statusleiste */
+.status{
+  height:26px; flex:none; display:flex; align-items:center; justify-content:space-between;
+  padding:0 var(--gut); color:var(--ink-2);
+  font:500 12.5px/1 var(--sans); letter-spacing:.02em;
+}
+.status svg{ display:block; }
+.status .sig{ display:flex; align-items:center; gap:6px; opacity:.85; }
+
+/* Kopf */
+.head{ flex:none; padding:20px var(--gut) 0; }
+.eyebrow{
+  font:600 9.5px/1 var(--sans); letter-spacing:.36em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.h-title{
+  font-weight:400; font-size:31px; line-height:1.04; letter-spacing:-.02em;
+  margin-top:12px; color:var(--ink);
+}
+.h-sub{
+  margin-top:10px; font:500 9px/1.5 var(--sans); letter-spacing:.17em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.h-sub b{ color:var(--accent); font-weight:600; }
+.rule{ height:1px; background:var(--rule); margin:15px var(--gut) 0; flex:none; }
+.rule.tight{ margin-top:14px; }
+
+/* Liste */
+.list{
+  flex:1 1 auto; min-height:0; overflow:hidden; padding:0 var(--gut);
+  -webkit-mask-image:linear-gradient(#000 97%, transparent 100%);
+          mask-image:linear-gradient(#000 97%, transparent 100%);
+}
+.row{
+  display:grid; grid-template-columns:28px 1fr 34px; align-items:baseline;
+  column-gap:12px; padding:10px 0 9px; position:relative;
+  border-bottom:1px solid var(--rule-soft);
+  opacity:var(--dim,1);
+}
+.row:last-child{ border-bottom:0; }
+.rank{
+  font-variant-numeric:tabular-nums lining-nums;
+  font-size:18px; line-height:1; text-align:right; color:var(--ink-4);
+  letter-spacing:-.02em;
+}
+.title{ font-size:16.5px; line-height:1.22; letter-spacing:-.012em; color:var(--ink); display:block; }
+.meta{
+  display:block; margin-top:5px;
+  font:500 8.5px/1 var(--sans); letter-spacing:.18em; text-transform:uppercase; color:var(--ink-3);
+}
+.gauge{ display:block; height:1px; background:var(--rule); position:relative; align-self:center; margin-top:2px; }
+.gauge i{ position:absolute; left:0; top:0; height:1px; width:calc(var(--p)*100%); background:var(--ink-2); }
+.row.lead .rank{ color:var(--accent); font-size:21px; }
+.row.lead .title{ font-size:18.5px; }
+.row.lead .gauge i{ background:var(--accent); height:2px; top:-.5px; }
+.row.lead::before{
+  content:""; position:absolute; left:calc(var(--gut) * -1); top:6px; bottom:6px;
+  width:2px; background:var(--accent);
+}
+.row.parked .title{ color:var(--ink-2); font-style:italic; }
+
+/* Fußleiste — Daumenzone */
+.foot{
+  flex:none; padding:0 var(--gut); margin-top:auto;
+  border-top:1px solid var(--rule);
+  display:flex; align-items:stretch; justify-content:space-between; gap:16px;
+}
+.act{
+  display:flex; align-items:center; gap:9px; padding:17px 0 15px; background:none; border:0;
+  color:var(--ink-2); font:500 10.5px/1 var(--sans); letter-spacing:.22em; text-transform:uppercase;
+  cursor:pointer;
+}
+.act svg{ display:block; }
+.act.primary{ color:var(--accent); }
+.homebar{ flex:none; height:5px; width:134px; margin:8px auto 0; border-radius:3px; background:var(--ink-4); opacity:.7; }
+
+/* ---------- Fokus ---------- */
+.crumb{
+  display:flex; align-items:center; gap:9px; padding:20px var(--gut) 0;
+  font:500 9.5px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; color:var(--ink-3);
+  flex:none;
+}
+.crumb .sep{ color:var(--ink-4); }
+.crumb .here{ color:var(--ink-2); }
+.zoomwrap{ position:relative; padding:0 var(--gut); flex:none; }
+.ghostnum{      /* Aufblendung: die Ziffer, aus der wir hineingezoomt sind */
+  position:absolute; right:8px; top:-42px; font-size:210px; line-height:.8;
+  font-variant-numeric:lining-nums; color:var(--ink); opacity:.055;
+  letter-spacing:-.06em; pointer-events:none; user-select:none;
+}
+.ghosttitle{    /* Bewegungsspur: der Titel ist gerade erst zur Ruhe gekommen */
+  position:absolute; left:var(--gut); right:var(--gut); top:26px;
+  font-size:31px; line-height:1.07; letter-spacing:-.025em; color:var(--ink);
+  opacity:.07; transform:translateY(11px); filter:blur(1.1px);
+  pointer-events:none;
+}
+.f-title{
+  position:relative; padding-top:26px; font-size:31px; line-height:1.07; letter-spacing:-.025em;
+}
+.f-stand{
+  margin-top:16px; display:flex; align-items:center; gap:12px;
+  font:500 9.5px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase; color:var(--ink-3);
+}
+.f-stand .bigbar{ flex:1; height:1px; background:var(--rule); position:relative; }
+.f-stand .bigbar i{ position:absolute; inset:0 auto 0 0; width:36%; height:2px; top:-.5px; background:var(--accent); }
+
+.sub{
+  display:grid; grid-template-columns:1fr auto; align-items:baseline; gap:6px 14px;
+  padding:15px 0 14px; border-bottom:1px solid var(--rule-soft); position:relative;
+}
+.sub .st{ font-size:17px; line-height:1.24; letter-spacing:-.01em; }
+.sub .cnt{
+  font:500 9px/1 var(--sans); letter-spacing:.18em; text-transform:uppercase; color:var(--ink-3);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.sub .note{
+  grid-column:1 / -1; margin-top:2px;
+  font:500 9px/1.5 var(--sans); letter-spacing:.18em; text-transform:uppercase; color:var(--ink-4);
+}
+.sub.done .st{ color:var(--ink-3); }
+.sub.done .st .strike{ position:relative; }
+.sub.doing::after{
+  content:""; position:absolute; left:calc(var(--gut) * -1); top:10px; bottom:10px; width:2px; background:var(--accent);
+}
+
+/* ---------- Duell ---------- */
+.duel{ flex:1; display:flex; flex-direction:column; min-height:0; }
+.d-ask{
+  padding:34px var(--gut) 0; text-align:center; font-style:italic;
+  font-size:25px; line-height:1.15; letter-spacing:-.02em; color:var(--ink); flex:none;
+}
+.d-prog{
+  flex:none; padding:20px var(--gut) 0; display:flex; align-items:center; gap:13px;
+  font:500 9px/1 var(--sans); letter-spacing:.22em; text-transform:uppercase; color:var(--ink-3);
+  font-variant-numeric:tabular-nums;
+}
+.d-prog .track{ flex:1; height:1px; background:var(--rule); position:relative; }
+.d-prog .track i{ position:absolute; left:0; top:-.5px; height:2px; width:31.8%; background:var(--accent); }
+
+.deck{
+  flex:1; min-height:0; position:relative; overflow:hidden; padding:0 var(--gut);
+  display:flex; flex-direction:column; justify-content:center; gap:0;
+}
+.slotghost{     /* Umriss der Ausgangslage, während gezogen wird */
+  position:absolute; left:var(--gut); right:var(--gut); top:50%; transform:translateY(-50%);
+  height:288px; border:1px dashed var(--rule-soft);
+}
+.pair{
+  position:relative; transform:translateX(40px) rotate(1.8deg); transform-origin:50% 130%;
+}
+.opt{ padding:26px 0 24px; position:relative; }
+.opt .idx{
+  font:600 9px/1 var(--sans); letter-spacing:.3em; text-transform:uppercase; color:var(--ink-4);
+}
+.opt .txt{ margin-top:13px; font-size:24px; line-height:1.12; letter-spacing:-.025em; }
+.opt .sub2{ margin-top:12px; font:500 9px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase; color:var(--ink-4); }
+.opt.dim{ opacity:.3; }
+.opt.win .txt{ color:var(--accent); }
+.opt.win::before{
+  content:""; position:absolute; left:-16px; top:20px; bottom:20px; width:2px; background:var(--accent);
+}
+.axis{
+  display:flex; align-items:center; gap:12px; padding:2px 0;
+  border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+}
+.axis .end{
+  font:600 9px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase; color:var(--ink-4);
+  display:flex; align-items:center; gap:7px; padding:13px 0; white-space:nowrap;
+}
+.axis .end.on{ color:var(--accent); }
+.axis .line{ flex:1; height:1px; background:var(--rule); position:relative; }
+.axis .line b{
+  position:absolute; top:-2.5px; left:74%; width:6px; height:6px; background:var(--accent);
+  border-radius:50%;
+}
+.pullwash{     /* Richtungs-Lasur am rechten Rand */
+  position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(270deg, var(--wash), transparent 46%);
+}
+.d-foot{ flex:none; padding:0 var(--gut); border-top:1px solid var(--rule); display:flex; justify-content:space-between; }
+
+/* ---------- Blatt ---------- */
+.leaf-title{ padding:24px var(--gut) 0; font-size:29px; line-height:1.08; letter-spacing:-.025em; flex:none; }
+.leaf-body{ flex:1; min-height:0; overflow:hidden; padding:0 var(--gut); }
+.leaf-note{
+  margin-top:20px; font-size:15.5px; line-height:1.66; color:var(--ink-2); letter-spacing:-.004em;
+  max-width:34ch;
+}
+.reg{ margin-top:30px; border-top:1px solid var(--rule); }
+.reg dl{ display:grid; grid-template-columns:96px 1fr; align-items:baseline; gap:0; }
+.reg dt{
+  padding:15px 0 15px; font:600 9px/1.4 var(--sans); letter-spacing:.2em; text-transform:uppercase;
+  color:var(--ink-3); border-bottom:1px solid var(--rule-soft);
+}
+.reg dd{
+  padding:14px 0 15px; font-size:15.5px; line-height:1.42; color:var(--ink);
+  border-bottom:1px solid var(--rule-soft); letter-spacing:-.008em;
+}
+.reg dd small{ display:block; margin-top:5px; font:500 9px/1 var(--sans); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--accent); }
+.leaf-foot{ flex:none; padding:16px var(--gut) 0; }
+.done-btn{
+  width:100%; display:flex; align-items:center; justify-content:center; gap:12px;
+  padding:19px 0; background:var(--accent); color:var(--accent-ink); border:0; cursor:pointer;
+  font:600 11px/1 var(--sans); letter-spacing:.28em; text-transform:uppercase;
+}
+.leaf-alt{
+  display:flex; justify-content:space-between; padding:15px 0 4px;
+}
+.leaf-alt button{
+  background:none; border:0; cursor:pointer; color:var(--ink-3);
+  font:500 9.5px/1 var(--sans); letter-spacing:.2em; text-transform:uppercase;
+}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="doc-head">
+    <div class="kicker">tenfold — Gestaltungsrichtung A</div>
+    <h1>Register<em>, gesetzt wie ein Buch</em></h1>
+    <p>
+      Die Zehn sind ein Verzeichnis, kein Dashboard. Alles trägt eine Serifenschrift,
+      getrennt wird nur durch Haarlinien und Weißraum — keine Karten, keine Radien,
+      keine Schatten, nichts, was nach Software aussieht. Die Rangziffer ist das
+      tragende Bauteil: sie steht in der Marge, groß und tabellarisch, und lässt die
+      Ordnung vor dem Text erscheinen. Der Zinnober kommt genau dreimal vor: Platz eins,
+      der laufende Schritt, die eine Handlung unten am Daumen.
+    </p>
+    <div class="tokens">
+      <span class="swatch"><i style="background:#100E0C"></i>Papier #100E0C</span>
+      <span class="swatch"><i style="background:#EDE6D9"></i>Schrift #EDE6D9</span>
+      <span class="swatch"><i style="background:#C8532C"></i>Akzent Zinnober #C8532C</span>
+      <span>ui-serif / New York</span>
+      <span>Radius 0</span>
+      <span>Satzspiegel 26 px</span>
+    </div>
+    <button class="themeswitch" id="tsw">Helles Thema prüfen</button>
+  </header>
+
+  <div class="rack">
+
+    <!-- =============== 1 · DIE ZEHN =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="head">
+            <div class="eyebrow">tenfold</div>
+            <h2 class="h-title">Die Zehn</h2>
+            <div class="h-sub">8. August &middot; <b>vier in Arbeit</b></div>
+          </div>
+          <div class="rule"></div>
+
+          <ol class="list">
+            <li class="row lead" style="--dim:1">
+              <span class="rank">1</span>
+              <span><span class="title">Schulden abbauen</span><span class="meta">In Arbeit &middot; 3 von 8</span></span>
+              <span class="gauge" style="--p:.375"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.94">
+              <span class="rank">2</span>
+              <span><span class="title">Das Unternehmen verkaufsfähig machen</span><span class="meta">In Arbeit &middot; 2 von 14</span></span>
+              <span class="gauge" style="--p:.14"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.88">
+              <span class="rank">3</span>
+              <span><span class="title">Wieder laufen bis 10&nbsp;km</span><span class="meta">In Arbeit &middot; 4 von 9</span></span>
+              <span class="gauge" style="--p:.44"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.81">
+              <span class="rank">4</span>
+              <span><span class="title">Verhältnis zu Anna klären</span><span class="meta">Offen &middot; 0 von 3</span></span>
+              <span class="gauge" style="--p:0"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.74">
+              <span class="rank">5</span>
+              <span><span class="title">Vater regelmäßig besuchen</span><span class="meta">In Arbeit &middot; 5 von 7</span></span>
+              <span class="gauge" style="--p:.71"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.66">
+              <span class="rank">6</span>
+              <span><span class="title">Rücken dauerhaft schmerzfrei</span><span class="meta">Offen &middot; 2 von 5</span></span>
+              <span class="gauge" style="--p:.4"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.58">
+              <span class="rank">7</span>
+              <span><span class="title">Spanisch bis B2</span><span class="meta">Offen &middot; 1 von 6</span></span>
+              <span class="gauge" style="--p:.17"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.5">
+              <span class="rank">8</span>
+              <span><span class="title">Testament und Vorsorge regeln</span><span class="meta">Offen &middot; 0 von 4</span></span>
+              <span class="gauge" style="--p:0"><i></i></span>
+            </li>
+            <li class="row" style="--dim:.42">
+              <span class="rank">9</span>
+              <span><span class="title">Werkstatt fertig einrichten</span><span class="meta">In Arbeit &middot; 7 von 11</span></span>
+              <span class="gauge" style="--p:.63"><i></i></span>
+            </li>
+            <li class="row parked" style="--dim:.34">
+              <span class="rank">10</span>
+              <span><span class="title">Weniger abends am Bildschirm</span><span class="meta">Ruht seit Mai</span></span>
+              <span class="gauge" style="--p:.33"><i></i></span>
+            </li>
+          </ol>
+
+          <div class="foot">
+            <button class="act">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6.5 1v11M1 6.5h11"/></svg>
+              Neuer Punkt
+            </button>
+            <button class="act primary">
+              Ordnen
+              <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M0 1.4h15M0 6h9.5M0 10.6h5"/></svg>
+            </button>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>01</b> Die Zehn <span>Rangfolge, Ziffer in der Marge, Fortschritt als Haarlinie</span></figcaption>
+    </figure>
+
+    <!-- =============== 2 · FOKUS =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="crumb">
+            <svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 1 1 5l4 4M1 5h11"/></svg>
+            <span>Die&nbsp;Zehn</span><span class="sep">/</span><span class="here">Platz&nbsp;3</span>
+          </div>
+
+          <div class="zoomwrap">
+            <div class="ghostnum">3</div>
+            <div class="ghosttitle">Wieder laufen<br>bis 10&nbsp;km</div>
+            <h2 class="f-title">Wieder laufen<br>bis 10&nbsp;km</h2>
+            <div class="f-stand">
+              <span>4 von 9</span>
+              <span class="bigbar"><i></i></span>
+              <span>seit 62 Tagen</span>
+            </div>
+          </div>
+          <div class="rule"></div>
+
+          <div class="list">
+            <div class="sub doing">
+              <span class="st">Grundlage aufbauen: dreimal pro Woche 30 Minuten</span>
+              <span class="cnt">6 / 12</span>
+              <span class="note">Läuft &middot; nächster Termin morgen früh</span>
+            </div>
+            <div class="sub">
+              <span class="st">Knie stabilisieren</span>
+              <span class="cnt">1 / 4</span>
+              <span class="note">Physio &middot; Termin fehlt</span>
+            </div>
+            <div class="sub leaf">
+              <span class="st">Laufschuhe nach Ganganalyse kaufen</span>
+              <span class="cnt">Blatt</span>
+              <span class="note">Fällig 22. August</span>
+            </div>
+            <div class="sub">
+              <span class="st">Zehn Kilometer im September anmelden</span>
+              <span class="cnt">0 / 2</span>
+              <span class="note">Meldeschluss 30. August</span>
+            </div>
+            <div class="sub done">
+              <span class="st">Alte Laufuhr wieder in Betrieb</span>
+              <span class="cnt">Fertig</span>
+              <span class="note">Erledigt am 14. Juni</span>
+            </div>
+          </div>
+
+          <div class="foot">
+            <button class="act">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6.5 1v11M1 6.5h11"/></svg>
+              Teilziel
+            </button>
+            <button class="act primary">
+              Ordnen
+              <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M0 1.4h15M0 6h9.5M0 10.6h5"/></svg>
+            </button>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>02</b> Fokus <span>Aufblendung: Ziffer und Titel stehen noch als Schatten der Herkunft</span></figcaption>
+    </figure>
+
+    <!-- =============== 3 · DUELL =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="duel">
+            <h2 class="d-ask">Was ist dir wichtiger?</h2>
+            <div class="d-prog">
+              <span>Vergleich&nbsp;7</span>
+              <span class="track"><i></i></span>
+              <span>von etwa&nbsp;22</span>
+            </div>
+
+            <div class="deck">
+              <div class="pullwash"></div>
+              <div class="slotghost"></div>
+              <div class="pair">
+                <div class="opt dim">
+                  <div class="idx">A</div>
+                  <div class="txt">Verhältnis zu Anna klären</div>
+                  <div class="sub2">Platz 4 &middot; seit März offen</div>
+                </div>
+
+                <div class="axis">
+                  <span class="end">
+                    <svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M5 1 1 5l4 4M1 5h11"/></svg>
+                    A
+                  </span>
+                  <span class="line"><b></b></span>
+                  <span class="end on">
+                    B
+                    <svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M7 1l4 4-4 4M11 5H0"/></svg>
+                  </span>
+                </div>
+
+                <div class="opt win">
+                  <div class="idx">B</div>
+                  <div class="txt">Das Unternehmen verkaufsfähig machen</div>
+                  <div class="sub2">Platz 2 &middot; 2 von 14 erledigt</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-foot">
+              <button class="act">Zurück</button>
+              <button class="act">Gleich wichtig</button>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>03</b> Duell <span>Mitten im Wisch: Paar gekippt, Achse nach rechts, B trägt den Akzent</span></figcaption>
+    </figure>
+
+    <!-- =============== 4 · EIN BLATT =============== -->
+    <figure class="slot">
+      <div class="screen">
+        <div class="app">
+          <div class="status">
+            <span>9:41</span>
+            <span class="sig">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.6" y="5" width="3" height="6" rx="1"/><rect x="9.2" y="2.6" width="3" height="8.4" rx="1"/><rect x="13.8" y="0" width="3" height="11" rx="1" opacity=".35"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1 3.6a10 10 0 0 1 14 0M3.6 6.3a6.4 6.4 0 0 1 8.8 0"/><circle cx="8" cy="9.4" r="1.1" fill="currentColor" stroke="none"/></svg>
+              <svg width="25" height="11" viewBox="0 0 25 11" fill="none" aria-hidden="true"><rect x=".6" y=".6" width="21" height="9.8" rx="2.6" stroke="currentColor" stroke-opacity=".5"/><rect x="2.4" y="2.4" width="14" height="6.2" rx="1.4" fill="currentColor"/><path d="M23.2 3.8v3.4a2.1 2.1 0 0 0 0-3.4Z" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+
+          <div class="crumb">
+            <svg width="12" height="10" viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 1 1 5l4 4M1 5h11"/></svg>
+            <span>3</span><span class="sep">/</span><span>10&nbsp;km</span><span class="sep">/</span><span class="here">Knie</span>
+          </div>
+
+          <h2 class="leaf-title">Termin beim Physio&shy;therapeuten vereinbaren</h2>
+
+          <div class="leaf-body">
+            <p class="leaf-note">
+              Praxis Ortmann, Waldstraße. Die Überweisung liegt seit Februar in der
+              grauen Mappe. Vormittags anrufen — nach elf geht dort niemand mehr ran.
+            </p>
+
+            <div class="reg">
+              <dl>
+                <dt>Fällig</dt>
+                <dd>Freitag, 15. August<small>in 6 Tagen</small></dd>
+                <dt>Aufwand</dt>
+                <dd>10 Minuten</dd>
+                <dt>Fertig, wenn</dt>
+                <dd>Der Termin steht im Kalender und die Überweisung ist eingereicht.</dd>
+                <dt>Gehört zu</dt>
+                <dd>Knie stabilisieren</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="leaf-foot">
+            <button class="done-btn">
+              <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="square" aria-hidden="true"><path d="M1 6.2 5.2 10.6 14 1.4"/></svg>
+              Erledigt
+            </button>
+            <div class="leaf-alt">
+              <button>Verschieben</button>
+              <button>Notiz ändern</button>
+              <button>Löschen</button>
+            </div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <figcaption><b>04</b> Ein Blatt <span>Register aus Haarlinien, eine einzige gefüllte Fläche in der App</span></figcaption>
+    </figure>
+
+  </div>
+</div>
+
+<script>
+  // Nur zum Prüfen des hellen Themas — gehört nicht zum Entwurf.
+  const root = document.documentElement, btn = document.getElementById("tsw");
+  btn.addEventListener("click", () => {
+    const dark = root.getAttribute("data-theme") === "dark";
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+    btn.textContent = dark ? "Dunkles Thema prüfen" : "Helles Thema prüfen";
+  });
+</script>
+</body>
+</html>
