@@ -1,0 +1,420 @@
+/* =============================================================================
+   tokens.css - the token contract and the three skins.
+
+   What it does: declares every value a component is allowed to use, then
+   redefines those values three times (slate / register / breath), each with a
+   dark and a light variant. Structural skin differences - a plate that becomes
+   a hairline rule, a rank chip that becomes a marginal figure - are expressed
+   here through [data-skin="..."] selectors so app.css stays skin-blind.
+
+   What it deliberately does NOT do: no component layout, no positioning, no
+   font sizes for content elements. Those live in app.css and read tokens only.
+   No @import, no url() to anything but inline data.
+
+   ---------------------------------------------------------------------------
+   THE CONTRACT. A component may use exactly these custom properties:
+
+     surfaces   --bg --bg-2 --surface --surface-2 --sunk
+     text       --text --text-2 --muted --text-4
+     accent     --accent --accent-2 --accent-ink --accent-glow
+     lines      --line --edge --edge-soft
+     shape      --radius --radius-m --radius-s --radius-pill
+     depth      --shadow --shadow-1 --shadow-2 --shadow-sunk
+     type       --font-display --font-body --font-mono
+                --tracking-display --weight-display --weight-title
+     rhythm     --gutter --tap --grain
+     plates     --plate-bg --plate-bg-lead --plate-shadow --plate-shadow-lead
+                --plate-pad-y --plate-pad-x --plate-radius --plate-rule
+                --depth-step --depth-into --rank-floor
+     chips      --chip-bg --chip-shadow --chip-color --chip-radius
+                --chip-lead-bg --chip-lead-color --chip-lead-shadow
+     rows       --row-title-size --row-title-step --row-title-lead
+
+   Anything else is a bug. Adding a value means adding it to all three skins.
+   ============================================================================= */
+
+:root {
+  /* Rhythm and interaction sizing are shared by all skins: the thumb does not
+     change size when the user picks another look. */
+  --tap: 44px;
+  --radius-pill: 999px;
+  --dur-fast: 140ms;
+  --dur: 260ms;
+  --dur-slow: 460ms;
+  --ease: cubic-bezier(.22, .61, .36, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-bot: env(safe-area-inset-bottom, 0px);
+  --frame-max: 430px;
+}
+
+/* =============================================================================
+   SKIN 1 - SLATE (default). Direction B: layered slabs, light edge on top,
+   shadow beneath, rank experienced as depth. One accent: brass.
+   ============================================================================= */
+
+:root[data-skin="slate"] {
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", ui-sans-serif, "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+  --tracking-display: -.035em;
+  --weight-display: 700;
+  --weight-title: 600;
+
+  --gutter: 20px;
+  --radius: 20px;
+  --radius-m: 15px;
+  --radius-s: 10px;
+
+  --plate-radius: var(--radius-m);
+  --plate-pad-y: 13px;
+  --plate-pad-x: 13px;
+  --plate-rule: 0;
+  --depth-step: 3.4%;
+  --rank-floor: .66;
+
+  --chip-radius: 7px;
+  --grain: .055;
+
+  --row-title-size: 15px;
+  --row-title-step: .22px;
+  --row-title-lead: 17px;
+}
+
+:root[data-skin="slate"][data-theme="dark"] {
+  --bg: #0F1115;
+  --bg-2: #171A20;
+  --surface: #262B35;
+  --surface-2: #1B1F27;
+  --sunk: #12151A;
+  --depth-into: #0F1115;
+
+  --text: #E9ECF2;
+  --text-2: #97A0AE;
+  --muted: #79828F;
+  --text-4: #4E5663;
+
+  --accent: #D6A441;
+  --accent-2: #F0C368;
+  --accent-ink: #171106;
+  --accent-glow: rgba(214, 164, 65, .16);
+
+  --line: rgba(255, 255, 255, .07);
+  --edge: rgba(255, 255, 255, .085);
+  --edge-soft: rgba(255, 255, 255, .045);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .40);
+  --shadow-2: 0 6px 14px -4px rgba(0, 0, 0, .60);
+  --shadow: 0 22px 44px -12px rgba(0, 0, 0, .72);
+  --shadow-sunk: inset 0 1px 3px rgba(0, 0, 0, .60), inset 0 0 0 1px rgba(0, 0, 0, .25);
+
+  --plate-bg: linear-gradient(180deg, var(--s-hi), var(--s-lo));
+  --plate-bg-lead: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, var(--accent) 12%), var(--surface-2));
+  --plate-shadow: inset 0 1px 0 var(--edge-soft), var(--shadow-1);
+  --plate-shadow-lead: inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent-glow), var(--shadow);
+
+  --chip-bg: var(--sunk);
+  --chip-shadow: var(--shadow-sunk);
+  --chip-color: var(--muted);
+  --chip-lead-bg: linear-gradient(180deg, var(--accent-2), var(--accent));
+  --chip-lead-color: var(--accent-ink);
+  --chip-lead-shadow: var(--shadow-1);
+}
+
+:root[data-skin="slate"][data-theme="light"] {
+  --bg: #E4E6EA;
+  --bg-2: #F1F2F5;
+  --surface: #FFFFFF;
+  --surface-2: #F1F2F6;
+  --sunk: #E3E6EB;
+  /* Depth in the light theme runs towards grey, not towards white: a plate that
+     sits further back must read as "further back", never as "disabled". */
+  --depth-into: #B9BFC9;
+
+  --text: #13161B;
+  --text-2: #4B535F;
+  --muted: #656D7A;
+  --text-4: #8E96A2;
+
+  --accent: #8A6110;
+  --accent-2: #6E4C08;
+  --accent-ink: #FFF8EA;
+  --accent-glow: rgba(138, 97, 16, .16);
+
+  --line: rgba(18, 22, 30, .10);
+  --edge: rgba(255, 255, 255, .95);
+  --edge-soft: rgba(255, 255, 255, .70);
+
+  --shadow-1: 0 1px 1px rgba(18, 22, 30, .10);
+  --shadow-2: 0 5px 12px -4px rgba(18, 22, 30, .18);
+  --shadow: 0 20px 38px -12px rgba(18, 22, 30, .26);
+  --shadow-sunk: inset 0 1px 3px rgba(18, 22, 30, .14), inset 0 0 0 1px rgba(18, 22, 30, .05);
+
+  --plate-bg: linear-gradient(180deg, var(--s-hi), var(--s-lo));
+  --plate-bg-lead: linear-gradient(180deg, color-mix(in srgb, #FFFFFF 90%, var(--accent) 10%), var(--surface-2));
+  --plate-shadow: inset 0 1px 0 var(--edge-soft), var(--shadow-1);
+  --plate-shadow-lead: inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent-glow), var(--shadow);
+
+  --chip-bg: var(--sunk);
+  --chip-shadow: var(--shadow-sunk);
+  --chip-color: var(--muted);
+  --chip-lead-bg: linear-gradient(180deg, var(--accent-2), var(--accent));
+  --chip-lead-color: var(--accent-ink);
+  --chip-lead-shadow: var(--shadow-1);
+}
+
+/* The app background of slate carries a soft overhead light. */
+:root[data-skin="slate"] .frame {
+  background:
+    radial-gradient(120% 62% at 50% -14%, var(--bg-2) 0%, transparent 62%),
+    var(--bg);
+}
+
+/* =============================================================================
+   SKIN 2 - REGISTER. Direction A: a set book. Serif throughout, hairlines and
+   white space, no cards, no radii, no shadows. One accent: vermilion, used
+   for rank one, the running step and the single primary action.
+   ============================================================================= */
+
+:root[data-skin="register"] {
+  --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+  --font-body: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+  --tracking-display: -.015em;
+  --weight-display: 400;
+  --weight-title: 400;
+
+  --gutter: 26px;
+  --radius: 0px;
+  --radius-m: 0px;
+  --radius-s: 0px;
+
+  --plate-radius: 0px;
+  --plate-pad-y: 13px;
+  --plate-pad-x: 0px;
+  --plate-rule: 1px;
+  --depth-step: 0%;
+  --rank-floor: .60;
+
+  --chip-radius: 0px;
+  --grain: .05;
+
+  --plate-bg: none;
+  --plate-bg-lead: none;
+  --plate-shadow: none;
+  --plate-shadow-lead: none;
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow: none;
+  --shadow-sunk: none;
+
+  --chip-bg: transparent;
+  --chip-shadow: none;
+  --chip-lead-bg: none;
+  --chip-lead-shadow: none;
+
+  --row-title-size: 16px;
+  --row-title-step: 0px;
+  --row-title-lead: 18px;
+}
+
+:root[data-skin="register"][data-theme="dark"] {
+  --bg: #100E0C;
+  --bg-2: #0A0908;
+  --surface: transparent;
+  --surface-2: transparent;
+  --sunk: rgba(237, 230, 217, .045);
+  --depth-into: #100E0C;
+
+  --text: #EDE6D9;
+  --text-2: #A2988A;
+  --muted: #8A8172;
+  --text-4: #5C5449;
+
+  --accent: #C8532C;
+  --accent-2: #E0653B;
+  --accent-ink: #14100D;
+  --accent-glow: rgba(200, 83, 44, .14);
+
+  --line: rgba(237, 230, 217, .13);
+  --edge: rgba(237, 230, 217, .07);
+  --edge-soft: rgba(237, 230, 217, .07);
+  --chip-color: var(--text-4);
+  --chip-lead-color: var(--accent);
+}
+
+:root[data-skin="register"][data-theme="light"] {
+  --bg: #F4F0E7;
+  --bg-2: #E7E1D4;
+  --surface: transparent;
+  --surface-2: transparent;
+  --sunk: rgba(23, 20, 15, .045);
+  --depth-into: #F4F0E7;
+
+  --text: #17140F;
+  --text-2: #56503F;
+  --muted: #6F6857;
+  --text-4: #9A9384;
+
+  --accent: #A93B18;
+  --accent-2: #8C2F11;
+  --accent-ink: #F8F5EE;
+  --accent-glow: rgba(169, 59, 24, .12);
+
+  --line: rgba(23, 20, 15, .18);
+  --edge: rgba(23, 20, 15, .09);
+  --edge-soft: rgba(23, 20, 15, .09);
+  --chip-color: var(--text-4);
+  --chip-lead-color: var(--accent);
+}
+
+:root[data-skin="register"] .frame { background: var(--bg); }
+
+/* Structural: plates become ruled entries, the rank figure moves into the
+   margin and is set in the serif, not in a sunken chip. */
+:root[data-skin="register"] .row {
+  border-bottom: var(--plate-rule) solid var(--line);
+}
+:root[data-skin="register"] .row-chip {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: 0;
+}
+:root[data-skin="register"] .panel,
+:root[data-skin="register"] .cell { border: 0; border-top: 1px solid var(--line); background: none; }
+:root[data-skin="register"] .bar { background: none; box-shadow: none; border-top: 1px solid var(--line); }
+:root[data-skin="register"] .btn { border: 1px solid var(--line); }
+:root[data-skin="register"] .btn.is-primary { border-color: transparent; }
+:root[data-skin="register"] .duel-card { border-top: 1px solid var(--line); }
+:root[data-skin="register"] .eyebrow,
+:root[data-skin="register"] .cell-key,
+:root[data-skin="register"] .duel-card-label { font-family: var(--font-mono); }
+
+/* =============================================================================
+   SKIN 3 - BREATH. Direction C: text on black. No line, no plane, no frame,
+   no shadow. Rank lives in size and opacity; everything machine-made sits in
+   the mono rail. One accent: cold, quiet blue.
+   ============================================================================= */
+
+:root[data-skin="breath"] {
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", ui-sans-serif, "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+  --tracking-display: -.04em;
+  --weight-display: 300;
+  --weight-title: 400;
+
+  --gutter: 28px;
+  --radius: 0px;
+  --radius-m: 0px;
+  --radius-s: 0px;
+
+  --plate-radius: 0px;
+  --plate-pad-y: 14px;
+  --plate-pad-x: 0px;
+  --plate-rule: 0;
+  --depth-step: 0%;
+  --rank-floor: .58;
+
+  --chip-radius: 0px;
+  --grain: 0;
+
+  --plate-bg: none;
+  --plate-bg-lead: none;
+  --plate-shadow: none;
+  --plate-shadow-lead: none;
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow: none;
+  --shadow-sunk: none;
+
+  --chip-bg: transparent;
+  --chip-shadow: none;
+  --chip-lead-bg: none;
+  --chip-lead-shadow: none;
+
+  --row-title-size: 19px;
+  --row-title-step: .62px;
+  --row-title-lead: 21px;
+}
+
+:root[data-skin="breath"][data-theme="dark"] {
+  --bg: #070709;
+  --bg-2: #070709;
+  --surface: transparent;
+  --surface-2: transparent;
+  --sunk: rgba(242, 242, 239, .05);
+  --depth-into: #070709;
+
+  --text: #F2F2EF;
+  --text-2: rgba(242, 242, 239, .70);
+  --muted: rgba(242, 242, 239, .56);
+  --text-4: rgba(242, 242, 239, .34);
+
+  --accent: #7FA8BF;
+  --accent-2: #A3C4D6;
+  --accent-ink: #06121A;
+  --accent-glow: rgba(127, 168, 191, .13);
+
+  --line: rgba(242, 242, 239, .12);
+  --edge: transparent;
+  --edge-soft: transparent;
+  --chip-color: var(--text-4);
+  --chip-lead-color: var(--accent);
+}
+
+:root[data-skin="breath"][data-theme="light"] {
+  --bg: #FBFBF9;
+  --bg-2: #FBFBF9;
+  --surface: transparent;
+  --surface-2: transparent;
+  --sunk: rgba(16, 16, 18, .045);
+  --depth-into: #FBFBF9;
+
+  --text: #101012;
+  --text-2: rgba(16, 16, 18, .70);
+  --muted: rgba(16, 16, 18, .58);
+  --text-4: rgba(16, 16, 18, .38);
+
+  --accent: #2E6A88;
+  --accent-2: #1F506A;
+  --accent-ink: #F2F8FB;
+  --accent-glow: rgba(46, 106, 136, .10);
+
+  --line: rgba(16, 16, 18, .14);
+  --edge: transparent;
+  --edge-soft: transparent;
+  --chip-color: var(--text-4);
+  --chip-lead-color: var(--accent);
+}
+
+:root[data-skin="breath"] .frame { background: var(--bg); }
+
+/* Structural: no chip at all - the rank is a mono figure in the rail, and the
+   title itself carries the ladder through size. */
+:root[data-skin="breath"] .row-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  font-weight: 500;
+}
+:root[data-skin="breath"] .bar { background: none; box-shadow: none; }
+:root[data-skin="breath"] .btn { background: none; box-shadow: none; border: 0; color: var(--text-2); }
+:root[data-skin="breath"] .btn.is-primary { color: var(--accent); }
+:root[data-skin="breath"] .panel { background: none; padding-left: 0; padding-right: 0; }
+:root[data-skin="breath"] .cell { background: none; border-top: 1px solid var(--line); }
+:root[data-skin="breath"] .duel-card { background: none; }
+
+/* =============================================================================
+   Reduced motion is a token too: every duration collapses, no component needs
+   its own media query.
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur: 1ms;
+    --dur-slow: 1ms;
+  }
+}

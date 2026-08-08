@@ -170,6 +170,23 @@ export function onLocaleChange(fn): void
 - Identical key sets across all three files — enforced by a test.
 - Interpolation via `{name}` placeholders. No HTML in catalogue values, ever (XSS rule 2).
 
+## Skins (stage 1, wave 2)
+
+The three design directions under `design/` become user-selectable skins. One DOM structure,
+one set of components; the look is carried entirely by CSS custom properties plus a
+`data-skin` attribute on `<html>`:
+
+- `slate` (**default**) — direction B: layered slabs, light edges, rank as depth
+- `register` — direction A: set type, hairlines, serif stack, no boxes
+- `breath` — direction C: text on black, hierarchy through size and opacity
+
+Rules: components never hardcode colors, radii, shadows, or font stacks — tokens only
+(`--bg`, `--surface`, `--text`, `--muted`, `--accent`, `--line`, `--radius`, `--shadow`,
+`--font-display`, `--font-body`, `--font-mono`). Skin-specific structural touches go through
+`[data-skin="…"]` selectors in the skin file, never through JS branching. Each skin defines a
+dark and a light variant (`data-theme="dark|light"`, dark default). The choice persists in
+`doc.settings.skin` and is applied before first paint to avoid flashes.
+
 ## About screen (stage 1, wave 2)
 
 A calm, readable screen inside the app (`web/js/ui/about.js`), reachable from settings and
@@ -179,8 +196,11 @@ app is and what happens to the data. Content (all through i18n):
 1. **The method** — one list of the ten things you truly want; ranking them honestly
    (pairwise duels, because a real order is hard); breaking each one down, level by level,
    until single actionable steps appear; working from the top of the list, not the bottom.
-   Inspired by Raymond Hull's classic self-management advice — named as inspiration, no
-   quoted material.
+   **The handwritten ritual stays**: once a month, or whenever life shifts, the ten are
+   written by hand on paper — writing by hand is the thinking, no app replaces it; the app
+   then carries what paper cannot (breakdown, honest ordering, encryption, always in the
+   pocket). Inspired by Raymond Hull's classic self-management advice — named as
+   inspiration, no quoted material.
 2. **Why stories matter** — a goal without its story cannot be broken down well; the app
    asks and remembers so the steps fit your life, not a template.
 3. **Privacy in one paragraph** — everything is encrypted on the device with your keys;

@@ -1,0 +1,42 @@
+<!doctype html>
+<!--
+  tenfold - single entry point.
+
+  What it does: ships the static shell (frame, grain, live regions) and loads
+  the ES module app. Skin/theme/language are applied by boot.js BEFORE first
+  paint so there is never a flash of the wrong skin.
+
+  What it deliberately does NOT do: no inline event handlers, no inline script
+  content, no external font, no CDN, no analytics, no network call of any kind.
+  The markup below carries no user content - everything the user typed is built
+  as DOM text nodes at runtime.
+-->
+<html lang="en" data-skin="slate" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>tenfold</title>
+  <meta name="description" content="tenfold - get what you want.">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0F1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="tenfold">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./css/tokens.css">
+  <link rel="stylesheet" href="./css/app.css">
+  <script src="./js/boot.js"></script>
+</head>
+<body>
+  <div class="frame">
+    <main id="app" class="app" tabindex="-1"></main>
+    <div class="grain" aria-hidden="true"></div>
+    <div id="layer" class="layer"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <p id="live" class="sr-only" role="status" aria-live="polite"></p>
+  </div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
