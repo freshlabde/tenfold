@@ -194,6 +194,12 @@ export const es = {
   "map.hint.empty": "Escribe tus diez. Cada una aparece aquí, con todo lo que la compone.",
   "map.hint.one": "Solo una por ahora. Tócala para acercarte, toca su nombre para abrirla.",
   "map.hint.tap": "Toca una meta para acercarte, toca su nombre para abrirla.",
+  "map.canvasTree": "La lista entera como mapa mental",
+  "map.mode.label": "Cómo se dibuja el mapa",
+  "map.mode.sky": "Constelación",
+  "map.mode.tree": "Mapa mental",
+  "map.hint.tree": "Cada título entero. Toca uno para abrirlo.",
+  "map.hint.treeEmpty": "Escribe tus diez. Cada una sale del centro aquí.",
 
   // ------------------------------------------------------ the daily question
   "question.heading": "Pregunta del día",

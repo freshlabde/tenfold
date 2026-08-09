@@ -514,6 +514,294 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v17"');
+  expect(sw).toContain('const VERSION = "tenfold-v18"');
   expect(sw).toContain('"./js/ui/map.js"');
+  expect(sw).toContain('"./js/ui/mindmap.js"');
+});
+
+// ---------------------------------------------------------------------------
+// The second reading: the mind map. The constellation is the atmosphere, this
+// is the structural view, and its whole promise is that every title is there to
+// be read without a zoom. What is checked below is that promise (one node per
+// living node, every title on screen as text), that the choice survives a lock,
+// that a tap goes straight through to the node instead of coming closer first,
+// and that nothing on this screen ever moves.
+
+/** Open the map and switch it into the mind map. */
+async function openMind(page) {
+  await openMap(page);
+  await page.getByRole("button", { name: "Mind map" }).click();
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await settled(page);
+}
+
+test("the map header carries the two readings, and the choice is remembered", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES.slice(0, 4));
+  await openMap(page);
+
+  // The constellation is where the screen starts, and it says so.
+  const sky = page.getByRole("button", { name: "Constellation" });
+  const tree = page.getByRole("button", { name: "Mind map" });
+  await expect(sky).toHaveAttribute("aria-pressed", "true");
+  await expect(tree).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".mm-tree")).toHaveCount(0);
+
+  await tree.click();
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await expect(page.locator(roots)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Mind map" })).toHaveAttribute("aria-pressed", "true");
+  // It lives in the document, not in the session: the setting is sealed with
+  // everything else, which is what makes it survive a lock.
+  expect(await page.evaluate(async () => (await import("/web/js/app.js")).ctx.doc.settings.mapMode)).toBe(
+    "tree",
+  );
+
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: "Lock now" }).click();
+  await page.locator('input[type="password"]').first().fill(PASS);
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+
+  await page.getByRole("button", { name: "Open the map" }).click();
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Mind map" })).toHaveAttribute("aria-pressed", "true");
+
+  // And back the other way, so neither mode is a one-way door.
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await expect(page.locator(roots)).toHaveCount(4);
+  await expect(page.locator(".mm-tree")).toHaveCount(0);
+});
+
+test("the mind map draws every living node, and every title in full", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  // Parts under two of them, so the count covers more than the ten.
+  for (const [index, parts] of [
+    [0, ["Three walks a week", "A dentist appointment"]],
+    [4, ["Call him on Sundays"]],
+  ]) {
+    await page.locator(".row-shell").nth(index).locator(".row").click();
+    await page.getByRole("button", { name: /Add the first part/ }).click();
+    for (const part of parts) {
+      await page.locator(".composer input").fill(part);
+      await page.locator(".composer input").press("Enter");
+    }
+    await page.locator(".composer input").press("Escape");
+    await page.locator(".crumb-pill").first().click();
+  }
+
+  await openMind(page);
+  await expect(page.locator(".mm-node")).toHaveCount(13);
+  await expect(page.locator(".mm-centre-label")).toHaveText("The Ten");
+
+  // Every title is on the screen, whole: a node's lines joined back together
+  // are exactly its title, and no line ends in an ellipsis.
+  const shown = await page.locator(".mm-node").evaluateAll((list) =>
+    list.map((g) => [...g.querySelectorAll(".mm-title")].map((n) => n.textContent).join(" ")),
+  );
+  const wanted = [...TITLES, "Three walks a week", "A dentist appointment", "Call him on Sundays"];
+  expect(shown.slice().sort()).toEqual(wanted.slice().sort());
+
+  // And the ten still carry their rank, in the same figures as the outline.
+  const figures = await page
+    .locator(".mm-node.is-d0 .mm-rank")
+    .evaluateAll((list) => list.map((n) => n.textContent));
+  expect(figures.slice().sort((a, b) => Number(a) - Number(b))).toEqual([
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+  ]);
+});
+
+test("every title in the mind map is inside the frame and big enough to read", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await openMind(page);
+
+  const stage = await page.locator(".map-stage").boundingBox();
+  const lines = await page.locator(".mm-title").evaluateAll((list) =>
+    list.map((n) => {
+      const r = n.getBoundingClientRect();
+      return { x: r.x, right: r.right, h: r.height, text: n.textContent };
+    }),
+  );
+  expect(lines.length).toBeGreaterThanOrEqual(10);
+  for (const line of lines) {
+    expect(line.x, `off the left edge: ${line.text}`).toBeGreaterThan(stage.x - 1);
+    expect(line.right, `off the right edge: ${line.text}`).toBeLessThan(stage.x + stage.width + 1);
+    // The whole point of the mode: no zoom needed. Rendered, after the camera,
+    // a title has to stay above the size at which it stops being a title.
+    expect(line.h, `too small to read: ${line.text}`).toBeGreaterThan(8.5);
+  }
+});
+
+test("in the mind map a tap opens the node, with no zoom step in between", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES.slice(0, 4));
+  await page.locator(".row-shell").nth(2).locator(".row").click();
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  await page.locator(".composer input").fill("Build a base");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".crumb-pill").first().click();
+
+  await openMind(page);
+  // A part with nothing under it is a leaf, and a tap lands on the leaf screen
+  // itself - not on a zoomed-in branch that still has to be tapped again.
+  const part = page.locator('.mm-node.is-d1 [data-hit]').first();
+  await tap(page, part);
+  await expect(page.locator(".leaf-title")).toHaveText("Build a base");
+
+  // And a goal opens its own screen the same way, in one tap.
+  await page.locator(".crumb-pill").first().click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await openMap(page);
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await tap(page, page.locator('.mm-node.is-d0 [data-hit]').first());
+  await expect(page.locator(".hero-title")).toHaveText(TITLES[0]);
+});
+
+test("XSS canary: a title in the mind map is text inside the SVG, never markup", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  const payload = "<img src=x onerror=1>";
+  await addRoots(page, [payload]);
+  await openMind(page);
+
+  const lines = page.locator(".mm-title");
+  const shape = await lines.evaluateAll((list) =>
+    list.map((node) => ({
+      ns: node.namespaceURI,
+      kids: node.childNodes.length,
+      kind: node.firstChild ? node.firstChild.nodeType : 0,
+      value: node.textContent,
+    })),
+  );
+  expect(shape.length).toBeGreaterThan(0);
+  for (const line of shape) {
+    expect(line.ns).toBe("http://www.w3.org/2000/svg");
+    expect(line.kids).toBe(1);
+    expect(line.kind).toBe(3); // TEXT_NODE, and only that
+  }
+  expect(shape.map((l) => l.value).join(" ")).toBe(payload);
+  expect(await page.locator(".map-canvas img").count()).toBe(0);
+  expect(await page.locator("img").count()).toBe(0);
+  expect(await page.evaluate(() => window.XSS)).toBeUndefined();
+});
+
+test("the mind map holds still - no animation frame ever runs", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta", "Gamma"]);
+  await openMind(page);
+
+  const first = await page.locator(".map-scene").getAttribute("transform");
+  await page.waitForTimeout(500);
+  const probe = await page.evaluate(() => window.__tfMap);
+  expect(probe.frames).toBe(0);
+  expect(probe.loop).toBe(false);
+  expect(await page.locator(".map-scene").getAttribute("transform")).toBe(first);
+});
+
+test("with reduced motion the mind map is built and readable straight away", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: PHONE, reducedMotion: "reduce" });
+  const page = await context.newPage();
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta", "Gamma"]);
+  await openMind(page);
+
+  await expect(page.locator(".mm-node")).toHaveCount(3);
+  // The build cascade is not shortened here, it is gone: the duration and the
+  // per-branch delay are both read off the token that reduced motion collapses,
+  // so a single millisecond is the whole animation.
+  const timing = await page.locator(".mm-branch").first().evaluate((g) => {
+    const s = getComputedStyle(g);
+    return { dur: s.animationDuration, delay: s.animationDelay };
+  });
+  expect(timing.dur).toBe("0.001s");
+  expect(timing.delay).toBe("0s");
+  // And nothing is left mid-fade.
+  await expect
+    .poll(() =>
+      page
+        .locator(".mm-branch")
+        .evaluateAll((list) => list.every((g) => Number(getComputedStyle(g).opacity) === 1)),
+    )
+    .toBe(true);
+  const probe = await page.evaluate(() => window.__tfMap);
+  expect(probe.frames).toBe(0);
+
+  await tap(page, page.locator('.mm-node [data-hit]').first());
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+  await context.close();
+});
+
+test("the mind map inherits the family hues and writes no colour of its own", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await openMind(page);
+
+  const fams = await page.locator(".mm-branch").evaluateAll((list) =>
+    list.map((g) => [...g.classList].find((c) => c.startsWith("is-fam"))),
+  );
+  expect(fams).toEqual([
+    "is-fam0", "is-fam1", "is-fam2", "is-fam3", "is-fam4",
+    "is-fam5", "is-fam6", "is-fam7", "is-fam8", "is-fam9",
+  ]);
+  const tints = await page.locator(".mm-branch").evaluateAll((list) =>
+    list.map((g) => getComputedStyle(g).getPropertyValue("--tint").trim()),
+  );
+  expect(new Set(tints).size).toBe(10);
+  const inline = await page.locator(".mm-branch").evaluateAll((list) =>
+    list.map((g) => g.getAttribute("style") || ""),
+  );
+  for (const style of inline) expect(style).not.toMatch(/#[0-9a-f]{3}|rgb|oklch|hsl/i);
+});
+
+test("below the third level the mind map sums up, exactly as the sky does", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    const add = (title, parentId) => {
+      ctx.commitCompose(title, parentId, "stay");
+      const kids = ctx.childrenOf(parentId);
+      return kids[kids.length - 1].id;
+    };
+    let id = add("Root", null);
+    for (const name of ["Level one", "Level two", "Level three"]) id = add(name, id);
+    const deep = add("Level four", id);
+    add("Level four b", id);
+    add("Level five", deep);
+    add("Level five b", deep);
+    add("Level six", add("Level five c", deep));
+    ctx.setSettings({ mapMode: "tree" });
+    ctx.go("outline", null, { replace: true });
+  });
+  await page.waitForTimeout(300);
+  await openMap(page);
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+
+  await expect(page.locator(".mm-node.is-d3")).toHaveCount(1);
+  await expect(page.locator(".mm-node.is-d4")).toHaveCount(0);
+  await expect(page.locator(".mm-more")).toHaveText("+6");
+});
+
+test("an empty vault in the mind map is the centre and nothing else", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await openMind(page);
+
+  await expect(page.locator(".mm-node")).toHaveCount(0);
+  await expect(page.locator(".mm-centre-label")).toHaveText("The Ten");
+  await expect(page.locator(".map-hint")).toHaveText(
+    "Write your ten. Each one branches off the centre here.",
+  );
 });

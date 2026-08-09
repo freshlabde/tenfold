@@ -85,6 +85,8 @@
 }
 
 :root[data-skin="slate"][data-theme="dark"] {
+  /* Done means done: the one green in the app, owner-decided. */
+  --ok: oklch(0.74 0.11 152);
   --bg: #0F1115;
   --bg-2: #171A20;
   --surface: #262B35;
@@ -125,6 +127,8 @@
 }
 
 :root[data-skin="slate"][data-theme="light"] {
+  /* Done means done: the one green in the app, owner-decided. */
+  --ok: oklch(0.55 0.12 152);
   --bg: #E4E6EA;
   --bg-2: #F1F2F5;
   --surface: #FFFFFF;
@@ -222,6 +226,8 @@
 }
 
 :root[data-skin="register"][data-theme="dark"] {
+  /* Done means done: the one green in the app, owner-decided. */
+  --ok: oklch(0.72 0.10 150);
   --bg: #100E0C;
   --bg-2: #0A0908;
   --surface: transparent;
@@ -247,6 +253,8 @@
 }
 
 :root[data-skin="register"][data-theme="light"] {
+  /* Done means done: the one green in the app, owner-decided. */
+  --ok: oklch(0.52 0.11 150);
   --bg: #F4F0E7;
   --bg-2: #E7E1D4;
   --surface: transparent;
@@ -344,6 +352,8 @@
 }
 
 :root[data-skin="breath"][data-theme="dark"] {
+  /* Done means done: the one green in the app, owner-decided. */
+  --ok: oklch(0.72 0.08 152);
   --bg: #070709;
   --bg-2: #070709;
   --surface: transparent;
@@ -369,6 +379,8 @@
 }
 
 :root[data-skin="breath"][data-theme="light"] {
+  /* Done means done: the one green in the app, owner-decided. */
+  --ok: oklch(0.54 0.09 152);
   --bg: #FBFBF9;
   --bg-2: #FBFBF9;
   --surface: transparent;

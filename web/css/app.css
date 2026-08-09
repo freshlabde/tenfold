@@ -297,8 +297,18 @@ input[type="search"]::-webkit-search-decoration {
 }
 .row.is-lead .row-track i { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 
-.row.is-done { opacity: .48; }
-.row.is-done .row-title { text-decoration: line-through; text-decoration-color: var(--text-4); }
+/* Done rows dim - they are never struck through (a finished goal is an
+   achievement, not a correction). The chip turns into the one green check
+   in the app, in every skin (owner decision). Position is kept: the rank
+   is a deliberate order, and a finished number one stays visible where it
+   was won until the next paper ritual decides anew. */
+.row.is-done { opacity: .55; }
+.row.is-done .row-title { color: var(--text-2); }
+.row.is-done .row-chip {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
+}
 .row.is-parked .row-title { color: var(--text-2); }
 
 .row.is-dragging { transition: none; z-index: 3; box-shadow: var(--shadow); }
@@ -1236,16 +1246,16 @@ input[type="search"]::-webkit-search-decoration {
    camera comes close and what tells one goal's parts from its neighbour's when
    it is far away. Rank is NOT in here: it stays in size and in --rm, so the
    ladder survives the palette. */
-.map-tree > .map-body.is-fam0 { --tint: var(--data-1); }
-.map-tree > .map-body.is-fam1 { --tint: var(--data-2); }
-.map-tree > .map-body.is-fam2 { --tint: var(--data-3); }
-.map-tree > .map-body.is-fam3 { --tint: var(--data-4); }
-.map-tree > .map-body.is-fam4 { --tint: var(--data-5); }
-.map-tree > .map-body.is-fam5 { --tint: var(--data-6); }
-.map-tree > .map-body.is-fam6 { --tint: var(--data-7); }
-.map-tree > .map-body.is-fam7 { --tint: var(--data-8); }
-.map-tree > .map-body.is-fam8 { --tint: var(--data-9); }
-.map-tree > .map-body.is-fam9 { --tint: var(--data-10); }
+.map-tree > .map-body.is-fam0, .mm-branch.is-fam0 { --tint: var(--data-1); }
+.map-tree > .map-body.is-fam1, .mm-branch.is-fam1 { --tint: var(--data-2); }
+.map-tree > .map-body.is-fam2, .mm-branch.is-fam2 { --tint: var(--data-3); }
+.map-tree > .map-body.is-fam3, .mm-branch.is-fam3 { --tint: var(--data-4); }
+.map-tree > .map-body.is-fam4, .mm-branch.is-fam4 { --tint: var(--data-5); }
+.map-tree > .map-body.is-fam5, .mm-branch.is-fam5 { --tint: var(--data-6); }
+.map-tree > .map-body.is-fam6, .mm-branch.is-fam6 { --tint: var(--data-7); }
+.map-tree > .map-body.is-fam7, .mm-branch.is-fam7 { --tint: var(--data-8); }
+.map-tree > .map-body.is-fam8, .mm-branch.is-fam8 { --tint: var(--data-9); }
+.map-tree > .map-body.is-fam9, .mm-branch.is-fam9 { --tint: var(--data-10); }
 
 /* The halo is a gradient, and a gradient resolves its custom properties where
    it is DEFINED, not where it is used - so one shared gradient could only ever
@@ -1421,6 +1431,142 @@ input[type="search"]::-webkit-search-decoration {
   font-size: 12.5px;
   line-height: 1.45;
   color: var(--muted);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------- the map: two modes */
+
+/* The switch between the two readings of the list. Two glyphs, no words: the
+   header already carries the title of the screen, and a word here would be the
+   fourth thing in a row that is meant to stay quiet. The pressed state is
+   carried by the accent AND by a plate, because two of the three skins have no
+   plates at all and colour alone would be the only signal left. */
+.map-mode {
+  display: flex; align-items: center;
+  margin-right: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--sunk); box-shadow: var(--shadow-sunk);
+}
+/* The same 44px every other target in the app is held to - a control in a
+   floating header is the last place to start shaving thumb room. */
+.map-mode button {
+  width: 42px; height: var(--tap);
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-pill);
+  background: none; box-shadow: none;
+  color: var(--text-4); cursor: pointer;
+}
+.map-mode button[aria-pressed="true"] {
+  background: var(--plate-bg);
+  --s-hi: var(--surface); --s-lo: var(--surface-2);
+  box-shadow: var(--plate-shadow);
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------- the map: mind mode */
+
+/* A mind map holds still, so nothing here transitions and nothing here drifts.
+   The only movement is the one that says the tree arrived: a branch at a time,
+   in rank order, and the step is a fraction of a token duration so reduced
+   motion collapses the whole cascade along with it.
+
+   Everything else is the same system as the sky: --tint comes off the family
+   class on the branch, the completion ring reuses the arc classes verbatim, and
+   this file still owns every colour on the screen. */
+@keyframes mm-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+.mm-tree.is-ready .mm-branch {
+  animation: mm-in var(--dur) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * var(--dur) * .09);
+}
+
+.mm-link {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tint) 34%, transparent);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+/* The trunk carries a little more of the family than the twigs, so a branch
+   still reads as one thing where five of them leave the centre together. */
+.mm-link.is-trunk { stroke: color-mix(in srgb, var(--tint) 46%, transparent); stroke-width: 1.5; }
+
+/* The tint rides on the dot, never on the letters: a title has one job, and
+   coloured body text at ten hues would have made ten of them unreadable. */
+.mm-dot { fill: var(--tint); stroke: none; pointer-events: none; }
+
+.mm-title {
+  fill: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .005em;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+.mm-title.is-d0 {
+  fill: var(--text);
+  font-size: 13px; font-weight: var(--weight-title); letter-spacing: -.012em;
+}
+.mm-title.is-d2 { font-size: 11.5px; }
+.mm-title.is-d3 { fill: var(--muted); font-size: 11.5px; }
+
+/* The rank, in the mono rail in front of the title - the same place and the
+   same figures the outline sets it in, so the two screens agree. */
+.mm-rank {
+  fill: var(--text-4);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .03em;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.mm-more {
+  fill: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 8px; letter-spacing: .04em;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+/* Finished work has not gone away, it has gone quiet - the same bargain the
+   sky strikes, in type instead of in light. */
+.mm-node.is-done .mm-title { fill: var(--text-4); }
+.mm-node.is-done .mm-dot { fill: color-mix(in srgb, var(--text) 30%, transparent); }
+.mm-node.is-done .mm-rank { opacity: .6; }
+
+/* The whole row answers the thumb, not the three-pixel dot. */
+.mm-hit { fill: transparent; cursor: pointer; }
+.mm-node:focus-visible { outline: none; }
+.mm-node:focus-visible .mm-hit {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  rx: 9;
+}
+
+/* The vault itself: the mark and the name of the list on one plate, which is
+   where every branch starts and the only node on this screen that is not a
+   goal. Mixed out of the accent, because the centre is not a family. */
+.mm-centre-plate {
+  fill: color-mix(in srgb, var(--accent) 13%, var(--bg));
+  stroke: color-mix(in srgb, var(--accent) 38%, transparent);
+  stroke-width: 1.2;
+}
+/* Structural, like every other plate in the app: register turns it into a ruled
+   box and breath does away with it entirely - there, the mark and the name of
+   the list are the centre, and the trunks simply leave from beside them. */
+:root[data-skin="register"] .mm-centre-plate {
+  rx: 0; fill: none; stroke: var(--accent); stroke-width: 1;
+}
+:root[data-skin="breath"] .mm-centre-plate { rx: 0; fill: none; stroke: none; }
+
+.mm-centre-mark { color: var(--accent); }
+.mm-centre-label {
+  fill: var(--text);
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: var(--weight-title);
+  letter-spacing: var(--tracking-display);
+  dominant-baseline: middle;
   pointer-events: none;
 }
 

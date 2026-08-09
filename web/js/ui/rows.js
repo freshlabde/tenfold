@@ -55,8 +55,13 @@ export function nodeRow(ctx, node, opts = {}) {
 
   const behind = el("div", { class: "row-behind", attrs: { "aria-hidden": "true" } }, [icon("check", 22)]);
 
+  // A finished node carries the check instead of its figure - the one green
+  // in the app, consistent across all skins.
+  const done = node.status === "done";
   const chipLabel = opts.showRank ? String(rank + 1) : leaf ? "·" : "–";
-  const chip = el("span", { class: "row-chip", attrs: { "aria-hidden": "true" }, text: chipLabel });
+  const chip = done
+    ? el("span", { class: "row-chip", attrs: { "aria-hidden": "true" } }, [icon("check", 13)])
+    : el("span", { class: "row-chip", attrs: { "aria-hidden": "true" }, text: chipLabel });
 
   const body = el("div", { class: "row-body" }, [
     el("div", { class: "row-title" }, [text(node.title || t("editor.newTitle"))]),

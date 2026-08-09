@@ -194,6 +194,12 @@ export const de = {
   "map.hint.empty": "Schreib deine zehn auf. Jedes erscheint hier, mit allem, woraus es besteht.",
   "map.hint.one": "Erst eines. Tipp darauf, um näher zu kommen, tipp den Namen an, um es zu öffnen.",
   "map.hint.tap": "Tipp ein Ziel an, um näher zu kommen, tipp den Namen an, um es zu öffnen.",
+  "map.canvasTree": "Die ganze Liste als Mind-Map",
+  "map.mode.label": "Darstellung der Karte",
+  "map.mode.sky": "Sternbild",
+  "map.mode.tree": "Mind-Map",
+  "map.hint.tree": "Jeder Titel vollständig. Tipp einen an, um ihn zu öffnen.",
+  "map.hint.treeEmpty": "Schreib deine zehn auf. Jedes zweigt hier von der Mitte ab.",
 
   // ------------------------------------------------------ the daily question
   "question.heading": "Frage des Tages",

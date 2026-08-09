@@ -1,4 +1,12 @@
-// ui/map.js - the whole list as one sky.
+// ui/map.js - the whole list as one sky, or as one mind map.
+//
+// The screen has TWO readings of the same tree and one of everything else: one
+// camera, one gesture layer, one set of family hues, one header. The
+// constellation below is the atmosphere; the mind map (ui/mindmap.js) is the
+// structural reading, where every title is drawn in full and nothing moves.
+// Which one is showing lives in doc.settings.mapMode ("sky" | "tree"), so the
+// choice travels with the vault. Everything from here down to "the screen" is
+// the sky; the mind map contributes a scene and reads the same camera.
 //
 // What it does: draws every living node of the tree as a floating body. The
 // ten roots descend the screen in rank order - rank one largest and highest -
@@ -35,6 +43,7 @@ import { el, sel, text, icon, clear, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
 import { childrenOf } from "../model.js";
 import { prefersReducedMotion, spring, rubberBand } from "../motion.js";
+import { buildScene, makeRuler, modeToggle } from "./mindmap.js";
 
 // ----------------------------------------------------------------- constants
 
@@ -122,6 +131,26 @@ const LABEL_PUSH = 48;
 /** Above this many bodies the disc-avoidance pass is skipped: it is O(labels x
  *  bodies) per frame, and a sky that big has other problems. */
 const AVOID_LIMIT = 160;
+
+// ----------------------------------------------------------- the mind map fit
+
+/**
+ * The mind map is fitted to WIDTH and never to height: two columns of real
+ * titles are as wide as they are, and a tall list must scroll rather than
+ * shrink. The whole tree is shown when it also fits vertically at that scale;
+ * otherwise the top of it is, and the rest is one pan away.
+ */
+const TREE_PAD = 10;
+/** How far the fit may magnify. A vault with two goals should read as a mind
+ *  map, not as two words filling a wall. */
+const TREE_MAX_K = 1.25;
+/**
+ * The floor under the scale, and the reason this mode exists: below it the
+ * smallest title in the tree stops being readable at arm's length, and the
+ * screen would be asking for the zoom it was built to abolish. Under the floor
+ * the tree is simply wider than the phone and the camera pans.
+ */
+const TREE_MIN_K = 0.78;
 
 // --------------------------------------------------------------------- seed
 
@@ -601,8 +630,14 @@ function drawBody(body) {
 export function render(ctx) {
   const nodes = ctx.doc.nodes;
   const roots = childrenOf(nodes, null);
-  const bodies = buildBodies(nodes);
-  simulate(bodies);
+  // Which reading of the tree. Unknown values fall back to the sky, so a
+  // document written by a newer version can never leave this screen blank.
+  const settings = ctx.doc.settings || {};
+  const mode = settings.mapMode === "tree" ? "tree" : "sky";
+  const sky = mode === "sky";
+
+  const bodies = sky ? buildBodies(nodes) : [];
+  if (sky) simulate(bodies);
 
   const byId = new Map(bodies.map((b) => [b.id, b]));
   for (const b of bodies) {
@@ -616,7 +651,10 @@ export function render(ctx) {
   }
 
   const reduced = prefersReducedMotion();
-  const bounds = boundsOf(bodies);
+  // The mind map is measured against the live SVG, so its bounds only exist
+  // once the screen has been laid out; until then this is a placeholder the
+  // camera is never asked to fit.
+  let bounds = sky ? boundsOf(bodies) : { minX: -60, minY: -60, maxX: 60, maxY: 60 };
 
   // ------------------------------------------------------------- the canvas
 
@@ -657,6 +695,8 @@ export function render(ctx) {
   const core = sel("circle", { class: "map-core", attrs: { r: "150" } });
   core.setAttribute("fill", "url(#tf-core)");
 
+  // The mind map hangs in the same scene, under the same core glow: the light
+  // behind the list is the one thing both readings share.
   const scene = sel("g", { class: "map-scene" }, [core, tree]);
   const labels = sel("g", { class: "map-labels" });
 
@@ -665,8 +705,10 @@ export function render(ctx) {
     attrs: {
       viewBox: "0 0 390 760",
       preserveAspectRatio: "none",
-      role: "img",
-      "aria-label": t("map.canvas"),
+      // The sky is a picture with a description; the mind map is a set of rows
+      // that can be reached, so it must not be collapsed into one image.
+      role: sky ? "img" : "group",
+      "aria-label": t(sky ? "map.canvas" : "map.canvasTree"),
     },
   }, [defs, scene, labels]);
 
@@ -697,6 +739,27 @@ export function render(ctx) {
     const cy = (box.minY + box.maxY) / 2;
     return { k, x: size.w / 2 - cx * k, y: top + availH / 2 - cy * k };
   }
+
+  /**
+   * The mind map's fit: width only, floored at the scale below which the type
+   * stops being readable, and top-aligned when the tree is taller than the
+   * stage - a list is read from rank one downwards, not from its middle.
+   */
+  function fitTree(box) {
+    const bw = Math.max(1, box.maxX - box.minX);
+    const bh = Math.max(1, box.maxY - box.minY);
+    const pad = Math.min(TREE_PAD, size.w * 0.04);
+    const top = Math.min(FIT_TOP, size.h * 0.18);
+    const availW = size.w - pad * 2;
+    const availH = size.h - top - FIT_BOTTOM;
+    const k = Math.max(TREE_MIN_K, Math.min(availW / bw, TREE_MAX_K));
+    const cx = (box.minX + box.maxX) / 2;
+    const cy = (box.minY + box.maxY) / 2;
+    const y = bh * k <= availH ? top + availH / 2 - cy * k : top - box.minY * k;
+    return { k, x: size.w / 2 - cx * k, y };
+  }
+
+  const fitFor = (box) => (sky ? fit(box, FIT_MAX_K) : fitTree(box));
 
   /** Keep at least a strip of the sky on screen; past that, resistance. */
   function limitPan(c, elastic) {
@@ -770,6 +833,10 @@ export function render(ctx) {
   let labelled = [];
 
   function buildLabels() {
+    // The mind map carries its titles inside the scene, where they belong to
+    // their rows; the screen-space label layer is the sky's answer to a picture
+    // that must stay legible at any zoom, and it stays out of this mode.
+    if (!sky) return;
     clear(labels);
     labelled = labelSet();
     const f = focusId ? byId.get(focusId) : null;
@@ -819,7 +886,10 @@ export function render(ctx) {
 
   let raf = 0;
   let clock = 0;
-  const floats = !reduced;
+  // A mind map holds still. Not "moves less" - there is no animation frame at
+  // all in this mode, exactly as with reduced motion, because a structural
+  // reading whose rows drift is a structural reading nobody can follow.
+  const floats = !reduced && sky;
 
   function alive() {
     return svg.isConnected;
@@ -833,6 +903,9 @@ export function render(ctx) {
       return;
     }
     scene.setAttribute("transform", `translate(${cam.x.toFixed(2)},${cam.y.toFixed(2)}) scale(${cam.k.toFixed(4)})`);
+    // The mind map is drawn once and moved by the camera alone: no drift to
+    // accumulate, no labels in screen space to place.
+    if (!sky) return;
 
     // Four trigonometric calls for the whole sky: every body's drift is
     // sin(wt + phase) expanded once, so a frame costs two multiplies a body.
@@ -1012,7 +1085,7 @@ export function render(ctx) {
     focusId = null;
     markFocus();
     buildLabels();
-    const target = limitPan(fit(bounds, FIT_MAX_K), false);
+    const target = limitPan(fitFor(bounds), false);
     if (animated && ready) glideTo(target);
     else {
       stopCam();
@@ -1070,13 +1143,32 @@ export function render(ctx) {
     glideTo(limitPan(target, false));
   }
 
+  /**
+   * The mind map cannot be laid out before the screen exists: its columns are
+   * made of measured text, and getComputedTextLength only answers once the SVG
+   * is in the document with the skin's fonts applied. So it is built here,
+   * once, in the same frame that first knows how big the stage is.
+   */
+  let mindTree = null;
+  function buildMind() {
+    if (sky || mindTree) return;
+    const ruler = makeRuler(svg);
+    const built = buildScene(nodes, ruler.measure);
+    ruler.dispose();
+    mindTree = built.g;
+    bounds = built.bounds;
+    for (const item of built.items) byId.set(item.id, item);
+    scene.appendChild(mindTree);
+  }
+
   requestAnimationFrame(function start() {
     if (!alive()) return;
     if (!measure()) {
       requestAnimationFrame(start);
       return;
     }
-    base = fit(bounds, FIT_MAX_K);
+    buildMind();
+    base = fitFor(bounds);
     cam.x = base.x;
     cam.y = base.y;
     cam.k = base.k;
@@ -1085,6 +1177,7 @@ export function render(ctx) {
     ready = true;
     scene.classList.add("is-ready");
     labels.classList.add("is-ready");
+    if (mindTree) mindTree.classList.add("is-ready");
     startLoop();
   });
 
@@ -1095,8 +1188,8 @@ export function render(ctx) {
         return;
       }
       if (!measure()) return;
-      base = fit(bounds, FIT_MAX_K);
-      const f = focusId ? byId.get(focusId) : null;
+      base = fitFor(bounds);
+      const f = sky && focusId ? byId.get(focusId) : null;
       if (f) focusOn(f);
       else recentre(false);
     });
@@ -1250,6 +1343,13 @@ export function render(ctx) {
     if (hit) {
       const body = byId.get(hit.getAttribute("data-hit"));
       if (!body) return;
+      // In the mind map a tap is a tap: the title is already readable, so
+      // there is nothing to come closer for and the two-step would only put a
+      // zoom between the reader and the thing they pointed at.
+      if (!sky) {
+        openBody(body);
+        return;
+      }
       if (focusId === body.id) openBody(body);
       else focusOn(body);
       return;
@@ -1279,10 +1379,28 @@ export function render(ctx) {
     if (body) openBody(body);
   });
 
+  // The mind map's rows are focusable in the scene itself, so the same two keys
+  // are answered there. One listener on the canvas, not one per row.
+  svg.addEventListener("keydown", (ev) => {
+    if (sky) return;
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    const row = ev.target && ev.target.closest ? ev.target.closest("[data-node]") : null;
+    if (!row) return;
+    ev.preventDefault();
+    const item = byId.get(row.getAttribute("data-node"));
+    if (item) openBody(item);
+  });
+
   // --------------------------------------------------------------- the chrome
 
-  // Every living part below the ten, including the ones only summed up.
-  const partCount = bodies.reduce((sum, b) => (b.depth === 0 ? sum + b.total : sum), 0);
+  // Every living part below the ten, including the ones only summed up. Counted
+  // off the document rather than off the scene: the two modes build different
+  // scenes, and the line under the title is about the list, not about which
+  // reading of it happens to be showing.
+  const partCount = nodes.reduce(
+    (sum, n) => (!n.deletedAt && n.parentId !== null ? sum + 1 : sum),
+    0,
+  );
   // Two independently counted things, so neither can end up as "1 goals".
   const subtitle = roots.length
     ? `${roots.length === 1 ? t("map.goalsOne") : t("map.goals", { n: roots.length })} · ${
@@ -1297,6 +1415,13 @@ export function render(ctx) {
         el("h1", { class: "h-title" }, [text(t("map.title"))]),
       ]),
       el("div", { class: "head-actions" }, [
+        // Two readings of one list, so the switch belongs next to the title of
+        // that list and not in settings three screens away.
+        modeToggle(mode, (next) => {
+          stopLoop();
+          stopCam();
+          ctx.setSettings({ mapMode: next });
+        }),
         el(
           "button",
           {
@@ -1330,17 +1455,26 @@ export function render(ctx) {
   // Without it the map was a picture: nothing on the screen told anybody that a
   // body answers a tap, and the orbs ran off the bottom edge on a hard cut.
   // The line goes at the first gesture, because by then it has been read.
-  const hint = el("p", { class: "map-hint" }, [
-    text(roots.length > 1 ? t("map.hint.tap") : roots.length ? t("map.hint.one") : t("map.hint.empty")),
-  ]);
+  const hintKey = sky
+    ? roots.length > 1
+      ? "map.hint.tap"
+      : roots.length
+        ? "map.hint.one"
+        : "map.hint.empty"
+    : roots.length
+      ? "map.hint.tree"
+      : "map.hint.treeEmpty";
+  const hint = el("p", { class: "map-hint" }, [text(t(hintKey))]);
   const foot = el("div", { class: "map-veil is-bottom" }, [hint]);
   const dismissHint = () => foot.classList.add("is-gone");
 
   const stage = el("div", { class: "map-stage" }, [svg, head, foot]);
 
-  if (!roots.length) {
+  if (!roots.length && sky) {
     // Nothing yet: one hollow body in the middle, so the screen still reads as
-    // a place rather than as a failure.
+    // a place rather than as a failure. The mind map has the centre node for
+    // that - an empty vault there is the mark, its name, and nothing hanging
+    // off it yet, which says the same thing without a second convention.
     const seed = sel("g", { class: "map-body is-seed" }, [
       sel("circle", { class: "map-arcbase", attrs: { r: "34" } }),
       sel("circle", { class: "map-disc", attrs: { r: "9" } }),
