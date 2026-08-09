@@ -13,7 +13,7 @@
 // still be ignored. Requests that are not same-origin GETs are passed through
 // untouched, so nothing can be smuggled through this worker.
 
-const VERSION = "tenfold-v31";
+const VERSION = "tenfold-v32";
 
 /**
  * Where the app leaves the current locale for the notification text. The key is

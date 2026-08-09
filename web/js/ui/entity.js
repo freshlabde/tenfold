@@ -188,6 +188,11 @@ export function openEntityPicker(layer, ctx, node) {
     clear(body);
     const current = ctx.nodeById(node.id) || node;
     const cards = listEntities(ctx.entities);
+    // One line that carries the whole idea - the owner asked what these are
+    // for: one card per person or thing, linkable to any number of steps.
+    body.appendChild(
+      el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("entities.linkHint"))]),
+    );
     if (!cards.length) {
       body.appendChild(el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("entities.linkNone"))]));
     }

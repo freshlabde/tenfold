@@ -314,6 +314,7 @@ export const es = {
   "entities.deleted": "Ficha eliminada.",
   "entities.link": "Enlazar una ficha",
   "entities.linkTitle": "Fichas enlazadas",
+  "entities.linkHint": "Una ficha por persona o asunto. Enlázala con tantos pasos como toque: la historia vive en un solo sitio y todos los pasos enlazados se benefician.",
   "entities.linkNone": "Todavía no hay fichas. Escribe la primera.",
   "entities.whoIs": "¿Quién es {name}?",
   "entities.dismiss": "No preguntar más",

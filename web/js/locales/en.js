@@ -314,6 +314,7 @@ export const en = {
   "entities.deleted": "Card removed.",
   "entities.link": "Link a card",
   "entities.linkTitle": "Linked cards",
+  "entities.linkHint": "One card per person or thing. Link it to as many steps as it touches - the story lives in one place, every linked step benefits.",
   "entities.linkNone": "No cards yet. Write the first one.",
   "entities.whoIs": "Who is {name}?",
   "entities.dismiss": "Do not ask again",
