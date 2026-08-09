@@ -119,7 +119,7 @@ export const es = {
   "lock.reset": "Borrar la caja fuerte y empezar de nuevo",
   "lock.reset.title": "¿Empezar de nuevo?",
   "lock.reset.body": "Esto borra la caja fuerte de este dispositivo, de forma definitiva. Sin la frase de acceso, la clave de recuperación o un archivo exportado, la lista desaparece.",
-  "lock.reset.syncNote": "Si la sincronización estaba activada, la copia cifrada del servidor se conserva — solo puede abrirse de nuevo con el código de emparejamiento y la frase de acceso.",
+  "lock.reset.syncNote": "Si la sincronización estaba activada, la copia cifrada del servidor se conserva — solo puede abrirse de nuevo con el código de emparejamiento y la frase de acceso. Si también quieres borrar esa copia, desbloquea antes la caja fuerte y usa Ajustes, Borrar la caja fuerte en todas partes.",
   "lock.reset.confirm": "Borrar en este dispositivo",
 
   // ----------------------------------------------------------------- outline
@@ -396,6 +396,28 @@ export const es = {
   "settings.lastSavedNever": "todavía no",
   "settings.lock": "Bloquear ahora",
   "settings.lockDesc": "Borra de la memoria la lista abierta.",
+
+  // --------------------------------------------------- delete everywhere
+  "danger.delete": "Borrar la caja fuerte en todas partes",
+  "danger.deleteDesc": "La copia del servidor y todo lo que hay en este dispositivo.",
+  "danger.title": "¿Borrar en todas partes?",
+  "danger.body": "Esto es el final de esta caja fuerte. Lee lo que desaparece y decide después.",
+  "danger.server": "La copia cifrada del servidor se destruye: el registro, sus versiones anteriores y las suscripciones de recordatorio que van con ellas.",
+  "danger.serverNone": "La sincronización está desactivada en este dispositivo, así que no hay ninguna copia en el servidor que este dispositivo pueda alcanzar ni borrar.",
+  "danger.device": "Todo lo que hay en este dispositivo desaparece: la lista, las claves que la abren y el registro de Face ID o huella.",
+  "danger.others": "Los demás dispositivos emparejados conservan su propia copia local. Dejan de sincronizar y, si alguno vuelve a subir algo, se crea una copia nueva en el servidor: con el mismo código de emparejamiento, pero nueva.",
+  "danger.final": "Esto no se puede deshacer. Sin un archivo exportado no hay vuelta atrás.",
+  "danger.ack": "Entiendo que esto es definitivo",
+  "danger.confirm": "Borrar en todas partes",
+  "danger.done": "Borrado.",
+  "danger.localDone": "Borrado en este dispositivo.",
+  "danger.localFailed": "No se ha podido quitar la caja fuerte de este dispositivo. Si borras los datos del sitio en el navegador, desaparece del todo.",
+  "danger.failed.title": "La copia del servidor sigue ahí",
+  "danger.failed.offline": "No se ha podido contactar con el servidor, así que la copia cifrada no se ha borrado.",
+  "danger.failed.denied": "El servidor lo ha rechazado: la copia que hay bajo este código de emparejamiento pertenece a otra caja fuerte.",
+  "danger.failed.server": "El servidor no ha respondido correctamente, así que la copia cifrada no se ha borrado.",
+  "danger.failed.body": "No se ha borrado nada en ningún sitio. Inténtalo de nuevo cuando vuelva la conexión, o borra solo este dispositivo y deja la copia del servidor donde está.",
+  "danger.failed.localOnly": "Borrar solo en este dispositivo",
 
   // --------------------------------------------------- biometric unlock
   "webauthn.title": "Abrir con cara o huella",

@@ -12,7 +12,10 @@
 // only appears with sync on, is off until switched on, and says out loud what
 // it cannot do on iOS outside the installed app. Both export handlers stamp
 // doc.settings.exportedAt, which is what tells the outline that this vault is
-// no longer the only copy of itself.
+// no longer the only copy of itself. The last row of the security group is the
+// full deletion - server copy and device, named part by part behind an
+// acknowledgement box, and it stops instead of half-deleting when the server
+// copy cannot be reached.
 
 import { el, text, icon, brandMark } from "./dom.js";
 import { t, LOCALES, getLocale } from "../i18n.js";
@@ -602,6 +605,103 @@ function biometricRow(ctx) {
   });
 }
 
+/**
+ * What is offered when the server copy could not be removed: nothing has
+ * happened yet, and the honest choice is either to try again later or to wipe
+ * this device only - knowing that the copy up there stays.
+ */
+function deleteFailedSheet(ctx, code) {
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t(`danger.failed.${code}`))]),
+    el("p", { class: "check-text" }, [text(t("danger.failed.body"))]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: async () => {
+            closeSheet();
+            await ctx.wipeLocalVault();
+            ctx.toast(t("danger.localDone"));
+          },
+        },
+      },
+      [text(t("danger.failed.localOnly"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("danger.failed.title"), body, footer });
+}
+
+/**
+ * The full deletion. Everything that dies is named before anything happens -
+ * the server copy, this device, and the honest sentence about the other paired
+ * devices, which keep their local list and would create a NEW server copy if
+ * they ever pushed again. The confirmation is the same acknowledgement box the
+ * recovery key uses: a checkbox, not a countdown - a timer that runs while a
+ * person reads is theatre, a box they have to tick is a decision.
+ */
+function deleteEverywhereSheet(ctx) {
+  const box = el("input", { attrs: { type: "checkbox" } });
+  const confirm = el(
+    "button",
+    { class: "btn is-primary", attrs: { type: "button", disabled: "disabled" } },
+    [text(t("danger.confirm"))],
+  );
+  box.addEventListener("change", () => {
+    if (box.checked) confirm.removeAttribute("disabled");
+    else confirm.setAttribute("disabled", "disabled");
+  });
+  confirm.addEventListener("click", async () => {
+    if (!box.checked) return;
+    closeSheet();
+    try {
+      await ctx.deleteEverywhere();
+    } catch (err) {
+      if (err && err.name === "SyncError") {
+        // The server refused or could not be reached, and nothing local has
+        // been touched: the vault is still here, and so is the copy up there.
+        // Say which of the two failed and offer the smaller action instead of
+        // pretending the big one worked.
+        const code = err.code === "offline" || err.code === "denied" ? err.code : "server";
+        deleteFailedSheet(ctx, code);
+        return;
+      }
+      // The server copy is gone by now; it is this device that would not let
+      // go. One honest line, and the browser's own site-data switch as the way
+      // to finish it.
+      ctx.toast(t("danger.localFailed"));
+      return;
+    }
+    ctx.toast(t("danger.done"));
+  });
+
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("danger.body"))]),
+    el("p", { class: "check-text" }, [text(t(ctx.sync.enabled ? "danger.server" : "danger.serverNone"))]),
+    el("p", { class: "check-text" }, [text(t("danger.device"))]),
+    el("p", { class: "check-text" }, [text(t("danger.others"))]),
+    el("p", { class: "check-text" }, [text(t("danger.final"))]),
+    el("label", { class: "check" }, [
+      box,
+      el("span", { class: "check-box" }, [icon("check", 14)]),
+      el("span", { class: "check-text" }, [text(t("danger.ack"))]),
+    ]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    confirm,
+  ]);
+  ctx.openSheet({ title: t("danger.title"), body, footer });
+}
+
 function plaintextSheet(ctx) {
   const body = el("div", {}, [
     el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("settings.exportPlainWarn"))]),
@@ -750,6 +850,11 @@ export function render(ctx) {
     group("settings.group.security", [
       biometricRow(ctx),
       row("settings.lock", "settings.lockDesc", null, () => ctx.lock(false), { danger: true }),
+      // The last row of the whole screen that does anything: the way out of
+      // this app that leaves nothing behind. It sits at the bottom of the
+      // security group because that is where a danger zone belongs - reachable,
+      // never in the way of something ordinary.
+      row("danger.delete", "danger.deleteDesc", null, () => deleteEverywhereSheet(ctx), { danger: true }),
     ]),
     group("settings.group.app", [
       row("settings.about", "settings.aboutDesc", null, () => ctx.go("about")),

@@ -309,6 +309,47 @@ export async function disableSync(ctx) {
 }
 
 /**
+ * Destroys the copy on the server. The write token is derived from the master
+ * key, so only a device that can OPEN the vault can ask for this - which is the
+ * point: the mailbox holds ciphertext, and the one who cannot read it has no
+ * business destroying it either.
+ *
+ * A 404 counts as success: the record is gone, which is what was asked for -
+ * another device may have deleted it a minute ago. Anything else throws, and
+ * the caller must NOT continue with a local wipe on a throw: half a deletion,
+ * silently, is the one outcome nobody could recover from.
+ *
+ * @throws {SyncError} "offline" (no connection), "denied" (the token does not
+ *   own this id), "server" (anything else), "sync" (nothing to delete)
+ */
+export async function deleteRemote(ctx) {
+  const meta = syncMeta(ctx.vault);
+  if (!meta || !ctx.masterKey) throw new SyncError("sync");
+  let token;
+  try {
+    token = await deriveSyncAuthToken(ctx.masterKey, meta.authSalt);
+  } catch {
+    throw new SyncError("server");
+  }
+  // Whatever was still queued must not resurrect what is about to go.
+  clearTimeout(pushTimer);
+  clearTimeout(retryTimer);
+  let res;
+  try {
+    res = await fetch(endpoint(meta.id), {
+      method: "DELETE",
+      cache: "no-store",
+      headers: { "X-Sync-Token": token },
+    });
+  } catch {
+    throw new SyncError("offline");
+  }
+  if (res.status === 204 || res.status === 404) return;
+  if (res.status === 401) throw new SyncError("denied");
+  throw new SyncError("server");
+}
+
+/**
  * Uploads the current sealed vault. On a version clash the merge happens here:
  * both sides are decrypted with the master key that is already in memory, the
  * documents are merged, the result is saved locally and pushed again. Local

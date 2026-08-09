@@ -15,6 +15,12 @@
 // a comparison aid, not cryptography over user data. If a future change makes
 // this server able to read a vault, the design is broken, not improved.
 //
+// THE COUNTERPART OF THE RULE: what this server holds, it must also be able to
+// let go of. DELETE /api/vault/<syncId> removes the whole id directory and
+// leaves nothing behind - no tombstone, no marker, no record that the id ever
+// existed. Deletion here is destruction, not a flag; a mailbox that could only
+// ever grow would be a worse promise than not offering one.
+//
 // THE ONE EXCEPTION, AND WHAT IT IS NOT: the push feature below owns an ECDSA
 // P-256 key pair (VAPID). Read this before you take it as a hole in the rule:
 //   - It exists to SIGN a short JWT that proves to a push service which server
@@ -52,7 +58,7 @@
 // broken, not improved.
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { homedir } from "node:os";
 
@@ -417,6 +423,59 @@ async function handlePutVault(req, res, id) {
     await writeAtomic(join(dir, "current.json"), JSON.stringify(next));
     await pruneHistory(dir);
     sendJson(res, 200, { version: next.version });
+  });
+}
+
+/**
+ * DELETE - the one operation that destroys instead of storing.
+ *
+ * THE LOOPBACK EXEMPTION DOES NOT APPLY HERE. Everywhere else in this file a
+ * local caller is trusted: it is this machine, it could read the data
+ * directory with its own hands, and trusting it costs nothing. Destruction is
+ * the opposite case. A stray script on this machine - a half-written cron job,
+ * a test pointed at the wrong port, anything that can open a socket to
+ * 127.0.0.1 - must not be able to destroy what it cannot open. The key-derived
+ * write token is the proof that the caller is a device that holds the vault,
+ * and that proof is required from every caller, local or not.
+ *
+ * What goes is the WHOLE id directory: the current record, every history
+ * version, and the push subscriptions stored beside them. It is renamed out of
+ * the way first and then removed, so a half-deleted record cannot be served to
+ * anybody in between. Nothing is left behind - no tombstone, no marker, no
+ * "this id existed" file. The id is simply free again afterwards, and the next
+ * PUT registers a new token hash exactly as a brand-new mailbox would.
+ */
+async function handleDeleteVault(req, res, id) {
+  const token = req.headers["x-sync-token"];
+  const tokenHash =
+    typeof token === "string" && token.length >= 16 && token.length <= 512 ? await sha256Hex(token) : null;
+
+  await withIdLock(id, async () => {
+    const record = await readRecord(id);
+    if (!record) {
+      sendJson(res, 404, { error: "not found" });
+      return;
+    }
+    if (!tokenHash || !sameHex(record.tokenHash, tokenHash)) {
+      sendJson(res, 401, { error: "unauthorised" });
+      return;
+    }
+    // Out of the vault directory first: a name that is not id-shaped would
+    // otherwise sit there while the removal runs, and everything that walks
+    // this directory expects id-shaped entries only.
+    const parked = join(DATA_DIR, `gone-${id}-${Math.random().toString(36).slice(2, 10)}`);
+    try {
+      await rename(recordDir(id), parked);
+    } catch {
+      sendJson(res, 500, { error: "server error" });
+      return;
+    }
+    await rm(parked, { recursive: true, force: true }).catch(() => {});
+    if (vaultCount !== null) vaultCount = Math.max(0, vaultCount - 1);
+    // The relay's cache of known write tokens may still vouch for the one that
+    // just lost its vault. Drop it, so the next relayed request rescans.
+    tokenCache = { at: 0, hashes: [] };
+    sendEmpty(res, 204);
   });
 }
 
@@ -996,6 +1055,7 @@ async function handleApi(req, res, rel) {
   }
   if (req.method === "GET") await handleGetVault(res, id);
   else if (req.method === "PUT") await handlePutVault(req, res, id);
+  else if (req.method === "DELETE") await handleDeleteVault(req, res, id);
   else sendJson(res, 405, { error: "method not allowed" });
   return true;
 }

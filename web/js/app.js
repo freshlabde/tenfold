@@ -619,6 +619,37 @@ const ctx = {
     render();
   },
 
+  /**
+   * Delete the vault everywhere: the encrypted copy on the server first, then
+   * everything this device holds - the vault itself, the biometric pointers,
+   * the reminder subscription. The order is deliberate: the server copy is the
+   * only part that a later attempt could not reach again once the local vault
+   * (and with it the write token) is gone. So it goes first, and if it cannot
+   * be reached this throws BEFORE anything local is touched. The caller then
+   * says so and offers the device-only wipe - a silent half deletion would
+   * leave a copy on a server nobody can address any more.
+   *
+   * The presentation preferences (skin, theme, language) stay: they are three
+   * enum values about how a screen looks, not anything personal.
+   *
+   * @throws {SyncError} when the server copy could not be removed
+   */
+  async deleteEverywhere() {
+    if (sync.syncMeta(state.vault)) await sync.deleteRemote(syncCtx);
+    // Past this line the server copy is gone. A reminder subscription or a
+    // biometric pointer that refuses to go is not a reason to stop - and must
+    // not surface as "the server copy is still there", which is the one thing
+    // that is now certainly not true. Only the wipe itself may still throw,
+    // and it throws a plain Error, which the caller tells apart by name.
+    await push.forgetLocal().catch(() => {});
+    try {
+      webauthn.forget();
+    } catch {
+      // No storage: there was no pointer to forget.
+    }
+    await ctx.wipeLocalVault();
+  },
+
   /** Open a node: goals zoom in, steps show their detail. */
   openNode(node, rowEl) {
     if (rowEl) {

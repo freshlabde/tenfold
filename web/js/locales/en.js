@@ -119,7 +119,7 @@ export const en = {
   "lock.reset": "Delete the vault and start over",
   "lock.reset.title": "Start over?",
   "lock.reset.body": "This deletes the vault on this device, permanently. Without the passphrase, the recovery key or an export file, the list is gone.",
-  "lock.reset.syncNote": "If sync was on, the encrypted server copy stays - it can only be opened again with the pairing code and the passphrase.",
+  "lock.reset.syncNote": "If sync was on, the encrypted server copy stays - it can only be opened again with the pairing code and the passphrase. To delete that copy as well, unlock the vault first and use Settings, Delete the vault everywhere.",
   "lock.reset.confirm": "Delete on this device",
 
   // ----------------------------------------------------------------- outline
@@ -396,6 +396,28 @@ export const en = {
   "settings.lastSavedNever": "not yet",
   "settings.lock": "Lock now",
   "settings.lockDesc": "Wipes the open list out of memory.",
+
+  // --------------------------------------------------- delete everywhere
+  "danger.delete": "Delete the vault everywhere",
+  "danger.deleteDesc": "The copy on the server and everything on this device.",
+  "danger.title": "Delete everywhere?",
+  "danger.body": "This is the end of this vault. Read what goes, then decide.",
+  "danger.server": "The encrypted copy on the server is destroyed - the record, its earlier versions and the reminder subscriptions with it.",
+  "danger.serverNone": "Sync is off on this device, so there is no server copy this device could reach or delete.",
+  "danger.device": "Everything on this device goes: the list, the keys that open it, and the Face ID or fingerprint enrolment.",
+  "danger.others": "Other devices you paired keep their own local copy. They stop syncing, and if one of them ever uploads again, that creates a new copy on the server - under the same pairing code, but a new one.",
+  "danger.final": "This cannot be undone. Without an export file there is no way back.",
+  "danger.ack": "I understand this is final",
+  "danger.confirm": "Delete everywhere",
+  "danger.done": "Deleted.",
+  "danger.localDone": "Deleted on this device.",
+  "danger.localFailed": "The vault could not be removed from this device. Clearing this site's data in the browser removes it for good.",
+  "danger.failed.title": "The server copy is still there",
+  "danger.failed.offline": "The server could not be reached, so the encrypted copy was not deleted.",
+  "danger.failed.denied": "The server refused: the copy under this pairing code belongs to another vault.",
+  "danger.failed.server": "The server did not answer properly, so the encrypted copy was not deleted.",
+  "danger.failed.body": "Nothing has been deleted anywhere. Try again once the connection is back - or wipe this device only and leave the server copy where it is.",
+  "danger.failed.localOnly": "Delete only on this device",
 
   // --------------------------------------------------- biometric unlock
   "webauthn.title": "Unlock with face or fingerprint",

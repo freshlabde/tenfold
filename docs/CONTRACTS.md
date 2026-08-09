@@ -472,6 +472,8 @@ GET /api/vault/<syncId>          -> 200 { version, vault } | 404
 PUT /api/vault/<syncId>          -> 200 { version } | 401 | 409 { version, vault } | 413
     headers: X-Sync-Token, X-If-Version (optimistic lock)
     body: { vault }
+DELETE /api/vault/<syncId>       -> 204 | 401 | 404
+    header: X-Sync-Token (required from EVERY caller — see below)
 ```
 - Version is a server-side monotonic counter. A PUT with a stale X-If-Version returns 409
   with the current record; the CLIENT merges (decrypt both, `mergeDocs`, re-seal, re-PUT).
@@ -481,10 +483,27 @@ PUT /api/vault/<syncId>          -> 200 { version } | 401 | 409 { version, vault
   the data dir (`TENFOLD_DATA`, default `~/.tenfold-data` — OUTSIDE the repo).
 - No logging of tokens or bodies. Access log lines carry syncId prefix (6 chars) at most.
 
+**Deletion (DELETE /api/vault/<syncId>)** — the mailbox must be able to let go of what it
+holds, or "your data, your device" is only half true:
+- **The token is required from every caller, loopback included.** The loopback exemption that
+  applies to the abuse limits and to the model relay does NOT apply here: a stray local script
+  — a half-written cron job, a test pointed at the wrong port — must not be able to destroy
+  what it cannot open. Only a device that can derive the key-based `authToken` may delete.
+  Wrong or missing token -> 401, unknown id -> 404, success -> 204 (no body).
+- What goes is the WHOLE id directory: `current.json`, every `v<n>.json` history file and
+  `push.json` with the reminder subscriptions. The directory is renamed out of the vault dir
+  first and then removed, so no half-emptied record is ever served; the vault counter is
+  decremented and the relay's token cache is dropped.
+- **Deletion is destruction, not a tombstone.** Nothing is kept — no marker, no "this id
+  existed" file. Afterwards the id is free: the next PUT with ANY token registers it again as
+  a brand-new mailbox (trust on first use), and the token that used to own it has no standing.
+- Rate limits apply exactly as for the other API calls.
+
 **Client (`web/js/sync.js`)**
 ```js
 export async function enableSync(ctx): Promise<void>      // generate ids, first push
 export async function disableSync(ctx): Promise<void>     // forget local sync fields (server copy stays)
+export async function deleteRemote(ctx): Promise<void>    // DELETE the server copy; 404 counts as done
 export async function push(ctx): Promise<void>            // debounced after autosave
 export async function pull(ctx): Promise<"clean"|"merged"|"offline">  // on unlock
 export function pairingCode(vault): string                // grouped syncId for the other device
@@ -510,6 +529,22 @@ export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then
 - New device: "Open from another device" on the setup welcome screen asks for the pairing
   code, calls `adopt`, then the normal lock screen takes the passphrase. The URL fragment
   form `#s=<code>` triggers the same flow (fragments never reach the server).
+- **Delete everywhere (`ctx.deleteEverywhere`, settings danger row, key prefix `danger.`)** —
+  the last row of the security group. The sheet names what dies before anything happens: the
+  encrypted server copy (or, with sync off, that there is none this device could reach), this
+  device down to the list, the keys and the Face ID enrolment, and honestly that other paired
+  devices keep their local copy, stop syncing, and would create a NEW server copy under the
+  same pairing code if one of them ever uploads again. Confirmation is the recovery-key
+  acknowledgement pattern — a checkbox ("I understand this is final") that ungreys the primary
+  — not a countdown. **Order matters and is a rule, not a detail:** `deleteRemote` runs FIRST
+  and throws before anything local is touched; on failure the flow STOPS, says which side
+  failed, and offers "Delete only on this device" instead of silently half-deleting. On
+  success: `push.forgetLocal()`, `webauthn.forget()`, `clearAll()`, `resetSync()`, setup
+  screen, toast. The presentation prefs (skin/theme/lang in `tenfold.ui`) stay — three enum
+  values about how a screen looks are not personal data.
+- The lock-screen reset stays what it always was, a device-only wipe; `lock.reset.syncNote`
+  now points at the bigger action ("unlock first, Settings, Delete the vault everywhere"),
+  because a locked device cannot derive the token that deletion requires.
 
 ## Stage 3 — the model (assistance is an accessory, never the foundation)
 

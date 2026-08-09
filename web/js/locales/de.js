@@ -119,7 +119,7 @@ export const de = {
   "lock.reset": "Tresor löschen und neu beginnen",
   "lock.reset.title": "Neu beginnen?",
   "lock.reset.body": "Das löscht den Tresor auf diesem Gerät, endgültig. Ohne Passphrase, Wiederherstellungsschlüssel oder eine Exportdatei ist die Liste dann weg.",
-  "lock.reset.syncNote": "War Sync eingeschaltet, bleibt die verschlüsselte Server-Kopie bestehen — sie lässt sich nur mit Kopplungscode und Passphrase wieder öffnen.",
+  "lock.reset.syncNote": "War Sync eingeschaltet, bleibt die verschlüsselte Server-Kopie bestehen — sie lässt sich nur mit Kopplungscode und Passphrase wieder öffnen. Willst du auch diese Kopie löschen, entsperre den Tresor zuerst und nimm in den Einstellungen Tresor überall löschen.",
   "lock.reset.confirm": "Auf diesem Gerät löschen",
 
   // ----------------------------------------------------------------- outline
@@ -396,6 +396,28 @@ export const de = {
   "settings.lastSavedNever": "noch nie",
   "settings.lock": "Jetzt sperren",
   "settings.lockDesc": "Löscht die offene Liste aus dem Speicher.",
+
+  // --------------------------------------------------- delete everywhere
+  "danger.delete": "Tresor überall löschen",
+  "danger.deleteDesc": "Die Kopie auf dem Server und alles auf diesem Gerät.",
+  "danger.title": "Überall löschen?",
+  "danger.body": "Das ist das Ende dieses Tresors. Lies, was verschwindet, und entscheide dann.",
+  "danger.server": "Die verschlüsselte Kopie auf dem Server wird zerstört - der Datensatz, seine früheren Versionen und die Erinnerungs-Abos dazu.",
+  "danger.serverNone": "Sync ist auf diesem Gerät aus, es gibt also keine Server-Kopie, die dieses Gerät erreichen oder löschen könnte.",
+  "danger.device": "Alles auf diesem Gerät verschwindet: die Liste, die Schlüssel, die sie öffnen, und die Anmeldung per Face ID oder Fingerabdruck.",
+  "danger.others": "Andere gekoppelte Geräte behalten ihre eigene lokale Kopie. Sie synchronisieren nicht mehr, und sobald eines davon wieder hochlädt, entsteht eine neue Kopie auf dem Server - unter demselben Kopplungscode, aber eine neue.",
+  "danger.final": "Das lässt sich nicht rückgängig machen. Ohne Exportdatei gibt es keinen Weg zurück.",
+  "danger.ack": "Mir ist klar, dass das endgültig ist",
+  "danger.confirm": "Überall löschen",
+  "danger.done": "Gelöscht.",
+  "danger.localDone": "Auf diesem Gerät gelöscht.",
+  "danger.localFailed": "Der Tresor ließ sich von diesem Gerät nicht entfernen. Löschst du die Website-Daten im Browser, ist er endgültig weg.",
+  "danger.failed.title": "Die Server-Kopie ist noch da",
+  "danger.failed.offline": "Der Server war nicht erreichbar, die verschlüsselte Kopie wurde nicht gelöscht.",
+  "danger.failed.denied": "Der Server hat abgelehnt: Die Kopie unter diesem Kopplungscode gehört zu einem anderen Tresor.",
+  "danger.failed.server": "Der Server hat nicht sauber geantwortet, die verschlüsselte Kopie wurde nicht gelöscht.",
+  "danger.failed.body": "Es wurde nirgends etwas gelöscht. Versuch es erneut, wenn die Verbindung wieder steht - oder lösche nur dieses Gerät und lass die Server-Kopie liegen.",
+  "danger.failed.localOnly": "Nur auf diesem Gerät löschen",
 
   // --------------------------------------------------- biometric unlock
   "webauthn.title": "Mit Gesicht oder Fingerabdruck öffnen",

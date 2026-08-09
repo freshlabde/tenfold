@@ -221,6 +221,30 @@ export async function enablePush(ctx, localHour) {
   state.enabled = true;
 }
 
+/**
+ * Forget the reminder on THIS device without asking the server anything: the
+ * browser subscription is cancelled and the local preference is dropped. Used
+ * by the full deletion, where the server side is already gone - the whole id
+ * directory, subscriptions included - and there is no vault left to prove
+ * anything with.
+ */
+export async function forgetLocal() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if (sub) await sub.unsubscribe();
+  } catch {
+    // No worker, no subscription, no permission: nothing to give back.
+  }
+  try {
+    localStorage.removeItem(PREF_KEY);
+  } catch {
+    // Storage disabled: there was no preference to remove.
+  }
+  state.enabled = false;
+  state.hour = 8;
+}
+
 /** Take the reminder away again. The subscription is dropped on both sides. */
 export async function disablePush(ctx) {
   let sub = null;
