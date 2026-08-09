@@ -1608,6 +1608,20 @@ button.h-sub {
   letter-spacing: .015em;
 }
 
+/* A dimmed goal still has its lit disc and its number; a dimmed card has
+   nothing but this name. The general .3 fade turned silver-on-dark into
+   nothing on a phone (owner report: "Rauten haben keinen Namen"), so card
+   names get a legibility floor instead of the full step back. */
+.map-label.is-card.is-dim { opacity: .55; }
+
+/* The selected card's name comes up WITH its diamond and threads: brighter
+   than any other card name on the screen, so the first tap visibly answers
+   which card was hit even where the diamond itself is small. */
+.map-label.is-card.is-selected .map-labeltext {
+  fill: color-mix(in srgb, var(--map-card) 40%, var(--text));
+  font-weight: 600;
+}
+
 /* The switch in the header. Off it is as quiet as the other two icons; on it
    takes the accent, the same way the mode toggle marks the reading you are in. */
 .map-cardbtn.is-on { color: var(--accent); }

@@ -1238,7 +1238,7 @@ export function render(ctx) {
         : !!lit && !lit.has(b.chain[b.chain.length - 1]);
       const g = sel("g", {
         class: card
-          ? `map-label is-card${dim ? " is-dim" : ""}`
+          ? `map-label is-card${dim ? " is-dim" : ""}${picked && b.id === picked.id ? " is-selected" : ""}`
           : `map-label is-d${b.depth}${b.node.status === "done" ? " is-done" : ""}${dim ? " is-dim" : ""}`,
         attrs: {
           // A card carries the SAME hook as its body, so one branch in the tap

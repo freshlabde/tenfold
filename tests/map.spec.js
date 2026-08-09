@@ -536,7 +536,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v35"');
+  expect(sw).toContain('const VERSION = "tenfold-v36"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -1346,6 +1346,43 @@ test("a selection moves, and lets go on empty sky", async ({ page }) => {
   await page.getByRole("button", { name: "Show everything" }).click();
   await expect(page.locator(".map-card.is-selected")).toHaveCount(0);
   await expect(page.locator(".map-cards.has-focus")).toHaveCount(0);
+});
+
+test("a dimmed card name stays legible, and the selected one comes up bright", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page);
+  await openMap(page);
+
+  // Focus the family Anna is NOT tied into: her diamond steps back, but her
+  // name may only step back to the legibility floor - a dimmed goal still has
+  // its lit disc, a dimmed card has nothing but this name (owner report from
+  // the phone: "Rauten haben keinen Namen").
+  const annaId = await page
+    .locator(".map-card[data-card]")
+    .evaluateAll((list) => {
+      const dim = list.find((g) => !g.classList.contains("is-path"));
+      return (dim || list[0]).getAttribute("data-card");
+    });
+  const lastRoot = page.locator(roots).last();
+  await tap(page, lastRoot.locator("> .map-hit"));
+  await expect(page.locator(".map-tree.has-focus")).toHaveCount(1);
+  const dimLabel = page.locator(".map-label.is-card.is-dim").first();
+  if ((await dimLabel.count()) > 0) {
+    // The fade transition runs ~var(--dur); read the SETTLED value.
+    await page.waitForTimeout(450);
+    const opacity = await dimLabel.evaluate((n) => parseFloat(getComputedStyle(n).opacity));
+    expect(opacity).toBeGreaterThanOrEqual(0.5);
+  }
+
+  // The first tap selects - and the label itself carries the state, so the
+  // name visibly answers which card was hit even where the diamond is small.
+  await tap(page, page.locator(`.map-card[data-card="${annaId}"] > .map-hit`));
+  await expect(page.locator(`.map-card[data-card="${annaId}"]`)).toHaveClass(/is-selected/);
+  await expect(page.locator(".map-label.is-card.is-selected")).toHaveCount(1);
+  await expect(
+    page.locator(".map-label.is-card.is-selected"),
+  ).not.toHaveClass(/is-dim/);
 });
 
 test("every card carries its name, however crowded the sky", async ({ page }) => {
