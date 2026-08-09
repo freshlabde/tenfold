@@ -13,7 +13,7 @@
 // still be ignored. Requests that are not same-origin GETs are passed through
 // untouched, so nothing can be smuggled through this worker.
 
-const VERSION = "tenfold-v26";
+const VERSION = "tenfold-v27";
 
 /**
  * Where the app leaves the current locale for the notification text. The key is
@@ -75,6 +75,7 @@ const SHELL = [
   "./js/ui/assist.js",
   "./js/ui/imageimport.js",
   "./js/ui/setup.js",
+  "./js/ui/emergency.js",
   "./js/ui/langswitch.js",
   "./js/ui/lock.js",
   "./js/ui/outline.js",

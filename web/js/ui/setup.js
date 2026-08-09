@@ -21,6 +21,7 @@ import { importEncrypted } from "../portability.js";
 import { langSwitch } from "./langswitch.js";
 import { scanSupported, openScanner } from "./scan.js";
 import { photoScanSupported, photoScanControl } from "./photoscan.js";
+import { printEmergencySheet, removeEmergencySheet } from "./emergency.js";
 
 const TEMPLATE_KEYS = [
   "template.health",
@@ -44,6 +45,9 @@ let adoptError = "";
 
 /** Called by the app when a vault already exists, so setup starts clean. */
 export function reset() {
+  // The printable sheet lives on the body, outside the app root, so a repaint
+  // does not clear it - leaving this step has to say so explicitly.
+  removeEmergencySheet();
   step = "welcome";
   recoveryKey = "";
   busy = false;
@@ -339,7 +343,8 @@ function passphrase(ctx) {
 // ------------------------------------------------------------- recovery key
 
 function recovery(ctx) {
-  const groups = formatRecoveryKey(recoveryKey).split("-");
+  const grouped = formatRecoveryKey(recoveryKey);
+  const groups = grouped.split("-");
   const grid = el(
     "div",
     { class: "keygrid", attrs: { role: "group", "aria-label": t("setup.key.title") } },
@@ -358,6 +363,9 @@ function recovery(ctx) {
   });
   go.addEventListener("click", () => {
     if (!box.checked) return;
+    // Both copies go at the same moment: the grid on screen with the repaint,
+    // the printable region by hand. After this click the key exists nowhere.
+    removeEmergencySheet();
     recoveryKey = "";
     step = "template";
     ctx.render();
@@ -377,11 +385,24 @@ function recovery(ctx) {
     }
   });
 
+  // The alternative to a screenshot, which is what people otherwise reach for:
+  // a photo library syncs to a cloud and is readable by every app that asked
+  // for the gallery once. Print gives paper, and on iOS the same dialog saves
+  // a PDF into Files - both places this key is allowed to be.
+  const sheet = el(
+    "button",
+    { class: "btn-ghost", attrs: { type: "button" } },
+    [icon("download", 15), text(t("setup.key.sheet.action"))],
+  );
+  sheet.addEventListener("click", () => {
+    printEmergencySheet(grouped);
+  });
+
   return screen([
     head("setup.key.eyebrow", "setup.key.title", "setup.key.body"),
     el("div", { class: "scroll" }, [
       grid,
-      el("div", { style: { display: "flex", justifyContent: "flex-end" } }, [copy]),
+      el("div", { class: "keyacts" }, [sheet, copy]),
       el("label", { class: "check" }, [
         box,
         el("span", { class: "check-box" }, [icon("check", 14)]),

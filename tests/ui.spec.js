@@ -128,11 +128,39 @@ test("the recovery key is shown once and is gated by an acknowledgement", async 
   await expect(go).toBeDisabled();
   await page.locator(".check").click();
   await expect(go).toBeEnabled();
+
+  // The emergency sheet is offered here and nowhere else, and it does not
+  // exist until it is asked for: the printable region is built on the click.
+  expect(await page.locator("#paper").count()).toBe(0);
+  await page.evaluate(() => {
+    window.__printed = 0;
+    // The real dialog would block the run for ever; the region is built before
+    // print() is called, which is the part this test is about.
+    window.print = () => {
+      window.__printed += 1;
+    };
+  });
+  await page.getByRole("button", { name: "Save the emergency sheet" }).click();
+  await page.waitForSelector("#paper", { state: "attached" });
+  expect(await page.evaluate(() => window.__printed)).toBe(1);
+
+  const grouped = groups.join("-");
+  // Both copies of the key are on the sheet: the grouped text a hand
+  // transcribes, and the same string as a symbol a camera reads.
+  expect(await page.locator("#paper").textContent()).toContain(grouped);
+  await expect(page.locator("#paper .paper-qr path")).toHaveCount(1);
+  const d = await page.locator("#paper .paper-qr path").getAttribute("d");
+  expect(d.startsWith("M")).toBe(true);
+  expect(d.length).toBeGreaterThan(100);
+
   await go.click();
 
   await expect(page.getByRole("button", { name: /Start empty/ })).toBeVisible();
-  // Once acknowledged the key is gone from the DOM for good.
+  // Once acknowledged the key is gone from the DOM for good - the grid with
+  // the repaint, and the printable region, which a repaint does not reach.
   expect(await page.locator(".keygrid").count()).toBe(0);
+  expect(await page.locator("#paper").count()).toBe(0);
+  expect(await page.locator("body").textContent()).not.toContain(grouped);
 });
 
 test("a passphrase shorter than ten characters is refused", async ({ page }) => {

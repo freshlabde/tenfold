@@ -17,11 +17,16 @@ import { qrMatrix, qrPath } from "../qr.js";
 const QUIET = 4;
 
 /**
+ * The symbol itself, as one SVG. Separate from the card because the emergency
+ * sheet needs the same geometry at a different size and on real paper - the
+ * class is the only thing that differs, and the quiet zone must not be
+ * transcribed twice.
  * @param {string} value the text the code carries
  * @param {string} label accessible name, already translated
- * @returns {HTMLElement|null} the white card, or null when the value does not fit
+ * @param {string} [cls] the class the caller styles it with
+ * @returns {SVGElement|null} null when the value does not fit
  */
-export function qrCard(value, label) {
+export function qrSvg(value, label, cls = "qr") {
   if (typeof value !== "string" || value === "") return null;
   let matrix;
   try {
@@ -30,10 +35,10 @@ export function qrCard(value, label) {
     return null;
   }
   const span = matrix.length + QUIET * 2;
-  const svg = sel(
+  return sel(
     "svg",
     {
-      class: "qr",
+      class: cls,
       attrs: {
         viewBox: `0 0 ${span} ${span}`,
         role: "img",
@@ -45,5 +50,15 @@ export function qrCard(value, label) {
     },
     [sel("path", { attrs: { d: qrPath(matrix, QUIET) } })],
   );
+}
+
+/**
+ * @param {string} value the text the code carries
+ * @param {string} label accessible name, already translated
+ * @returns {HTMLElement|null} the white card, or null when the value does not fit
+ */
+export function qrCard(value, label) {
+  const svg = qrSvg(value, label, "qr");
+  if (!svg) return null;
   return el("div", { class: "qrcard" }, [svg]);
 }

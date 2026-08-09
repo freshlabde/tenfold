@@ -515,3 +515,32 @@
     --dur-slow: 1ms;
   }
 }
+
+/* =============================================================================
+   THE PAPER PALETTE - for the one surface that is not a screen.
+
+   The emergency sheet is printed. Paper has no skin and no theme: it is ink on
+   white, it will be read years later by whoever opens the drawer, and it must
+   look the same whether the app was set to slate at midnight or to register at
+   noon. So these values sit outside the per-skin contract on purpose, like the
+   data palette above - and they live here rather than in app.css because this
+   file is where colour is allowed to be written down.
+
+   The ink is a warm near-black rather than #000: on a laser printer a true
+   black text block reads as heavier than the same text set in ink, and this
+   page is meant to be calm. The rules are the same ink at two dilutions.
+   ============================================================================= */
+
+:root {
+  --paper-ink: #1A1712;
+  --paper-ink-2: rgba(26, 23, 18, .62);
+  --paper-ink-3: rgba(26, 23, 18, .44);
+  --paper-rule: rgba(26, 23, 18, .22);
+  --paper-rule-strong: rgba(26, 23, 18, .5);
+
+  /* A book face for a page that is kept, and the mono rail for the two things
+     a machine wrote: the key and the labels. Both are stacks of faces the
+     platform already has - this app fetches no font, on screen or on paper. */
+  --paper-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "New York", ui-serif, Georgia, "Times New Roman", serif;
+  --paper-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+}
