@@ -1053,6 +1053,12 @@ export function render(ctx) {
     // closer, not landing on it.
     const bare = body.kids.length === 0;
     target.k = clamp(target.k, kMin(), Math.min(kMax(), base.k * (bare ? 1.5 : 4.2)));
+    // Focusing means coming CLOSER. The bare-goal cap above was written for
+    // childless ROOTS, but a leaf part deep in a family is also "bare" - and
+    // capping it at 1.5x the overview zoomed the camera OUT from where the
+    // user already was (owner report: "Klick auf Unterpunkt zoomt heraus").
+    // Never end a focus below the current zoom.
+    target.k = Math.max(target.k, cam.k);
     // Refit the translation to the clamped scale so the branch stays centred -
     // centred in the part of the stage the floating header leaves free, the
     // same rule fit() follows, or a focused branch sits under the title.
