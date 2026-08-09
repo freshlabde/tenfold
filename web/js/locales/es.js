@@ -129,14 +129,12 @@ export const es = {
 
   // -------------------------------------------------------------------- leaf
   "leaf.note": "Nota",
-  "leaf.noteEmpty": "Sin nota.",
   "leaf.due": "Vence",
   "leaf.effort": "Esfuerzo",
   "leaf.doneWhen": "Terminado cuando",
-  "leaf.doneWhenEmpty": "Todavía sin definir.",
-  "leaf.belongsTo": "Pertenece a",
-  "leaf.created": "Creado",
-  "leaf.state": "Estado",
+  "leaf.add": "Añadir {what}",
+  "leaf.createdAt": "creado {date}",
+  "leaf.edited": "editado {when}",
   "leaf.markDone": "Marcar como hecho",
   "leaf.markOpen": "Reabrir",
   "leaf.overdue": "{days} días de retraso",
@@ -148,7 +146,6 @@ export const es = {
 
   // ------------------------------------------------------------------- story
   "story.label": "La historia que hay detrás",
-  "story.empty": "Aún sin contar.",
   "story.tell": "Contar la historia",
   "story.continue": "Seguir contando",
   "story.placeholder": "De qué va esto en realidad. Escríbelo como se lo contarías a un amigo.",

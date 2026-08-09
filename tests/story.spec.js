@@ -123,7 +123,7 @@ test("a story survives lock and unlock", async ({ page }) => {
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.locator(".sheet .textarea.is-story").fill("It has been three months and sitting is the worst part.");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.locator(".story-text")).toContainText("three months");
+  await expect(page.locator(".leaf-story")).toContainText("three months");
   await page.waitForTimeout(1200);
 
   await page.reload();
@@ -133,7 +133,7 @@ test("a story survives lock and unlock", async ({ page }) => {
   await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 30000 });
   await page.locator(".row-shell").first().locator(".row").click();
   await page.locator(".list.is-kids .row-shell").first().locator(".row").click();
-  await expect(page.locator(".story-text")).toContainText("sitting is the worst part");
+  await expect(page.locator(".leaf-story")).toContainText("sitting is the worst part");
 });
 
 // -------------------------------------------------------------- the four questions
@@ -160,15 +160,15 @@ test("the story guide appends labelled answers and fills the definition of done"
 
   await expect(page.locator(".guide-step")).toContainText("4 of 4");
   await page.locator(".sheet textarea").fill("We have met twice.");
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
 
-  const story = page.locator(".story-text");
+  const story = page.locator(".leaf-story");
   await expect(story).toContainText("Why now: Because the move is in September.");
   await expect(story).toContainText("In the way: Evenings disappear.");
   await expect(story).toContainText("Done when: We have met twice.");
   await expect(story).not.toContainText("Tried already");
   // The closing answer also became the definition of done, which was empty.
-  await expect(page.locator(".cells")).toContainText("We have met twice.");
+  await expect(page.locator(".facts")).toContainText("We have met twice.");
 });
 
 test("the guide leaves an existing definition of done alone", async ({ page }) => {
@@ -183,11 +183,11 @@ test("the guide leaves an existing definition of done alone", async ({ page }) =
   await page.getByRole("button", { name: "Tell the story" }).click();
   for (let i = 0; i < 3; i += 1) await page.getByRole("button", { name: "Skip" }).click();
   await page.locator(".sheet textarea").fill("Something else entirely.");
-  await page.getByRole("button", { name: "Finish" }).click();
+  await page.getByRole("button", { name: "Finish", exact: true }).click();
 
-  await expect(page.locator(".story-text")).toContainText("Done when: Something else entirely.");
-  await expect(page.locator(".cells")).toContainText("Bench is empty and swept.");
-  await expect(page.locator(".cells")).not.toContainText("Something else entirely.");
+  await expect(page.locator(".leaf-story")).toContainText("Done when: Something else entirely.");
+  await expect(page.locator(".facts")).toContainText("Bench is empty and swept.");
+  await expect(page.locator(".facts")).not.toContainText("Something else entirely.");
 });
 
 // ------------------------------------------------------------- the context index

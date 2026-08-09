@@ -160,6 +160,18 @@ const PATHS = {
   trash: ["M5 7h14", "M9.5 7V5h5v2", "M6.8 7l.8 12.5h8.8L17.2 7"],
   calendar: ["M4.5 6.5h15v13h-15z", "M4.5 10.5h15", "M8.5 4v4", "M15.5 4v4"],
   clock: ["M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z", "M12 7.5V12l3 2"],
+  // Effort: a dial, not a clock. Minutes on a step are an estimate of weight,
+  // and a clock face would promise a schedule the app does not keep.
+  gauge: ["M3.8 18.3a8.2 8.2 0 1 1 16.4 0", "M12 18.3 16.5 11.6"],
+  // The story: someone telling it. The app mark was tried here first and at
+  // 15px its three creases collapse into a dotted line - a glitch, not a sign.
+  speech: ["M20.3 4.8H3.7v10.6h4.7v4l4.1-4h7.8z"],
+  // A note is a written page. The pencil was tried and it lied: a pencil means
+  // "edit" everywhere else in this app, including in the row menu.
+  note: ["M6.2 3.5h11.6v17H6.2z", "M9.4 8.4h5.2", "M9.4 12.2h5.2", "M9.4 16h3.2"],
+  // Finished when: the flag at the end of the run, not a checkbox - the
+  // definition of done is written before anything is ticked.
+  flag: ["M6.2 20.5V4.2", "M6.2 5h11.3l-2.7 4.2 2.7 4.2H6.2"],
   // The mark - the same ten that sits in the tab and on the home screen (see
   // icons/icon.svg): a closed 0 for the whole of the list, and a 1 creased
   // twice into the three levels a goal unfolds through. Drawn again here

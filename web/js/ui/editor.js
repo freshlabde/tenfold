@@ -25,7 +25,15 @@ function field(labelKey, control) {
   ]);
 }
 
-export function openEditor(layer, ctx, node) {
+/**
+ * @param {Element} layer
+ * @param {Object} ctx
+ * @param {Object} node
+ * @param {{focus?: string}} [opts] which field the sheet should open on -
+ *   the leaf's add chips name the field they were tapped for, so "add a due
+ *   date" lands on the due input instead of on the title.
+ */
+export function openEditor(layer, ctx, node, opts = {}) {
   const title = el("input", {
     class: "input",
     attrs: { type: "text", placeholder: t("editor.titlePlaceholder"), autocomplete: "off" },
@@ -132,5 +140,10 @@ export function openEditor(layer, ctx, node) {
   ]);
 
   openSheet(layer, { title: t("editor.editTitle"), body, footer });
-  queueMicrotask(() => title.focus());
+  const targets = { title, story, note, doneWhen, due, effort };
+  const wanted = targets[opts.focus] || title;
+  queueMicrotask(() => {
+    wanted.focus();
+    if (wanted !== title) wanted.scrollIntoView({ block: "center" });
+  });
 }

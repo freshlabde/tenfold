@@ -633,45 +633,124 @@ input[type="search"]::-webkit-search-decoration {
 .duel-dirs span.is-on { color: var(--accent); }
 .duel-foot { flex: none; margin: 0 var(--gutter); padding-top: 10px; display: flex; justify-content: space-between; }
 
-/* ------------------------------------------------------------------- the leaf */
+/* ------------------------------------------------------------------- the leaf
+
+   The rule this screen is built on: the title and the story ARE the screen.
+   Everything a step also carries is a ledger of glyph rows below them - one
+   rail of small marks, one column of values, no plates, no boxes. Whatever the
+   step does not carry is not shown at all; it is offered once, as a chip. The
+   register skin is the proof: hairlines around six equal boxes made a form out
+   of a page, and a page is what this has to be. */
+
+/* The leaf scroll is a column so the microline can sink to the floor: on a
+   step with nothing on it yet, trivia belongs at the bottom of the page, not
+   floating in the middle of the emptiness. */
+.scroll.is-leaf { display: flex; flex-direction: column; }
+/* A scrolling flex column would otherwise squash its own children rather than
+   overflow - every block keeps its content height and the scroll does its job. */
+.scroll.is-leaf > * { flex: none; }
 
 .leaf-title {
   margin: 2px 0 0;
   font-family: var(--font-display);
-  font-size: 24px; font-weight: var(--weight-display);
-  letter-spacing: var(--tracking-display); line-height: 1.12;
+  font-size: 26px; font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-display); line-height: 1.1;
+  text-wrap: balance;
   overflow-wrap: anywhere;
 }
-.panel {
-  margin-top: 12px;
-  border-radius: var(--radius-m);
-  padding: 14px;
-  background: var(--sunk);
-  box-shadow: var(--shadow-sunk);
-  font-size: 13.5px; line-height: 1.58; color: var(--text-2);
+
+/* A finished step wears the one green check the rows wear - same colour, same
+   ring, in every skin. It sits where the depth ring sits, because both answer
+   the same question about this step at a glance. */
+.leaf-seal {
+  flex: none; margin-top: 5px;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
+}
+.leaf-seal svg { display: block; }
+
+/* The story: prose, no label, no box. It gets the largest body size on the
+   screen and the most air, and it is the only thing between the title and the
+   ledger. */
+.leaf-story {
+  margin-top: 14px;
+  font-size: 15px; line-height: 1.66; color: var(--text);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.cells { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.cell {
-  border-radius: var(--radius-m);
-  padding: 11px 13px 12px;
-  background: var(--plate-bg);
-  box-shadow: var(--plate-shadow);
-  --s-hi: var(--surface); --s-lo: var(--surface-2);
+
+/* Every secondary route on this screen - tell the story, assist, opt out -
+   looks the same and looks quiet: a glyph, a word, no accent. The accent on
+   this screen belongs to the one cast action in the bar. */
+.leaf-act {
+  display: inline-flex; align-items: center; gap: 9px;
+  min-height: var(--tap); padding: 11px 0;
+  border: 0; background: none;
+  color: var(--muted);
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600; letter-spacing: -.01em;
+  cursor: pointer;
 }
-.cell.is-wide { grid-column: 1 / -1; }
+.leaf-act svg { display: block; flex: none; color: var(--text-4); }
+.leaf-act:active { color: var(--text); }
+.leaf-act:active svg { color: var(--accent); }
+
+/* The ledger. One hairline separates it from the story - the only rule on the
+   screen - and inside it nothing is boxed. */
+.facts {
+  margin-top: 6px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.fact {
+  display: grid; grid-template-columns: 18px 1fr; gap: 13px;
+  align-items: start;
+  padding: 9px 0;
+}
+.fact-glyph { display: flex; margin-top: 1px; color: var(--text-4); }
+.fact-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 11px; }
+.fact-val {
+  font-family: var(--font-mono);
+  font-size: 12.5px; letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.fact-remark {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  color: var(--accent);
+}
+.fact-key {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--text-4);
+}
+.fact-prose {
+  margin: 6px 0 0;
+  font-size: 14px; line-height: 1.6; color: var(--text-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+/* Created and state: trivia, set as trivia, at the very bottom of the scroll. */
+.microline {
+  margin: auto 0 2px; padding-top: 26px;
+  font-family: var(--font-mono);
+  font-size: 9.5px; letter-spacing: .12em;
+  color: var(--text-4);
+}
+
+.leaf-bar { flex: none; margin: 0 var(--gutter); padding-top: 10px; }
+.leaf-alt { display: flex; justify-content: space-between; padding-top: 4px; }
+
+/* The eyebrow over a value. It used to label six boxes on the leaf; the leaf
+   now labels two paragraphs and nothing else, and the assist sheet is the last
+   place that still needs it over its before/after pair. */
 .cell-key {
   font-family: var(--font-mono);
   font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
   color: var(--text-4);
 }
-.cell-val {
-  margin-top: 8px;
-  font-size: 14px; font-weight: var(--weight-title); letter-spacing: -.016em; line-height: 1.32;
-  overflow-wrap: anywhere;
-}
-.cell-val.is-prose { font-weight: 400; font-size: 13.5px; line-height: 1.45; color: var(--text-2); }
-.cell-note { display: block; margin-top: 5px; font-family: var(--font-mono); font-size: 10px; color: var(--accent); font-weight: 600; }
 
 /* ------------------------------------------------------ story and context */
 
@@ -695,16 +774,6 @@ input[type="search"]::-webkit-search-decoration {
 .hero-head .depth .depth-arc { stroke: var(--accent); }
 .hero-story { margin: 10px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* The story sits above everything measurable and is set as prose, not as a
-   field: no box, no border, just air around it. */
-.story { margin-top: 18px; }
-.story-text {
-  margin-top: 9px;
-  font-size: 14.5px; line-height: 1.62; color: var(--text);
-  white-space: pre-wrap; overflow-wrap: anywhere;
-}
-.story-empty { margin: 9px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-4); }
-
 .textarea.is-story { min-height: 132px; line-height: 1.55; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
@@ -721,6 +790,18 @@ input[type="search"]::-webkit-search-decoration {
 .chip.is-add { color: var(--muted); }
 .chip.is-sensitive { box-shadow: var(--shadow-sunk), inset 0 0 0 1px var(--line); }
 .chip svg { display: block; flex: none; }
+
+/* The offers. An empty field is not a card that says "not set" - it is one
+   chip in one row, sized for a thumb, carrying the glyph of the thing it would
+   fill. Together they are the whole empty state of a step. */
+.chips.is-offers { margin-top: 16px; gap: 7px; }
+.chip.is-field {
+  min-height: var(--tap); padding: 11px 13px;
+  font-weight: 500;
+}
+.chip.is-field svg { color: var(--text-4); }
+.chip.is-field:active { color: var(--text); }
+.chip.is-field:active svg { color: var(--accent); }
 
 .dot-sensitive {
   display: inline-block; vertical-align: middle;

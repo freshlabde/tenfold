@@ -293,9 +293,15 @@
   font-variant-numeric: tabular-nums lining-nums;
   letter-spacing: 0;
 }
-:root[data-skin="register"] .panel,
-:root[data-skin="register"] .cell { border: 0; border-top: 1px solid var(--line); background: none; }
 :root[data-skin="register"] .bar { background: none; box-shadow: none; border-top: 1px solid var(--line); }
+/* An offer is a blank on a page here, not a plate: five outlined rectangles
+   rebuilt exactly the wall of boxes this skin was supposed to be free of. A
+   word with a rule under it is what a register does with a field it has not
+   filled in yet. */
+:root[data-skin="register"] .chip.is-field {
+  background: none; box-shadow: inset 0 -1px 0 var(--line);
+  padding-left: 0; padding-right: 16px;
+}
 :root[data-skin="register"] .btn { border: 1px solid var(--line); }
 :root[data-skin="register"] .btn.is-primary { border-color: transparent; }
 :root[data-skin="register"] .duel-card { border-top: 1px solid var(--line); }
@@ -418,8 +424,11 @@
 :root[data-skin="breath"] .bar { background: none; box-shadow: none; }
 :root[data-skin="breath"] .btn { background: none; box-shadow: none; border: 0; color: var(--text-2); }
 :root[data-skin="breath"] .btn.is-primary { color: var(--accent); }
-:root[data-skin="breath"] .panel { background: none; padding-left: 0; padding-right: 0; }
-:root[data-skin="breath"] .cell { background: none; border-top: 1px solid var(--line); }
+/* Breath has no plane at all, so an offer is a line of text with a mark and a
+   hairline under it - the only thing that says "this can be tapped". */
+:root[data-skin="breath"] .chip.is-field {
+  background: none; box-shadow: inset 0 -1px 0 var(--line); padding-left: 0; padding-right: 14px;
+}
 :root[data-skin="breath"] .duel-card { background: none; }
 
 /* =============================================================================

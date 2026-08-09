@@ -245,6 +245,69 @@ test("a step can be finished from the detail screen and reopened", async ({ page
   await expect(page.locator(".list.is-kids .row.is-done")).toHaveCount(1);
 });
 
+test("an empty step offers its fields as chips and never as empty boxes", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+  await page.locator(".row-shell").first().locator(".row").click();
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  await page.locator(".composer input").fill("Call the practice");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".list.is-kids .row-shell").first().locator(".row").click();
+
+  // Nothing on this step is set, so nothing on this screen says so: no value
+  // cards, no "not set", no ancestry card - the breadcrumb already carries it.
+  await expect(page.locator(".facts")).toHaveCount(0);
+  const body = await page.locator(".scroll.is-leaf").innerText();
+  expect(body).not.toContain("not set");
+  expect(body).not.toContain("No note");
+  expect(body).not.toContain("Not defined yet");
+  expect(body).not.toContain("Belongs to");
+
+  // What is left is one row of offers and one mono line of trivia.
+  await expect(page.locator(".chips.is-offers .chip")).toHaveCount(5);
+  await expect(page.locator(".microline")).toContainText("created");
+  await expect(page.locator(".microline")).toContainText("open");
+
+  // Every offer is a real button, thumb sized, and lands on its own field.
+  for (const chip of await page.locator(".chips.is-offers .chip").all()) {
+    expect((await chip.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByRole("button", { name: "Add Due", exact: true }).click();
+  await expect(page.locator('.sheet input[type="date"]')).toBeFocused();
+});
+
+test("a filled step reads as a ledger, and a finished one wears the green seal", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+  await page.locator(".row-shell").first().locator(".row").click();
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  await page.locator(".composer input").fill("Call the practice");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".list.is-kids .row-shell").first().locator(".row").click();
+
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.locator(".sheet .textarea").nth(1).fill("They only answer before nine.");
+  await page.locator(".sheet .textarea").nth(2).fill("The appointment is confirmed.");
+  await page.locator('.sheet input[type="date"]').fill("2030-09-18");
+  await page.locator('.sheet input[type="number"]').fill("25");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  // Four values, four glyph rows, and no offer left for them.
+  await expect(page.locator(".facts .fact")).toHaveCount(4);
+  await expect(page.locator(".facts")).toContainText("The appointment is confirmed.");
+  await expect(page.locator(".facts")).toContainText("25 min");
+  await expect(page.locator(".chips.is-offers .chip")).toHaveCount(1); // only "link a card"
+  await expect(page.locator(".leaf-seal")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Mark as done" }).click();
+  await expect(page.locator(".leaf-seal")).toHaveCount(1);
+  await expect(page.locator(".microline")).toContainText("done");
+});
+
 test("lock and unlock round trip keeps the list", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);

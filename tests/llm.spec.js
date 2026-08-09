@@ -560,7 +560,7 @@ test("the gate asks, the answer lands in the story, then the proposals come", as
   });
   await expect(page.locator(".guide-step")).toHaveText("Question 1 of 1");
   await page.locator(".sheet textarea").fill("Before the marathon in October.");
-  await page.locator(".sheet-foot").getByRole("button", { name: "Finish" }).click();
+  await page.locator(".sheet-foot").getByRole("button", { name: "Finish", exact: true }).click();
 
   // Step two: the proposals, with the enriched story behind them.
   await expect(page.locator(".assist-item")).toHaveCount(3, { timeout: 30000 });

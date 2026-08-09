@@ -748,8 +748,9 @@ const ctx = {
     });
   },
 
-  editNode(node) {
-    openEditor(layerEl, ctx, node);
+  /** `focus` names the field the sheet should open on (leaf add chips). */
+  editNode(node, focus) {
+    openEditor(layerEl, ctx, node, { focus });
   },
 
   /** The four questions. Answers land in the node's story as they are given. */

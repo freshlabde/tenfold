@@ -233,9 +233,16 @@ export function openEntityPicker(layer, ctx, node) {
   openSheet(layer, { title: t("entities.linkTitle"), body });
 }
 
-/** The chips under a step: the cards it is linked to, plus the way to add one. */
-export function entityChips(ctx, node) {
+/**
+ * The chips under a step: the cards it is linked to, plus the way to add one.
+ * `opts.hideWhenEmpty` returns null when nothing is linked - the leaf collects
+ * every empty offer into one row of its own, and a lone "+" floating above it
+ * was the same invitation twice.
+ * @returns {Element|null}
+ */
+export function entityChips(ctx, node, opts = {}) {
   const cards = entitiesForNode(ctx.entities, node);
+  if (!cards.length && opts.hideWhenEmpty) return null;
   const box = el("div", { class: "chips" });
   for (const card of cards) {
     box.appendChild(
