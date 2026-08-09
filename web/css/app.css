@@ -1363,6 +1363,10 @@ input[type="search"]::-webkit-search-decoration {
 .map-body { transition: opacity var(--dur) var(--ease); }
 /* While a family is focused the rest recedes but must stay clearly THERE -
    .22 on an OLED read as "my other goals are gone" (owner report). */
+/* The ten family groups drift via CSS transforms on their own compositor
+   layers - full subpixel smoothing, no per-pixel stepping of the disc edges. */
+.map-tree > .map-body { will-change: transform; }
+
 .map-tree.has-focus > .map-body:not(.is-path) { opacity: .45; }
 
 /* A connector belongs to the family it ties together, not to the sky. */

@@ -929,20 +929,24 @@ export function render(ctx) {
       cy = Math.cos(b);
     }
 
+    // Only the ten ROOT groups drift, as GPU-composited CSS transforms with
+    // full float precision. Attribute transforms rasterise without subpixel
+    // smoothing on iOS, and a drift slower than a pixel per frame then steps
+    // from device pixel to device pixel - the trembling the owner saw twice.
+    // Children stand still inside their family (they always travelled with
+    // it anyway), so ten composited layers carry the whole breathing sky.
     for (const b of bodies) {
-      const dx = b.pxc * sx + b.pxs * cx;
-      const dy = b.pyc * sy + b.pys * cy;
       const ox = b.parent ? b.x - b.parent.x : b.x;
       const oy = b.parent ? b.y - b.parent.y : b.y;
-      b.g.setAttribute("transform", `translate(${(ox + dx).toFixed(2)},${(oy + dy).toFixed(2)})`);
-      b.dx = dx;
-      b.dy = dy;
-      // The drift a body actually shows is its own plus every one above it -
-      // accumulated here, once, because `bodies` holds parents before children.
-      // Everything that needs a body's true scene position (the labels) reads
-      // this instead of walking the chain again.
-      b.driftX = (b.parent ? b.parent.driftX : 0) + dx;
-      b.driftY = (b.parent ? b.parent.driftY : 0) + dy;
+      if (b.depth === 0) {
+        const dx = b.pxc * sx + b.pxs * cx;
+        const dy = b.pyc * sy + b.pys * cy;
+        b.g.style.transform = `translate(${ox + dx}px, ${oy + dy}px)`;
+      } else if (!b.gPlaced) {
+        // A child's offset inside its family never changes: write it once.
+        b.g.setAttribute("transform", `translate(${ox.toFixed(2)},${oy.toFixed(2)})`);
+        b.gPlaced = true;
+      }
     }
 
     // Labels are a pure function of the camera now (rest positions, no
