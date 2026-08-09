@@ -106,7 +106,13 @@ export function openSheet(layer, spec) {
   sheet.addEventListener("keydown", onKey);
 
   openState = { layer, scrim, sheet, previous, onClose: spec.onClose };
-  const firstField = sheet.querySelector("input, textarea, button:not(.iconbtn)");
+  // A readonly field is never where a sheet wants to start: the pairing sheet
+  // opens on its link, the link selects itself on focus, and the browser then
+  // scrolled the whole app up to "reveal" it - taking the sheet's own title off
+  // the top of the screen. The first field somebody can actually type in wins.
+  const firstField = sheet.querySelector(
+    "input:not([readonly]), textarea:not([readonly]), button:not(.iconbtn)",
+  );
   if (firstField) queueMicrotask(() => firstField.focus());
   emit(true);
   return sheet;

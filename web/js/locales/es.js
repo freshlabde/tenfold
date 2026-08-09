@@ -193,6 +193,7 @@ export const es = {
   "map.more": "+{n}",
   "map.hint.empty": "Escribe tus diez. Cada una aparece aquí, con todo lo que la compone.",
   "map.hint.one": "Solo una por ahora. Tócala para acercarte, toca su nombre para abrirla.",
+  "map.hint.tap": "Toca una meta para acercarte, toca su nombre para abrirla.",
 
   // ------------------------------------------------------ the daily question
   "question.heading": "Pregunta del día",

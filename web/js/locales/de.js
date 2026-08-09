@@ -193,6 +193,7 @@ export const de = {
   "map.more": "+{n}",
   "map.hint.empty": "Schreib deine zehn auf. Jedes erscheint hier, mit allem, woraus es besteht.",
   "map.hint.one": "Erst eines. Tipp darauf, um näher zu kommen, tipp den Namen an, um es zu öffnen.",
+  "map.hint.tap": "Tipp ein Ziel an, um näher zu kommen, tipp den Namen an, um es zu öffnen.",
 
   // ------------------------------------------------------ the daily question
   "question.heading": "Frage des Tages",

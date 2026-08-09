@@ -266,3 +266,149 @@ test("the service worker precache list matches the files on disk", async () => {
   expect(missingFromSw, `add to sw.js SHELL: ${missingFromSw.join(", ")}`).toEqual([]);
   expect(staleInSw, `remove from sw.js SHELL: ${staleInSw.join(", ")}`).toEqual([]);
 });
+
+// ---------------------------------------------------------------------------
+// UI audit, 2026-08-09. Everything below is a defect that was found by walking
+// the real app at 390x844 and looking at the result, and every one of them was
+// invisible to the suite before.
+// ---------------------------------------------------------------------------
+
+test("the frame never scrolls, so no screen loses its top edge", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+
+  // The retracted toast and a closed sheet both sit outside the frame, moved
+  // by a transform - which extended the frame's scrollable area downwards. Any
+  // focus inside then let the browser scroll the frame to "reveal" something,
+  // and every screen slid up by 28px: the eyebrow lost its ascender, and the
+  // duel title touched the very top of the glass.
+  const read = () =>
+    page.evaluate(() => ({
+      frame: document.querySelector(".frame").scrollTop,
+      eyebrow: document.querySelector(".eyebrow").getBoundingClientRect().top,
+    }));
+
+  const start = await read();
+  expect(start.frame).toBe(0);
+  expect(start.eyebrow).toBeGreaterThan(12);
+
+  // A sheet, a field inside it, and back out again: still nailed down.
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: /Turn on sync/ }).click();
+  await expect(page.getByRole("button", { name: /Pairing code/ })).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: /Pairing code/ }).click();
+  await expect(page.locator(".sheet")).toBeVisible();
+  // The sheet's own title has to be on screen, which is what the readonly
+  // pairing link used to cost: it took focus, selected itself, and dragged the
+  // app up by a hundred pixels.
+  const title = await page.locator(".sheet-title").boundingBox();
+  expect(title.y).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.querySelector(".frame").scrollTop)).toBe(0);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  expect(await read()).toEqual(start);
+});
+
+test("every control the thumb has to hit is at least 44px tall", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await expect(page.locator(".seg").first()).toBeVisible();
+
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll("button, [role='button']")]
+      .map((e) => ({ r: e.getBoundingClientRect(), label: (e.textContent || "").trim().slice(0, 24) }))
+      .filter((x) => x.r.width > 2 && x.r.height > 2 && x.r.height < 44)
+      .map((x) => `${x.label} ${Math.round(x.r.width)}x${Math.round(x.r.height)}`),
+  );
+  expect(small, `under the 44px floor: ${small.join(", ")}`).toEqual([]);
+});
+
+test("a settings row with a long description keeps its chevron whole", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await expect(page.locator(".setrow").first()).toBeVisible();
+
+  // The chevron is a flex item next to a growing block of text; without
+  // flex:none the three-line sync row squeezed it from 18px down to seven.
+  const widths = await page.locator(".setrow > svg").evaluateAll((list) =>
+    list.map((s) => s.getBoundingClientRect().width),
+  );
+  expect(widths.length).toBeGreaterThan(3);
+  for (const w of widths) expect(w).toBeGreaterThan(16);
+});
+
+test("search has no control the platform painted in its own colour", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: "Open search" }).click();
+  await page.locator(".searchbar input").fill("kn");
+
+  // type=search buys the right on-screen keyboard and, unasked, a native round
+  // cancel button that ignores every token in the file - a system-blue cross
+  // right next to our own close button. It has to be switched off, and the
+  // only way to prove that is at the source: getComputedStyle on
+  // ::-webkit-search-cancel-button reports the host input's box in Chromium,
+  // never the author rule, so there is nothing to read at runtime.
+  const css = await readFile(join(ROOT, "web/css/app.css"), "utf8");
+  expect(css).toMatch(/input\[type="search"\]::-webkit-search-cancel-button/);
+  expect(css).toMatch(/-webkit-appearance: none/);
+
+  // What IS observable: the bar carries exactly one close control, ours.
+  await expect(page.locator(".searchbar button")).toHaveCount(1);
+  await expect(page.locator(".searchbar input")).toHaveAttribute("type", "search");
+});
+
+test("a goal with no progress yet draws no gauge under its title", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: /Write the first one/ }).click();
+  await page.locator(".composer input").fill("Run ten kilometres again");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".row-shell").first().locator(".row").click();
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  for (const part of ["Stabilise the knee", "Buy shoes"]) {
+    await page.locator(".composer input").fill(part);
+    await page.locator(".composer input").press("Enter");
+  }
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".crumb-pill").first().click();
+
+  // Full width and sunken, an empty track read as a rule under the title - and
+  // since only a goal WITH parts carried one, that row looked struck through.
+  await expect(page.locator(".row-track")).toHaveCount(0);
+  await expect(page.locator(".row-shell").first().locator(".m")).toHaveText("0/2");
+
+  // Once something is done the gauge appears, and it is a short bar, not a rule.
+  await page.locator(".row-shell").first().locator(".row").click();
+  await page.locator(".list.is-kids .row-shell").first().locator(".row").click();
+  await page.getByRole("button", { name: "Mark as done" }).click();
+  await page.locator(".crumb-pill").first().click();
+  await expect(page.locator(".row-track")).toHaveCount(1);
+  const track = await page.locator(".row-track").boundingBox();
+  expect(track.width).toBeLessThan(80);
+});
+
+test("the leaf breadcrumb offers the way out to the ten, like every other screen", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: /Write the first one/ }).click();
+  await page.locator(".composer input").fill("Run ten kilometres again");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".row-shell").first().locator(".row").click();
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  await page.locator(".composer input").fill("Stabilise the knee");
+  await page.locator(".composer input").press("Enter");
+  await page.locator(".composer input").press("Escape");
+  await page.locator(".list.is-kids .row-shell").first().locator(".row").click();
+  await expect(page.locator(".leaf-title")).toHaveText("Stabilise the knee");
+
+  // The same first pill as the focus screen, and it means the same thing.
+  await expect(page.locator(".crumb-pill").first()).toHaveText("The Ten");
+  await page.locator(".crumb-pill").first().click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+});

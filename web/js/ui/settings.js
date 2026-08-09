@@ -53,7 +53,10 @@ function group(titleKey, children) {
 
 function segment(labelKey, values, active, labelFor, onPick) {
   return el("div", { style: { marginBottom: "10px" } }, [
-    el("div", { class: "group-key", style: { paddingBottom: "6px" } }, [text(t(labelKey))]),
+    // .field-key, not .group-key: the label of one control must not shout as
+    // loudly as the title of the group it sits in, or the screen flattens into
+    // one long ladder of identical capitals.
+    el("div", { class: "field-key" }, [text(t(labelKey))]),
     el(
       "div",
       { class: "seg", attrs: { role: "group", "aria-label": t(labelKey) } },

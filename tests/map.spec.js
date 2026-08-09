@@ -115,8 +115,25 @@ test("the map opens from the outline header and carries one body per root", asyn
   // A root always carries its title; nothing below it does, unfocused.
   await expect(page.locator(".map-label")).toHaveCount(10);
   await expect(page.locator(".map-labeltext").first()).toHaveText(TITLES[0]);
-  // Long goals are shortened, so a name can never turn into a wall of text.
-  await expect(page.locator(".map-labeltext").last()).toHaveText("Less screen time in the e…");
+  // The budget is wide enough that a real goal survives it whole.
+  await expect(page.locator(".map-labeltext").last()).toHaveText(TITLES[9]);
+});
+
+test("a name too long for the sky is cut on a word, never inside one", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  // Over the budget, and the boundary falls in the middle of "afternoon".
+  await addRoots(page, ["Buy the shoes after a gait analysis on Tuesday afternoon"]);
+  await openMap(page);
+
+  const shown = await page.locator(".map-labeltext").first().textContent();
+  expect(shown.endsWith("…")).toBe(true);
+  // Whatever was kept is a run of whole words off the front of the title.
+  const kept = shown.slice(0, -1);
+  expect("Buy the shoes after a gait analysis on Tuesday afternoon".startsWith(kept)).toBe(true);
+  expect(kept.endsWith(" ")).toBe(false);
+  // The cut sits at a space in the original, so no word was sliced in half.
+  expect("Buy the shoes after a gait analysis on Tuesday afternoon"[kept.length]).toBe(" ");
 });
 
 test("the keyboard opens the map on a desktop", async ({ page }) => {
@@ -409,20 +426,62 @@ test("rank is legible before any label is: size, light and a numeral", async ({ 
   expect(figures).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
 });
 
-test("families whisper: one accent, a different turn of it per root", async ({ page }) => {
+test("ten families, ten hues, and never a colour written by the script", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);
   await addRoots(page, TITLES);
   await openMap(page);
 
-  // Every family gets its own hue offset, and the offsets stay small - this is
-  // one metal seen from ten angles, never ten colours.
-  const turns = await page.locator(roots).evaluateAll((list) =>
-    list.map((g) => Number(getComputedStyle(g).getPropertyValue("--tint-h"))),
+  // One family class per root, all ten different, read off the rank.
+  const fams = await page.locator(roots).evaluateAll((list) =>
+    list.map((g) => [...g.classList].find((c) => c.startsWith("is-fam"))),
   );
-  expect(new Set(turns).size).toBe(10);
-  for (const turn of turns) expect(Math.abs(turn)).toBeLessThanOrEqual(24);
+  expect(fams).toEqual([
+    "is-fam0", "is-fam1", "is-fam2", "is-fam3", "is-fam4",
+    "is-fam5", "is-fam6", "is-fam7", "is-fam8", "is-fam9",
+  ]);
 
+  // The class resolves to ten distinct tints out of the data palette.
+  const tints = await page.locator(roots).evaluateAll((list) =>
+    list.map((g) => getComputedStyle(g).getPropertyValue("--tint").trim()),
+  );
+  expect(new Set(tints).size).toBe(10);
+
+  // And the module itself never names one: the only inline style on a body is
+  // the ladder's numbers plus the halo's fragment id.
+  const inline = await page.locator(roots).evaluateAll((list) =>
+    list.map((g) => g.getAttribute("style") || ""),
+  );
+  for (const style of inline) {
+    expect(style).not.toMatch(/#[0-9a-f]{3}|rgb|oklch|hsl/i);
+  }
+});
+
+test("the family palette is calm, and it is defined per theme", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES.slice(0, 3));
+
+  const read = () =>
+    page.evaluate(() => {
+      const s = getComputedStyle(document.documentElement);
+      const out = [];
+      for (let i = 1; i <= 10; i += 1) out.push(s.getPropertyValue(`--data-${i}`).trim());
+      return out;
+    });
+
+  const dark = await read();
+  expect(dark.filter(Boolean)).toHaveLength(10);
+  // Low chroma is the whole bargain: this is a data palette that still has to
+  // live inside a calm room. Everything sits on ONE lightness and ONE chroma.
+  for (const value of dark) expect(value).toMatch(/^oklch\(\.735 \.062 \d+\)$/);
+
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  const light = await read();
+  for (const value of light) expect(value).toMatch(/^oklch\(\.545 \.075 \d+\)$/);
+  // Same hues, different ink: on paper a family has to read as ink, not light.
+  expect(light).not.toEqual(dark);
 });
 
 test("a part inherits its family's tint and its family's light", async ({ page }) => {
@@ -442,17 +501,19 @@ test("a part inherits its family's tint and its family's light", async ({ page }
   const read = (locator) =>
     locator.evaluate((g) => {
       const s = getComputedStyle(g);
-      return { turn: s.getPropertyValue("--tint-h").trim(), rm: s.getPropertyValue("--rm").trim() };
+      return { tint: s.getPropertyValue("--tint").trim(), rm: s.getPropertyValue("--rm").trim() };
     });
   const root = await read(page.locator(`${roots} >> nth=3`));
   const part = await read(page.locator(".map-body.is-d1").first());
   expect(part).toEqual(root);
-  // And the family really is off the default, so this proves inheritance.
-  expect(root.turn).not.toBe("0");
+  // And the family really is off the default, so this proves inheritance
+  // rather than everybody falling back to the same first hue.
+  const first = await read(page.locator(`${roots} >> nth=0`));
+  expect(root.tint).not.toBe(first.tint);
 });
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v15"');
+  expect(sw).toContain('const VERSION = "tenfold-v16"');
   expect(sw).toContain('"./js/ui/map.js"');
 });

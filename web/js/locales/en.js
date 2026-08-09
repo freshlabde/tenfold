@@ -193,6 +193,7 @@ export const en = {
   "map.more": "+{n}",
   "map.hint.empty": "Write your ten. Each one appears here, with everything it is made of.",
   "map.hint.one": "One so far. Tap it to come closer, tap its name to open it.",
+  "map.hint.tap": "Tap a goal to come closer, tap its name to open it.",
 
   // ------------------------------------------------------ the daily question
   "question.heading": "Question of the day",

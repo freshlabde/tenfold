@@ -71,7 +71,8 @@ function finished(ctx) {
                 el("div", { class: "row-body" }, [
                   el("div", { class: "row-title" }, [text(node ? node.title : "")]),
                 ]),
-                el("span", { class: "m" }, [text(pad2(i + 1))]),
+                // No second figure in the mono rail: it said the same number as
+                // the chip on the left, one column further over.
               ]),
             ]);
           }),

@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>tenfold - map representations compared</title>
+<style>
+  :root {
+    --bg: #0F1115;
+    --bg-2: #171A20;
+    --panel: #12151A;
+    --text: #E9ECF2;
+    --text-2: #97A0AE;
+    --muted: #79828F;
+    --text-4: #4E5663;
+    --line: rgba(255,255,255,.08);
+    --accent: #D6A441;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+    /* The proposed data palette, dark variant - see docs/UI_AUDIT.md. */
+    --d1:#D8A94A; --d2:#7FA6C8; --d3:#CE8261; --d4:#69AE9E;
+    --d5:#AE8CBE; --d6:#A3AE63; --d7:#8B9BC4; --d8:#C2915F;
+    --d9:#8E93CE; --d10:#7FB287;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--font); font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  header { padding: 40px 24px 8px; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 28px; letter-spacing: -.03em; margin: 0 0 8px; }
+  header p { color: var(--text-2); max-width: 68ch; margin: 0 0 4px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .3em;
+    text-transform: uppercase; color: var(--text-4); margin-bottom: 10px;
+  }
+  .grid {
+    display: flex; flex-wrap: wrap; gap: 26px;
+    padding: 22px 24px 60px; max-width: 1180px; margin: 0 auto;
+    align-items: flex-start;
+  }
+  .card { width: 268px; }
+  .phone {
+    width: 268px; height: 580px; border-radius: 26px; overflow: hidden;
+    background: var(--bg); box-shadow: 0 0 0 1px var(--line), 0 24px 48px -18px rgba(0,0,0,.8);
+    position: relative;
+  }
+  .phone svg { display: block; width: 100%; height: 100%; }
+  .cap { padding-top: 12px; }
+  .cap h2 { font-size: 15px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .cap p { font-size: 12.5px; line-height: 1.5; color: var(--text-2); margin: 0 0 6px; }
+  .verdict {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .verdict.no { color: var(--text-4); }
+  .verdict.yes { color: var(--accent); }
+  .head { fill: var(--text); font-size: 15px; font-weight: 700; letter-spacing: -.03em; }
+  .sub { fill: var(--muted); font-family: var(--mono); font-size: 7.5px; letter-spacing: .12em; }
+  .lbl { fill: var(--text); font-size: 8px; font-weight: 600; }
+  .lbl.dim { fill: var(--text-2); font-weight: 400; }
+  .num { fill: #171106; font-family: var(--mono); font-size: 7px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+  .num.lite { fill: var(--text); }
+  .link { stroke: rgba(255,255,255,.16); stroke-width: .7; fill: none; }
+  footer { max-width: 1180px; margin: 0 auto; padding: 0 24px 80px; color: var(--text-2); }
+  footer h2 { color: var(--text); font-size: 18px; letter-spacing: -.02em; margin: 28px 0 8px; }
+  footer p, footer li { max-width: 78ch; }
+  footer code { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">tenfold &middot; map audit</div>
+  <h1>Four ways to draw the same ten goals</h1>
+  <p>The same vault in every panel: ten ranked goals, three of them broken down, one of those two levels
+  deep. Rank one is always the largest and the brightest. Judge each one by the three questions the map
+  actually has to answer &mdash; which goals are still bare, how far each has got, and where am I.</p>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<footer>
+  <h2>Recommendation</h2>
+  <p><strong>Keep the constellation, fix it.</strong> It is the only screen in tenfold that is not a list;
+  replacing it with columns or a tree would duplicate the outline and buy nothing. Its faults are
+  execution faults, not concept faults: a horizontal axis that carries no meaning, families that are all
+  one metal, labels cut mid-word and dropped on top of orbs, and numerals too small to read below rank
+  five. All four are fixable without touching the idea.</p>
+  <p>What changes: a ten-hue data palette carries family identity (rank keeps carrying itself through
+  size and light), labels wrap to two lines and are pushed clear of every disc, the bodies grow so the
+  sky reads as fuller, and a bottom veil holds one line that says the thing is tappable.</p>
+</footer>
+
+<script>
+// ---------------------------------------------------------------- the data
+const DATA = [
+  { t: "Pay off the remaining debt",      kids: ["List every balance", "Talk to the bank", "One extra payment"] },
+  { t: "Make the company sellable",       kids: ["Clean up the books", "Write the handover manual"] },
+  { t: "Run ten kilometres again",        kids: ["Build a base", "Stabilise the knee", "Buy shoes", "Enter in September"], deep: 0 },
+  { t: "Sort things out with Anna",       kids: ["One weekend away"] },
+  { t: "See my father regularly",         kids: [] },
+  { t: "A back that stops hurting",       kids: ["Morning exercises"] },
+  { t: "Spanish up to B2",                kids: [] },
+  { t: "Will and provisions settled",     kids: [] },
+  { t: "Finish the workshop",             kids: [] },
+  { t: "Less screen time in the evening", kids: [] },
+];
+const DEEP = ["Find the shoes", "Book the gait analysis"];
+const HUE = (i) => `var(--d${i + 1})`;
+
+const NS = "http://www.w3.org/2000/svg";
+const s = (tag, attrs = {}, kids = []) => {
+  const n = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+  for (const k of kids) if (k) n.appendChild(k);
+  return n;
+};
+const txt = (tag, attrs, str) => {
+  const n = s(tag, attrs);
+  n.appendChild(document.createTextNode(str));
+  return n;
+};
+const cut = (str, max) => {
+  if (str.length <= max) return str;
+  const at = str.lastIndexOf(" ", max - 1);
+  return `${str.slice(0, at > 8 ? at : max - 1)}…`;
+};
+
+const W = 268, H = 580;
+
+function chrome(root, title, sub) {
+  root.appendChild(txt("text", { class: "head", x: 14, y: 34 }, title));
+  root.appendChild(txt("text", { class: "sub", x: 14, y: 50 }, sub));
+}
+
+// ------------------------------------------------------------ A: as it ships
+function variantA() {
+  const g = s("svg", { viewBox: `0 0 ${W} ${H}` });
+  chrome(g, "Map", "10 GOALS · 9 PARTS");
+  const top = 74, span = H - top - 30;
+  DATA.forEach((d, i) => {
+    const light = 1 - i / 9;
+    const r = 6.4 + 9.6 * Math.pow(light, 1.35);
+    const y = top + (i / 9) * span;
+    const swing = Math.sin(((i + 0.5) / 10) * Math.PI);
+    const x = W / 2 + (i % 2 === 1 ? 1 : -1) * (0.16 + 0.84 * swing) * 52;
+    // one metal for everybody: that is the point of this panel
+    const mix = 28 + 52 * light;
+    g.appendChild(s("circle", { cx: x, cy: y, r, fill: `color-mix(in srgb, var(--d1) ${mix}%, var(--bg))`, stroke: `color-mix(in srgb, var(--d1) ${mix + 22}%, transparent)`, "stroke-width": .7 }));
+    g.appendChild(txt("text", { class: `num${light > 0.42 ? "" : " lite"}`, x, y, "font-size": Math.max(5, r * .5) }, String(i + 1)));
+    d.kids.forEach((k, j) => {
+      const a = -0.9 + j * 0.7;
+      const kx = x + Math.cos(a) * (r + 16), ky = y + Math.sin(a) * (r + 16);
+      g.appendChild(s("line", { class: "link", x1: x, y1: y, x2: kx, y2: ky }));
+      g.appendChild(s("circle", { cx: kx, cy: ky, r: 4.2, fill: `color-mix(in srgb, var(--d1) ${mix * .66}%, var(--bg))` }));
+    });
+    // the mid-word clamp and the label dropped straight onto the orbs
+    g.appendChild(txt("text", { class: "lbl", x, y: y + r + 11, "text-anchor": "middle" },
+      d.t.length > 26 ? `${d.t.slice(0, 25)}…` : d.t));
+  });
+  return g;
+}
+
+// ------------------------------------------------- B: radial tree / sunburst
+function variantB() {
+  const g = s("svg", { viewBox: `0 0 ${W} ${H}` });
+  chrome(g, "Map", "RADIAL TREE");
+  const cx = W / 2, cy = 320, R = 104;
+  g.appendChild(s("circle", { cx, cy, r: 15, fill: "none", stroke: "var(--line)" }));
+  DATA.forEach((d, i) => {
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const light = 1 - i / 9;
+    const r = 5 + 6 * light;
+    const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+    g.appendChild(s("line", { class: "link", x1: cx + Math.cos(a) * 15, y1: cy + Math.sin(a) * 15, x2: x, y2: y }));
+    g.appendChild(s("circle", { cx: x, cy: y, r, fill: HUE(i), opacity: .35 + .65 * light }));
+    d.kids.forEach((k, j) => {
+      const sp = 0.34, a2 = a - ((d.kids.length - 1) * sp) / 2 + j * sp;
+      const x2 = cx + Math.cos(a2) * (R + 34), y2 = cy + Math.sin(a2) * (R + 34);
+      g.appendChild(s("line", { class: "link", x1: x, y1: y, x2, y2 }));
+      g.appendChild(s("circle", { cx: x2, cy: y2, r: 3.2, fill: HUE(i), opacity: .5 }));
+    });
+    // the killer: at 0 and 180 degrees two names want the same line
+    const right = Math.cos(a) >= 0;
+    g.appendChild(txt("text", {
+      class: "lbl dim", x: cx + Math.cos(a) * (R + 58), y: cy + Math.sin(a) * (R + 58) + 3,
+      "text-anchor": right ? "start" : "end",
+    }, cut(d.t, 13)));
+  });
+  return g;
+}
+
+// ------------------------------------------------- C: vertical branch columns
+function variantC() {
+  const g = s("svg", { viewBox: `0 0 ${W} ${H}` });
+  chrome(g, "Map", "BRANCH COLUMNS");
+  let y = 76;
+  DATA.forEach((d, i) => {
+    const light = 1 - i / 9;
+    g.appendChild(s("rect", { x: 14, y: y - 11, width: 3, height: 22, rx: 1.5, fill: HUE(i), opacity: .3 + .7 * light }));
+    g.appendChild(txt("text", { class: "num lite", x: 26, y, "font-size": 7 }, String(i + 1)));
+    g.appendChild(txt("text", { class: "lbl", x: 36, y: y + 3 }, cut(d.t, 30)));
+    let x = 36;
+    d.kids.forEach(() => {
+      g.appendChild(s("circle", { cx: x + 4, cy: y + 15, r: 3.4, fill: HUE(i), opacity: .55 }));
+      x += 12;
+    });
+    if (d.kids.length) y += 16;
+    y += 30;
+    g.appendChild(s("line", { class: "link", x1: 14, y1: y - 15, x2: W - 14, y2: y - 15 }));
+  });
+  return g;
+}
+
+// -------------------------------------------------------------- D: treemap
+function variantD() {
+  const g = s("svg", { viewBox: `0 0 ${W} ${H}` });
+  chrome(g, "Map", "TREEMAP");
+  // weight = 1 + subtree size, laid out as a simple slice-and-dice
+  const items = DATA.map((d, i) => ({ i, d, w: 1 + d.kids.length + (i === 2 ? 2 : 0) }));
+  const total = items.reduce((a, b) => a + b.w, 0);
+  const top = 74, boxH = H - top - 26, boxW = W - 28;
+  let y = top;
+  let rowStart = 0;
+  // two columns of rows so it does not degenerate into stripes
+  items.forEach((it, n) => {
+    const h = (it.w / total) * boxH * 1.0;
+    const light = 1 - it.i / 9;
+    g.appendChild(s("rect", { x: 14, y, width: boxW, height: h - 2, rx: 3, fill: HUE(it.i), opacity: .22 + .5 * light }));
+    g.appendChild(txt("text", { class: "lbl", x: 22, y: y + 13 }, cut(it.d.t, 28)));
+    it.d.kids.forEach((k, j) => {
+      const kw = (boxW - 16) / Math.max(3, it.d.kids.length);
+      g.appendChild(s("rect", { x: 22 + j * kw, y: y + 18, width: kw - 3, height: h - 24, rx: 2, fill: "var(--bg)", opacity: .34 }));
+    });
+    y += h;
+    rowStart = n;
+  });
+  return g;
+}
+
+// ------------------------------------------------- E: the proposed treatment
+function variantE() {
+  const g = s("svg", { viewBox: `0 0 ${W} ${H}` });
+  const defs = s("defs");
+  DATA.forEach((_, i) => {
+    defs.appendChild(s("radialGradient", { id: `h${i}` }, [
+      s("stop", { offset: "0%", "stop-color": HUE(i), "stop-opacity": ".22" }),
+      s("stop", { offset: "55%", "stop-color": HUE(i), "stop-opacity": ".07" }),
+      s("stop", { offset: "100%", "stop-color": HUE(i), "stop-opacity": "0" }),
+    ]));
+  });
+  g.appendChild(defs);
+  chrome(g, "Map", "10 GOALS · 9 PARTS");
+  const top = 82, span = H - top - 84;
+  const placed = [];
+  DATA.forEach((d, i) => {
+    const light = 1 - i / 9;
+    const r = 7.2 + 10.4 * Math.pow(light, 1.35);
+    const y = top + (i / 9) * span;
+    const swing = Math.sin(((i + 0.5) / 10) * Math.PI);
+    const x = W / 2 + (i % 2 === 1 ? 1 : -1) * (0.16 + 0.84 * swing) * 58;
+    const mix = 30 + 52 * light;
+    g.appendChild(s("circle", { cx: x, cy: y, r: r * 2.9, fill: `url(#h${i})` }));
+    const kids = [];
+    d.kids.forEach((k, j) => {
+      const a = -1.15 + j * 0.62;
+      const kx = x + Math.cos(a) * (r + 18), ky = y + Math.sin(a) * (r + 18);
+      kids.push([kx, ky]);
+      g.appendChild(s("line", { x1: x, y1: y, x2: kx, y2: ky, stroke: `color-mix(in srgb, ${HUE(i)} 30%, transparent)`, "stroke-width": .8 }));
+      g.appendChild(s("circle", { cx: kx, cy: ky, r: 4.6, fill: `color-mix(in srgb, ${HUE(i)} ${mix * .66}%, var(--bg))`, stroke: `color-mix(in srgb, ${HUE(i)} ${mix * .66 + 22}%, transparent)`, "stroke-width": .6 }));
+    });
+    if (i === 2) DEEP.forEach((k, j) => {
+      const [px, py] = kids[0];
+      const kx = px + (j ? 13 : -13), ky = py - 13;
+      g.appendChild(s("line", { x1: px, y1: py, x2: kx, y2: ky, stroke: `color-mix(in srgb, ${HUE(i)} 26%, transparent)`, "stroke-width": .7 }));
+      g.appendChild(s("circle", { cx: kx, cy: ky, r: 3.1, fill: `color-mix(in srgb, ${HUE(i)} ${mix * .48}%, var(--bg))` }));
+    });
+    g.appendChild(s("circle", { cx: x, cy: y, r, fill: `color-mix(in srgb, ${HUE(i)} ${mix}%, var(--bg))`, stroke: `color-mix(in srgb, ${HUE(i)} ${Math.min(100, mix + 22)}%, transparent)`, "stroke-width": .9 }));
+    g.appendChild(txt("text", { class: `num${light > 0.42 ? "" : " lite"}`, x, y, "font-size": Math.max(6.2, r * .52) }, String(i + 1)));
+
+    // two lines, cut on a word boundary, pushed clear of every disc
+    const words = d.t.split(" ");
+    const lines = [""];
+    for (const w of words) {
+      const li = lines.length - 1;
+      if (!lines[li]) lines[li] = w;
+      else if ((lines[li] + " " + w).length <= 20) lines[li] += " " + w;
+      else if (lines.length < 2) lines.push(w);
+      else { lines[li] += "…"; break; }
+    }
+    let ly = y + r + 10;
+    for (const p of placed) if (Math.abs(p.x - x) < 70 && Math.abs(p.y - ly) < 12) ly = p.y + 12;
+    const tn = s("text", { class: "lbl", x, y: ly, "text-anchor": "middle" });
+    lines.forEach((ln, k) => tn.appendChild(txt("tspan", { x, dy: k ? 10 : 0 }, ln)));
+    g.appendChild(tn);
+    placed.push({ x, y: ly + (lines.length - 1) * 10 });
+  });
+  g.appendChild(s("rect", { x: 0, y: H - 46, width: W, height: 46, fill: "var(--bg)", opacity: .82 }));
+  g.appendChild(txt("text", { class: "lbl dim", x: W / 2, y: H - 22, "text-anchor": "middle" },
+    "Tap a goal to come closer."));
+  return g;
+}
+
+const PANELS = [
+  ["A - the constellation as it ships", "Rank reads instantly through size and light, and the ladder is honest. But every family is the same brass, so nothing says which small orbs belong to which goal; the labels are cut mid-word and land on top of the parts they belong to; and below rank five the numeral is too small to read.", "keep the idea, not the execution", "no", variantA],
+  ["B - radial tree around a centre", "A tidy hierarchy and a natural centre. On a 268-wide phone it dies: two names want the same line at the three-o-clock and nine-o-clock positions, the labels have to be cut to thirteen characters to fit, and half the tall screen is empty above and below the ring.", "rejected - wrong shape for a tall screen", "no", variantB],
+  ["C - vertical branch columns", "The most legible of the four: full titles, no collisions, parts as a countable row of dots. And that is the problem - it is the outline with dots added. It answers nothing the list does not already answer, and the app already has that screen.", "rejected - duplicates the outline", "no", variantC],
+  ["D - treemap by subtree size", "Area is the loudest channel a chart has, and here it would say that a goal broken into six steps matters more than one broken into none. That is the opposite of the method: rank is decided by the duel, never by how much was written down.", "rejected - encodes the wrong quantity", "no", variantD],
+  ["E - the constellation, repaired", "Ten low-chroma family hues carry which parts belong to which goal, while rank stays in size and light. Labels wrap to two lines on word boundaries and are pushed clear of every disc. Bodies are larger, numerals readable to rank ten, and a bottom veil holds one line saying the thing can be tapped.", "recommended", "yes", variantE],
+];
+
+const grid = document.getElementById("grid");
+for (const [title, body, verdict, cls, build] of PANELS) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const phone = document.createElement("div");
+  phone.className = "phone";
+  phone.appendChild(build());
+  const cap = document.createElement("div");
+  cap.className = "cap";
+  const h = document.createElement("h2");
+  h.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = body;
+  const v = document.createElement("div");
+  v.className = `verdict ${cls}`;
+  v.textContent = verdict;
+  cap.append(h, p, v);
+  card.append(phone, cap);
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>

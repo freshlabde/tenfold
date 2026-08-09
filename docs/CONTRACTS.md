@@ -372,6 +372,32 @@ Rules: components never hardcode colors, radii, shadows, or font stacks — toke
 dark and a light variant (`data-theme="dark|light"`, dark default). The choice persists in
 `doc.settings.skin` and is applied before first paint to avoid flashes.
 
+### The data palette (`--data-1` … `--data-10`)
+
+One accent per skin still governs every **control**: the accent means "you" — what you
+pressed, what you are on, the primary action, the focus ring. Alongside it there is exactly
+one second colour system, and it means "the things": which parts belong to which goal on the
+map. Nothing else in the app may reach into it.
+
+- Ten hues at **one lightness and one chroma** in OKLCH — dark `oklch(.735 .062 h)`, light
+  `oklch(.545 .075 h)` — so no family is louder than another and the chroma stays about a
+  third of a normal chart palette. Only the hue moves.
+- Defined per **theme**, not per skin (a data surface must not change meaning because
+  somebody prefers serifs), in the block at the foot of `tokens.css`.
+- Hue order walks the wheel in jumps, so two families that land next to each other on screen
+  are far apart in hue. **Rank never rides on hue** — it is carried by size and by how much
+  of the family colour is mixed into the body (`--rm`) — so two families a colour-blind eye
+  reads as similar are still told apart. Nothing on the map depends on hue alone.
+- `ui/map.js` never names a colour. It writes the family **index** as a class
+  (`is-fam0` … `is-fam9`) and the ladder as plain numbers (`--rm`, `--glow`, `--ink`); what
+  those mean is decided in `app.css`. The one exception is the halo's `fill`, which is a
+  fragment id (`url(#tf-halo-N)`) and not a colour: an SVG paint server referenced from an
+  *external* stylesheet resolves against the stylesheet's URL in some engines.
+- Where OKLCH is unavailable the whole palette falls back to the skin's accent — a quieter
+  map, never a broken one.
+- Also theme-level, and also map-only: `--map-halo-in`, `--map-halo-mid`, `--map-core`. On
+  paper a halo stops reading as light and starts reading as a smudge, so it is pulled back.
+
 ## About screen (stage 1, wave 2)
 
 A calm, readable screen inside the app (`web/js/ui/about.js`), reachable from settings and

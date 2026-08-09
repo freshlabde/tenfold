@@ -41,11 +41,19 @@ function crumb(ctx, node) {
       [icon("chevronLeft", 16)],
     ),
   ]);
-  const shown = chain.slice(-2);
-  shown.forEach((a, i) => {
-    if (i > 0) {
-      box.appendChild(el("span", { class: "crumb-caret", attrs: { "aria-hidden": "true" } }, [icon("chevronRight", 11)]));
-    }
+  // The way out to the ten, first and always - the focus screen has carried it
+  // since the beginning, and a leaf that hid it made the same row of pills mean
+  // two different things one tap apart.
+  box.appendChild(
+    el(
+      "button",
+      { class: "crumb-pill", attrs: { type: "button" }, on: { click: () => ctx.go("outline", null, { replace: true }) } },
+      [text(t("focus.root"))],
+    ),
+  );
+  const shown = chain.slice(-1);
+  shown.forEach((a) => {
+    box.appendChild(el("span", { class: "crumb-caret", attrs: { "aria-hidden": "true" } }, [icon("chevronRight", 11)]));
     box.appendChild(
       el("button", { class: "crumb-pill", attrs: { type: "button" }, on: { click: () => ctx.go("focus", a.id) } }, [
         text(a.title),

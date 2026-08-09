@@ -29,8 +29,11 @@
      chips      --chip-bg --chip-shadow --chip-color --chip-radius
                 --chip-lead-bg --chip-lead-color --chip-lead-shadow
      rows       --row-title-size --row-title-step --row-title-lead
+     data       --data-1 .. --data-10 --map-halo-in --map-halo-mid --map-core
 
-   Anything else is a bug. Adding a value means adding it to all three skins.
+   Anything else is a bug. Adding a value means adding it to all three skins -
+   except the data palette, which is defined per THEME and shared by all three
+   skins on purpose (see the block at the bottom of this file).
    ============================================================================= */
 
 :root {
@@ -406,6 +409,79 @@
 :root[data-skin="breath"] .panel { background: none; padding-left: 0; padding-right: 0; }
 :root[data-skin="breath"] .cell { background: none; border-top: 1px solid var(--line); }
 :root[data-skin="breath"] .duel-card { background: none; }
+
+/* =============================================================================
+   THE DATA PALETTE - ten family hues for the map, and nothing else.
+
+   The app has ONE accent per skin and that rule still holds for every control:
+   the accent means "you" - the thing you pressed, the thing you are on, the
+   primary action. This palette means "the things": which parts belong to which
+   goal. Two different jobs, so two different colour systems, and no control on
+   any screen may reach into this one.
+
+   How it is built. All ten sit at ONE lightness and ONE low chroma in OKLCH, so
+   no family is louder than another and the sky stays as calm as the rest of the
+   app - the chroma is roughly a third of what a chart palette would use. Only
+   the hue moves. The order walks the wheel in jumps rather than in a circle, so
+   two families that end up next to each other on screen are far apart in hue;
+   and because rank is carried by SIZE and LIGHT (a rank-ten body is mixed down
+   to a third of its family colour), two families that a colour-blind eye reads
+   as similar are still told apart by how big and how bright they are. Nothing
+   on this screen depends on hue alone.
+
+   Defined per THEME, not per skin: the map is a data surface, and a data
+   surface that changed its meaning when somebody preferred serifs would be a
+   different chart. Dark sits at L .735 so a body reads as lit against the
+   night; light sits at L .545 so it reads as ink on paper.
+   ============================================================================= */
+
+:root[data-theme="dark"] {
+  --data-1: oklch(.735 .062 72);    /* brass    */
+  --data-2: oklch(.735 .062 250);   /* blue     */
+  --data-3: oklch(.735 .062 32);    /* clay     */
+  --data-4: oklch(.735 .062 168);   /* teal     */
+  --data-5: oklch(.735 .062 305);   /* mauve    */
+  --data-6: oklch(.735 .062 108);   /* olive    */
+  --data-7: oklch(.735 .062 212);   /* steel    */
+  --data-8: oklch(.735 .062 46);    /* bronze   */
+  --data-9: oklch(.735 .062 278);   /* indigo   */
+  --data-10: oklch(.735 .062 140);  /* moss     */
+
+  --map-halo-in: .20;
+  --map-halo-mid: .06;
+  --map-core: .07;
+}
+
+:root[data-theme="light"] {
+  --data-1: oklch(.545 .075 72);
+  --data-2: oklch(.545 .075 250);
+  --data-3: oklch(.545 .075 32);
+  --data-4: oklch(.545 .075 168);
+  --data-5: oklch(.545 .075 305);
+  --data-6: oklch(.545 .075 108);
+  --data-7: oklch(.545 .075 212);
+  --data-8: oklch(.545 .075 46);
+  --data-9: oklch(.545 .075 278);
+  --data-10: oklch(.545 .075 140);
+
+  /* On paper a halo stops reading as light and starts reading as a smudge, so
+     it is pulled back to a whisper and the sky's own core glow goes out. */
+  --map-halo-in: .10;
+  --map-halo-mid: .035;
+  --map-core: .03;
+}
+
+/* Where OKLCH is not available the whole palette falls back to the skin's
+   accent: a quieter map, never a broken one - the same bargain the hue turn
+   struck before it. */
+@supports not (color: oklch(.5 .1 20)) {
+  :root {
+    --data-1: var(--accent); --data-2: var(--accent); --data-3: var(--accent);
+    --data-4: var(--accent); --data-5: var(--accent); --data-6: var(--accent);
+    --data-7: var(--accent); --data-8: var(--accent); --data-9: var(--accent);
+    --data-10: var(--accent);
+  }
+}
 
 /* =============================================================================
    Reduced motion is a token too: every duration collapses, no component needs

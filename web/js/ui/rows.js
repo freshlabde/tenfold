@@ -86,7 +86,11 @@ export function nodeRow(ctx, node, opts = {}) {
   row.appendChild(chip);
   row.appendChild(body);
   row.appendChild(metric);
-  if (!leaf) {
+  // The gauge appears once there is something to show. An empty one is not
+  // information: it is a full-width rule under the title, and since only a goal
+  // WITH parts carried it, one row in ten looked struck through. The count in
+  // the mono rail already says "0 of 6".
+  if (!leaf && p.ratio > 0) {
     row.appendChild(el("span", { class: "row-track", vars: { "--p": String(p.ratio) } }, [el("i", {})]));
   }
 

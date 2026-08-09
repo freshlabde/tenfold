@@ -11,7 +11,10 @@
 // the sky as a whole stays one metal - the app has one accent per skin and
 // this screen does not get a second. Where the tree goes
 // deeper than three levels the rest is summed up into a small figure on its
-// level-three ancestor. A circle would have been the obvious arrangement and
+// level-three ancestor. Each family carries one of the ten hues of the data
+// palette, which is what says at a glance which small orbs belong to which
+// goal; rank never rides on hue, so the ladder survives colour blindness.
+// A circle would have been the obvious arrangement and
 // is the wrong one: a phone is tall, and two ranks at the same height put two
 // names on the same line. The arrangement is not
 // authored: a small force simulation (parent springs, sibling repulsion,
@@ -47,13 +50,15 @@ const CROWD = 380;
  * rank ten is a dim ember. Nobody should have to read a label to see what
  * matters: the size and the light say it first.
  */
-const R_ROOT_MAX = 34;
-const R_ROOT_MIN = 14.6;
+const R_ROOT_MAX = 38;
+const R_ROOT_MIN = 17;
 /** >1 spends more of the ladder on the top of the list, where it is read. */
 const R_ROOT_CURVE = 1.35;
-/** Percent of accent in a root's fill, brightest rank first. */
+/** Percent of the family hue in a root's fill, brightest rank first. */
 const MIX_MAX = 80;
-const MIX_MIN = 28;
+/** Not lower: below a third the family hue stops being visible at all, and the
+ *  last ranks would lose the one thing that says whose parts those are. */
+const MIX_MIN = 34;
 /**
  * A short list must not be spread across the whole ladder - two goals would
  * read as a planet and a speck. Below four roots the ramp is compressed.
@@ -61,27 +66,21 @@ const MIX_MIN = 28;
 const RANK_DENOM_MIN = 3;
 
 /** Body radius by depth; index 0 is unused, a root reads the ladder above. */
-const R_BASE = [0, 10.6, 7, 4.8];
+const R_BASE = [0, 11.6, 7.6, 5.2];
 /** Rest length of the spring that ties a body to its parent, by child depth. */
 const REST = [0, 74, 40, 24];
 /** Clearance kept between two bodies, by the deeper of the two. */
 const CLEAR = [18, 10, 6.5, 5];
 
 /**
- * One accent, ten families. Each root turns the skin's accent hue by a few
- * fixed degrees - never enough to become a second colour, just enough that a
- * branch is recognisable as its own when the camera comes close. The table is
- * fixed and read by rank, so the same list always tints the same way, and it
- * cycles if a vault ever holds more than ten roots.
- *
- * Deliberately not symmetric. Turning a warm accent upwards runs into green
- * within twenty degrees, and a green orb in a brass sky is a second colour,
- * not a family - so the ladder leans downhill, where gold becomes copper and
- * vermilion becomes carmine, and only whispers in the other direction.
+ * Ten families, ten hues out of the data palette. This module never names a
+ * colour: it puts the family INDEX on the root group as a class, and app.css
+ * decides what that index means - so a theme change still owns every pixel of
+ * this screen, exactly as with the ladder numbers below. Read by rank, so the
+ * same list always colours the same way, and it cycles if a merged vault ever
+ * holds more than ten roots.
  */
-const TINT_H = [0, -9, 6, -15, 9, -19, 3, -12, 7, -17];
-/** Chroma is pulled back as the hue turns, so the sky stays one metal. */
-const TINT_C_FALLOFF = 160;
+const FAMILIES = 10;
 
 /**
  * The ranked slots the roots are anchored to. Not a circle: a circle would
@@ -103,12 +102,26 @@ const FIT_MAX_K = 1.6;
 const FOCUS_MAX_K = 3.2;
 /** The floating header owns the top of the stage; the fit stays below it. */
 const FIT_TOP = 104;
-const FIT_BOTTOM = 26;
+/** The floating veil owns the bottom of the stage the way the header owns the
+ *  top: enough for the hint line plus the name of the last body above it. */
+const FIT_BOTTOM = 68;
 const KEEP_ON_SCREEN = 72;
-const LABEL_MAX = 26;
+/**
+ * A name is cut on a WORD boundary or not at all. The old limit of 26 sliced
+ * "Less screen time in the evening" into "Less screen time in the e…", which
+ * reads as a rendering fault rather than as a shortening; at 32 almost every
+ * real goal fits whole, and the ones that do not end on a whole word.
+ */
+const LABEL_MAX = 32;
 /** Screen-space label geometry, for the collision pass. */
 const LABEL_LINE = 15;
-const LABEL_PUSH = 26;
+/** How far a colliding name may be pushed before it stops belonging to its
+ *  body. Larger than the old 26, because a name is now also pushed clear of
+ *  the discs it would otherwise sit on, and a rank-one disc is 38 units. */
+const LABEL_PUSH = 48;
+/** Above this many bodies the disc-avoidance pass is skipped: it is O(labels x
+ *  bodies) per frame, and a sky that big has other problems. */
+const AVOID_LIMIT = 160;
 
 // --------------------------------------------------------------------- seed
 
@@ -148,7 +161,6 @@ function rankLight(index, siblings) {
 function rankLook(index, siblings) {
   const light = rankLight(index, siblings);
   const mix = MIX_MIN + (MIX_MAX - MIX_MIN) * light;
-  const hue = TINT_H[index % TINT_H.length];
   return {
     r: R_ROOT_MIN + (R_ROOT_MAX - R_ROOT_MIN) * Math.pow(light, R_ROOT_CURVE),
     mix,
@@ -159,9 +171,8 @@ function rankLook(index, siblings) {
     // mid grey on the mid ranks, which is the one thing neither ink is. Both
     // themes are covered by this single number, because both inks are defined
     // per theme.
-    ink: clamp01((mix - 50) / 6) * 100,
-    hue,
-    chroma: 1 - Math.abs(hue) / TINT_C_FALLOFF,
+    ink: clamp01((mix - 52) / 6) * 100,
+    fam: index % FAMILIES,
   };
 }
 
@@ -458,11 +469,18 @@ function branchOf(body) {
 
 const ARC_GAP = 4.6;
 
-/** Title shortened for a label. User text, so it travels as a text node. */
+/**
+ * Title shortened for a label - on a word boundary, never in the middle of one.
+ * User text, so it travels as a text node and nothing else.
+ */
 function shortTitle(node) {
   const raw = (node.title || "").trim();
   if (!raw) return t("editor.newTitle");
-  return raw.length > LABEL_MAX ? `${raw.slice(0, LABEL_MAX - 1)}…` : raw;
+  if (raw.length <= LABEL_MAX) return raw;
+  const at = raw.lastIndexOf(" ", LABEL_MAX - 1);
+  // A single word longer than the whole budget has no boundary to cut on; that
+  // one is sliced, because the alternative is a name wider than the phone.
+  return `${raw.slice(0, at > 10 ? at : LABEL_MAX - 1).trimEnd()}…`;
 }
 
 /** One body: its connectors, its halo, its completion arc, its disc. */
@@ -483,8 +501,8 @@ function drawBody(body) {
     g.style.setProperty("--rm", `${look.mix.toFixed(1)}%`);
     g.style.setProperty("--glow", look.glow.toFixed(3));
     g.style.setProperty("--ink", `${look.ink.toFixed(1)}%`);
-    g.style.setProperty("--tint-h", String(look.hue));
-    g.style.setProperty("--tint-c", look.chroma.toFixed(3));
+    // The family, as an index. Which hue that is stands in app.css.
+    g.classList.add(`is-fam${look.fam}`);
   }
   body.g = g;
 
@@ -505,8 +523,10 @@ function drawBody(body) {
   }
 
   if (body.depth === 0) {
+    // A fragment id, not a colour: which gradient, decided by the family index;
+    // what colour that gradient is made of, decided in tokens.css.
     const halo = sel("circle", { class: "map-halo", attrs: { r: (body.r * 2.9).toFixed(1) } });
-    halo.setAttribute("fill", "url(#tf-halo)");
+    halo.setAttribute("fill", `url(#tf-halo-${body.look ? body.look.fam : 0})`);
     g.appendChild(halo);
   }
 
@@ -537,7 +557,9 @@ function drawBody(body) {
   // A number, not a string: nothing here has to be translated.
   if (body.depth === 0) {
     const figure = String(body.rank + 1);
-    const size = Math.max(8.4, body.r * (figure.length > 1 ? 0.42 : 0.52));
+    // 8.4 was below the floor at which a figure inside a dim body can be read
+    // at all; the last three ranks were decoration.
+    const size = Math.max(10.4, body.r * (figure.length > 1 ? 0.42 : 0.52));
     g.appendChild(
       sel("text", {
         class: "map-rank",
@@ -598,16 +620,28 @@ export function render(ctx) {
 
   // ------------------------------------------------------------- the canvas
 
+  // One halo gradient per family. A gradient resolves its custom properties
+  // where it is DEFINED, so a single shared one could only ever carry a single
+  // colour; ten of them is the price of ten families. Nothing here is a colour
+  // literal - every stop reads a token, and how far the light reaches is a
+  // token too, because on paper a halo becomes a smudge.
+  const halos = [];
+  for (let i = 0; i < FAMILIES; i += 1) {
+    const hue = `var(--data-${i + 1})`;
+    halos.push(
+      sel("radialGradient", { attrs: { id: `tf-halo-${i}` } }, [
+        sel("stop", { attrs: { offset: "0%", "stop-color": hue, "stop-opacity": "var(--map-halo-in)" } }),
+        sel("stop", { attrs: { offset: "55%", "stop-color": hue, "stop-opacity": "var(--map-halo-mid)" } }),
+        sel("stop", { attrs: { offset: "100%", "stop-color": hue, "stop-opacity": "0" } }),
+      ]),
+    );
+  }
   const defs = sel("defs", {}, [
-    sel("radialGradient", { attrs: { id: "tf-halo" } }, [
-      sel("stop", { attrs: { offset: "0%", "stop-color": "var(--accent)", "stop-opacity": ".26" } }),
-      sel("stop", { attrs: { offset: "55%", "stop-color": "var(--accent)", "stop-opacity": ".07" } }),
-      sel("stop", { attrs: { offset: "100%", "stop-color": "var(--accent)", "stop-opacity": "0" } }),
-    ]),
+    ...halos,
     sel("radialGradient", { attrs: { id: "tf-core" } }, [
       // Faint on purpose: in the light theme anything stronger stops reading as
       // a light behind the sky and starts reading as a mark on the paper.
-      sel("stop", { attrs: { offset: "0%", "stop-color": "var(--accent)", "stop-opacity": ".09" } }),
+      sel("stop", { attrs: { offset: "0%", "stop-color": "var(--accent)", "stop-opacity": "var(--map-core)" } }),
       sel("stop", { attrs: { offset: "100%", "stop-color": "var(--accent)", "stop-opacity": "0" } }),
     ]),
   ]);
@@ -823,6 +857,12 @@ export function render(ctx) {
       b.g.setAttribute("transform", `translate(${(ox + dx).toFixed(2)},${(oy + dy).toFixed(2)})`);
       b.dx = dx;
       b.dy = dy;
+      // The drift a body actually shows is its own plus every one above it -
+      // accumulated here, once, because `bodies` holds parents before children.
+      // Everything that needs a body's true scene position (the labels) reads
+      // this instead of walking the chain again.
+      b.driftX = (b.parent ? b.parent.driftX : 0) + dx;
+      b.driftY = (b.parent ? b.parent.driftY : 0) + dy;
     }
 
     placeLabels();
@@ -838,14 +878,11 @@ export function render(ctx) {
    */
   function placeLabels() {
     const n = labelled.length;
+    const avoidDiscs = bodies.length <= AVOID_LIMIT;
     for (let i = 0; i < n; i += 1) {
       const b = labelled[i];
-      let ax = b.x;
-      let ay = b.y;
-      for (const link of b.chain) {
-        ax += link.dx || 0;
-        ay += link.dy || 0;
-      }
+      const ax = b.x + (b.driftX || 0);
+      const ay = b.y + (b.driftY || 0);
       const lift = b.r + (b.depth === 0 ? 17 : 12);
       const half = b.labelWidth / 2 + 4;
       // Clamp horizontally so a name near the edge slides inward instead of
@@ -854,21 +891,63 @@ export function render(ctx) {
       const margin = 8;
       if (sx - half < margin) sx = margin + half;
       else if (sx + half > size.w - margin) sx = size.w - margin - half;
-      let sy = cam.y + (ay + lift) * cam.k;
-      const wanted = sy;
-      for (let pass = 0; pass < 8; pass += 1) {
-        let hit = false;
-        for (let j = 0; j < i; j += 1) {
-          const o = labelled[j];
-          if (Math.abs(sy - o.sy) >= LABEL_LINE) continue;
-          if (Math.abs(sx - o.sx) >= half + o.labelWidth / 2 + 4) continue;
-          sy = o.sy + LABEL_LINE;
-          hit = true;
-          break;
+      // Walk a name away from everything it would sit on, in one direction.
+      // A name over another name is untidy; a name over a BODY is the thing
+      // that made this screen look broken, because a lit disc forces a dark
+      // box behind the letters. Only ever one way, so a pass cannot oscillate;
+      // its own body is skipped, since the name already hangs clear of that
+      // one. Returns how far it had to go - the caller decides whether that
+      // was too far to still belong to its body.
+      const walk = (from, dir) => {
+        let y = from;
+        for (let pass = 0; pass < 8; pass += 1) {
+          let hit = false;
+          for (let j = 0; j < i; j += 1) {
+            const o = labelled[j];
+            if (Math.abs(y - o.sy) >= LABEL_LINE) continue;
+            if (Math.abs(sx - o.sx) >= half + o.labelWidth / 2 + 4) continue;
+            y = o.sy + dir * LABEL_LINE;
+            hit = true;
+            break;
+          }
+          if (!hit && avoidDiscs) {
+            for (const c of bodies) {
+              // Its own body is NOT skipped. Both starting points already clear
+              // it, but a walk that got deflected by something else could end
+              // up back across it - which is exactly how a name landed on the
+              // very disc it belongs to.
+              const cr = c.r * cam.k + 3;
+              const cxs = cam.x + (c.x + (c.driftX || 0)) * cam.k;
+              if (Math.abs(cxs - sx) > half + cr) continue;
+              const cys = cam.y + (c.y + (c.driftY || 0)) * cam.k;
+              if (Math.abs(cys - y) > LABEL_LINE / 2 + cr) continue;
+              y = cys + dir * (cr + LABEL_LINE / 2);
+              hit = true;
+              break;
+            }
+          }
+          if (!hit) return { y, clear: true };
         }
-        if (!hit) break;
+        return { y, clear: false };
+      };
+
+      const wanted = cam.y + (ay + lift) * cam.k;
+      const down = walk(wanted, 1);
+      let sy = down.y;
+      // Below is the natural place. If getting clear below would drag the name
+      // further than it can go and still read as this body's name, try above -
+      // and only if that fails too, settle for the budget. Without this second
+      // try the old code simply clamped the result back down onto the very
+      // disc the walk had just escaped.
+      if (!down.clear || down.y - wanted > LABEL_PUSH) {
+        const wantedUp = cam.y + (ay - lift) * cam.k;
+        const up = walk(wantedUp, -1);
+        if (up.clear && wantedUp - up.y <= LABEL_PUSH) sy = up.y;
+        // Neither way out: back to its own place under its own body. That is
+        // the one position guaranteed to be clear of the body it names, and
+        // the stroke behind the letters is there for exactly this case.
+        else sy = wanted;
       }
-      if (sy - wanted > LABEL_PUSH) sy = wanted + LABEL_PUSH;
       b.sx = sx;
       b.sy = sy;
       b.label.setAttribute("transform", `translate(${sx.toFixed(1)},${sy.toFixed(1)})`);
@@ -968,12 +1047,20 @@ export function render(ctx) {
       maxY: box.maxY + 46,
     };
     const target = fit(grown, FOCUS_MAX_K);
-    target.k = clamp(target.k, kMin(), Math.min(kMax(), base.k * 4.2));
-    // Refit the translation to the clamped scale so the branch stays centred.
+    // A goal with nothing under it has a box the size of one disc, and the fit
+    // would then magnify that one disc until it filled the screen and left the
+    // rest of the sky out of sight. Coming closer to a bare goal means coming
+    // closer, not landing on it.
+    const bare = body.kids.length === 0;
+    target.k = clamp(target.k, kMin(), Math.min(kMax(), base.k * (bare ? 1.5 : 4.2)));
+    // Refit the translation to the clamped scale so the branch stays centred -
+    // centred in the part of the stage the floating header leaves free, the
+    // same rule fit() follows, or a focused branch sits under the title.
     const cxn = (grown.minX + grown.maxX) / 2;
     const cyn = (grown.minY + grown.maxY) / 2;
+    const top = Math.min(FIT_TOP, size.h * 0.18);
     target.x = size.w / 2 - cxn * target.k;
-    target.y = size.h / 2 - cyn * target.k;
+    target.y = top + (size.h - top - FIT_BOTTOM) / 2 - cyn * target.k;
     glideTo(limitPan(target, false));
   }
 
@@ -1048,6 +1135,8 @@ export function render(ctx) {
     "pointerdown",
     (ev) => {
       if (!ready) return;
+      // Whoever touched the sky has read the line under it.
+      dismissHint();
       svg.setPointerCapture(ev.pointerId);
       const p = scenePoint(ev);
       pointers.set(ev.pointerId, p);
@@ -1136,6 +1225,7 @@ export function render(ctx) {
     (ev) => {
       if (!ready) return;
       ev.preventDefault();
+      dismissHint();
       const p = scenePoint(ev);
       const factor = Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.012 : 0.0022));
       zoomAt(p.x, p.y, factor, false);
@@ -1230,7 +1320,17 @@ export function render(ctx) {
     el("p", { class: "h-sub" }, [text(subtitle)]),
   ]);
 
-  const stage = el("div", { class: "map-stage" }, [svg, head]);
+  // The bottom of the sky, and the one sentence that says it can be touched.
+  // Without it the map was a picture: nothing on the screen told anybody that a
+  // body answers a tap, and the orbs ran off the bottom edge on a hard cut.
+  // The line goes at the first gesture, because by then it has been read.
+  const hint = el("p", { class: "map-hint" }, [
+    text(roots.length > 1 ? t("map.hint.tap") : roots.length ? t("map.hint.one") : t("map.hint.empty")),
+  ]);
+  const foot = el("div", { class: "map-veil is-bottom" }, [hint]);
+  const dismissHint = () => foot.classList.add("is-gone");
+
+  const stage = el("div", { class: "map-stage" }, [svg, head, foot]);
 
   if (!roots.length) {
     // Nothing yet: one hollow body in the middle, so the screen still reads as
@@ -1240,13 +1340,6 @@ export function render(ctx) {
       sel("circle", { class: "map-disc", attrs: { r: "9" } }),
     ]);
     tree.appendChild(seed);
-  }
-  if (roots.length <= 1) {
-    stage.appendChild(
-      el("p", { class: "map-hint" }, [
-        text(roots.length ? t("map.hint.one") : t("map.hint.empty")),
-      ]),
-    );
   }
 
   return el("section", { class: "screen is-map" }, [stage]);
