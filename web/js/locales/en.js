@@ -78,7 +78,7 @@ export const en = {
   "setup.key.sheet.line2": "The key on its own opens the vault. Keep this sheet as safe as the list itself: a drawer or a safe, never a photo library.",
   "setup.key.sheet.line3": "Your passphrase is not written here, and it cannot be worked out from this sheet.",
   "setup.key.sheet.hint": "Passphrase hint - write by hand if you must",
-  "setup.key.sheet.foot": "tenfold - the vault is encrypted on your device. Nobody else holds a copy of this key.",
+  "setup.key.sheet.foot": "tenfold - this key exists only on this sheet. It is not stored in the app, not in the vault, not on any server; the vault only carries a lock that opens to it. The pairing code shown for device sync is a different thing and cannot replace this key.",
 
   "setup.template.eyebrow": "Starting point",
   "setup.template.title": "Empty page, or a frame?",

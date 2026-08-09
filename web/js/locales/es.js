@@ -78,7 +78,7 @@ export const es = {
   "setup.key.sheet.line2": "La clave por sí sola abre la lista. Guarda esta hoja tan a buen recaudo como la lista misma: un cajón o una caja fuerte, nunca la galería de fotos.",
   "setup.key.sheet.line3": "Tu frase de acceso no está escrita aquí, y de esta hoja no se puede deducir.",
   "setup.key.sheet.hint": "Pista de la frase de acceso - escríbela a mano si hace falta",
-  "setup.key.sheet.foot": "tenfold - la lista está cifrada en tu dispositivo. Nadie más tiene una copia de esta clave.",
+  "setup.key.sheet.foot": "tenfold - esta clave existe solo en esta hoja. No está guardada en la aplicación, ni en la caja fuerte, ni en ningún servidor; la caja fuerte solo lleva la cerradura que se abre con ella. El código de emparejamiento de la sincronización es otra cosa y no puede sustituir a esta clave.",
 
   "setup.template.eyebrow": "Punto de partida",
   "setup.template.title": "¿Página en blanco o un marco?",

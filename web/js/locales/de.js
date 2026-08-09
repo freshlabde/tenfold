@@ -78,7 +78,7 @@ export const de = {
   "setup.key.sheet.line2": "Der Schlüssel allein öffnet die Liste. Verwahre dieses Blatt so sicher wie die Liste selbst: Schublade oder Safe, nie die Fotomediathek.",
   "setup.key.sheet.line3": "Deine Passphrase steht nicht auf diesem Blatt und lässt sich daraus auch nicht erschließen.",
   "setup.key.sheet.hint": "Merkhilfe zur Passphrase - falls nötig, von Hand eintragen",
-  "setup.key.sheet.foot": "tenfold - die Liste ist auf deinem Gerät verschlüsselt. Niemand sonst hat eine Kopie dieses Schlüssels.",
+  "setup.key.sheet.foot": "tenfold - dieser Schlüssel existiert nur auf diesem Blatt. Er ist nicht in der App gespeichert, nicht im Tresor, auf keinem Server; im Tresor liegt nur das Schloss, das zu ihm passt. Der Kopplungscode aus dem Geräte-Sync ist etwas anderes und kann diesen Schlüssel nicht ersetzen.",
 
   "setup.template.eyebrow": "Startpunkt",
   "setup.template.title": "Leere Seite oder ein Rahmen?",
