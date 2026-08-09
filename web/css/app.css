@@ -1816,13 +1816,13 @@ button.h-sub {
 }
 
 .paper-title {
-  margin: 12mm 0 0;
+  margin: 6mm 0 0;
   font-family: var(--paper-serif);
-  font-size: 32pt; font-weight: 400;
+  font-size: 24pt; font-weight: 400;
   letter-spacing: -.015em; line-height: 1.02;
 }
 .paper-lede {
-  margin: 3.5mm 0 0;
+  margin: 2.5mm 0 0;
   max-width: 105mm;
   font-size: 11.5pt; font-style: italic;
   color: var(--paper-ink-2);
@@ -1831,8 +1831,8 @@ button.h-sub {
 /* The key panel: the transcribable text and the machine-readable copy of the
    same string, framed together so nobody cuts one off. */
 .paper-panel {
-  margin-top: 10mm;
-  padding: 7mm;
+  margin-top: 6mm;
+  padding: 5mm 6mm;
   border: 1px solid var(--paper-rule-strong);
   display: flex; align-items: center; justify-content: space-between; gap: 9mm;
   break-inside: avoid; page-break-inside: avoid;
@@ -1846,18 +1846,18 @@ button.h-sub {
   color: var(--paper-ink-3);
 }
 
-.paper-key { margin-top: 4.5mm; }
+.paper-key { margin-top: 3mm; }
 .paper-key-row {
   font-family: var(--paper-mono);
-  font-size: 15.5pt; font-weight: 500;
-  letter-spacing: .1em; line-height: 1.7;
+  font-size: 13.5pt; font-weight: 500;
+  letter-spacing: .1em; line-height: 1.55;
   white-space: nowrap;                /* the rows are set, never re-wrapped */
 }
 .paper-key-sep { color: var(--paper-ink-3); }
 
-.paper-code { margin: 0; flex: none; width: 36mm; }
+.paper-code { margin: 0; flex: none; width: 32mm; }
 .paper-qr {
-  display: block; width: 36mm; height: 36mm;
+  display: block; width: 32mm; height: 32mm;
   /* A printer that drops "backgrounds" would drop the symbol with them. */
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
@@ -1871,13 +1871,13 @@ button.h-sub {
 
 /* Three ruled lines, numbered in the margin - a register, not a warning box. */
 .paper-notes {
-  margin: 10mm 0 0; padding: 0;
+  margin: 6mm 0 0; padding: 0;
   list-style: none;
   border-top: 1px solid var(--paper-rule);
 }
 .paper-note {
   display: flex; gap: 5mm;
-  padding: 3.5mm 0;
+  padding: 2.6mm 0;
   border-bottom: 1px solid var(--paper-rule);
   break-inside: avoid; page-break-inside: avoid;
 }
@@ -1889,16 +1889,16 @@ button.h-sub {
 .paper-note-text { max-width: 132mm; }
 
 /* The one thing this sheet asks of a pen. */
-.paper-field { margin-top: 11mm; break-inside: avoid; page-break-inside: avoid; }
+.paper-field { margin-top: 6mm; break-inside: avoid; page-break-inside: avoid; }
 .paper-rule {
   height: 0;
-  margin-top: 9mm;
+  margin-top: 7mm;
   border-bottom: 1px solid var(--paper-rule);
 }
 
 .paper-foot {
-  margin-top: 13mm;
-  padding-top: 3mm;
+  margin-top: 6mm;
+  padding-top: 2.5mm;
   border-top: 1px solid var(--paper-rule-strong);
   font-size: 8.5pt;
   color: var(--paper-ink-3);
@@ -1921,7 +1921,12 @@ button.h-sub {
      down, or the first page comes out with a hole in it. */
   body { display: block; place-items: normal; }
 
-  @page { size: A4 portrait; margin: 18mm; }
+  /* Small margins on purpose: iOS adds its own header/footer band, and the
+     sheet must stay ONE page even on the shorter Letter size. */
+  @page { size: auto; margin: 11mm; }
+  body { margin: 0; }
+  .paper-head { break-after: avoid; page-break-after: avoid; }
+  .paper-foot { break-inside: avoid; page-break-inside: avoid; }
 
   .paper { display: block; }
 }
