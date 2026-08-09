@@ -50,6 +50,8 @@ async function setupVault(page) {
   await page.locator(".check").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: /Start empty/ }).click();
+  // The backup step asks before anything is uploaded; sync stays off here.
+  await page.getByRole("button", { name: "Not now" }).click();
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 }
@@ -600,7 +602,7 @@ test("the push channel can never carry content", async () => {
   // The service worker writes its own sentence and never reads what arrived.
   expect(sw).toMatch(/showNotification/);
   expect(sw).not.toMatch(/event\.data/);
-  expect(sw).toMatch(/tenfold-v25/);
+  expect(sw).toMatch(/tenfold-v26/);
 
   const serve = await readFile(new URL("../tools/serve.js", import.meta.url), "utf8");
   const stripped = stripComments(serve);

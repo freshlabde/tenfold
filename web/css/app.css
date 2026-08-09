@@ -158,6 +158,21 @@ input[type="search"]::-webkit-search-decoration {
 }
 .h-sub .hot { color: var(--accent); }
 
+/* The same line, but tappable: it only becomes a button while the vault has
+   neither a server copy nor an export, and then it leads to settings. Every
+   button default the line does not want is taken back here. */
+button.h-sub {
+  display: block;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* The mono rail: everything machine-made - counts, dates, progress - is set
    here and never mixes with the human text. Borrowed from direction C. */
 .m {

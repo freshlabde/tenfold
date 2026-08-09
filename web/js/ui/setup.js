@@ -1,15 +1,18 @@
-// ui/setup.js - first run: passphrase, recovery key, starting point.
+// ui/setup.js - first run: passphrase, recovery key, starting point, backup.
 //
-// What it does: four quiet steps. Explain what this is, take a passphrase,
-// show the recovery key exactly once behind a forced acknowledgement, then
-// offer an empty list or a neutral frame of eight life areas. Plus one side
-// door: a vault that already exists somewhere else can be opened here with its
-// pairing code, after which the normal lock screen asks for the passphrase.
+// What it does: five quiet steps. Explain what this is, take a passphrase,
+// show the recovery key exactly once behind a forced acknowledgement, offer an
+// empty list or a neutral frame of eight life areas, and finally ask the one
+// question that decides whether the vault survives a cleared browser. Plus one
+// side door: a vault that already exists somewhere else can be opened here with
+// its pairing code, after which the normal lock screen asks for the passphrase.
 //
 // What it deliberately does NOT do: it never stores the recovery key, never
 // shows it a second time, and never lets the user past that screen without
 // ticking the box. There is no spinner while the key is derived - the button
-// says what is happening instead.
+// says what is happening instead. And it never switches sync on by itself: the
+// backup step asks, with the copy preselected, and takes "Not now" for an
+// answer without arguing.
 
 import { el, text, icon, clear } from "./dom.js";
 import { t } from "../i18n.js";
@@ -393,9 +396,11 @@ function recovery(ctx) {
 
 function templateStep(ctx) {
   const choose = (withFrame) => {
+    // The step is switched before the seeding, because seeding repaints and
+    // would otherwise draw this screen a second time on its way out.
+    step = "backup";
     if (withFrame) ctx.seedTemplate(TEMPLATE_KEYS.map((k) => t(k)));
-    reset();
-    ctx.enterApp();
+    ctx.render();
   };
 
   const option = (labelKey, descKey, onClick, primary) =>
@@ -420,10 +425,74 @@ function templateStep(ctx) {
   ]);
 }
 
+// -------------------------------------------------------------------- backup
+
+/**
+ * The last question of the first run, and the only one that decides whether
+ * the list survives the browser it lives in. It is asked, never answered on
+ * the user's behalf: the encrypted copy is the preselected offer, "Not now"
+ * is one tap away, and neither answer blocks the way into the app.
+ */
+function backupStep(ctx) {
+  const done = () => {
+    reset();
+    ctx.enterApp();
+  };
+
+  const keep = el(
+    "button",
+    { class: "btn is-primary is-big is-wide", attrs: { type: "button" } },
+    [text(t("setup.backup.keep"))],
+  );
+  const skip = el(
+    "button",
+    {
+      class: "btn-ghost",
+      attrs: { type: "button" },
+      on: {
+        click: () => {
+          if (!busy) done();
+        },
+      },
+    },
+    [text(t("common.notNow"))],
+  );
+
+  keep.addEventListener("click", async () => {
+    if (busy) return;
+    busy = true;
+    clear(keep);
+    keep.appendChild(text(t("setup.backup.working")));
+    keep.setAttribute("disabled", "disabled");
+    skip.setAttribute("disabled", "disabled");
+    try {
+      await ctx.sync.enable();
+    } catch {
+      // enableSync folds every network failure into its status phase; a throw
+      // would be something else entirely and gets the same calm treatment.
+    }
+    busy = false;
+    // Offline or a server that is down leaves the vault marked for sync and
+    // retrying in the background - it must not hold up the first run, so the
+    // toast says where to look and the app opens either way.
+    if (ctx.sync.status.phase !== "idle") ctx.toast(t("setup.backup.later"));
+    done();
+  });
+
+  return screen([
+    head("setup.backup.eyebrow", "setup.backup.title", "setup.backup.body"),
+    el("div", { class: "scroll" }, [
+      el("p", { class: "field-hint", style: { maxWidth: "34ch" } }, [text(t("setup.backup.note"))]),
+    ]),
+    el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [keep, skip]),
+  ]);
+}
+
 export function render(ctx) {
   if (step === "adopt") return adopt(ctx);
   if (step === "pass") return passphrase(ctx);
   if (step === "key") return recovery(ctx);
   if (step === "template") return templateStep(ctx);
+  if (step === "backup") return backupStep(ctx);
   return welcome(ctx);
 }

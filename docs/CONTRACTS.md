@@ -490,7 +490,20 @@ export async function pull(ctx): Promise<"clean"|"merged"|"offline">  // on unlo
 export function pairingCode(vault): string                // grouped syncId for the other device
 export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then normal unlock
 ```
-- Sync is OFF by default; enabling is an explicit act in settings.
+- Sync is OFF by default; enabling is an explicit act — in settings, or as the answer to the
+  one question the first run asks (see below). Nothing enables it silently.
+- **The backup step (last step of the first run, `ui/setup.js`, key prefix `setup.backup.`)**:
+  after the starting point and before `ctx.enterApp()`, the setup asks whether to keep the
+  encrypted copy on the server, because clearing the browser's site data deletes IndexedDB and
+  a vault with no copy and no export file is then gone. The copy is the primary offer, "Not
+  now" is a ghost button, and neither answer blocks: a failed upload (offline, server down) is
+  a calm toast naming settings as the way back, never a wall. Import and adopt paths land on
+  the lock screen, not on setup, and never see this step.
+- **`doc.settings.exportedAt`** (epoch ms) is stamped wherever an encrypted or a plaintext
+  export is actually delivered — the two settings handlers, never the setup recovery-key
+  screen. With sync off AND no `exportedAt`, the outline's `h-sub` carries one extra clause
+  (`outline.onlyHere`, in the `.hot` tone) and becomes a button into settings; in every other
+  state it stays plain text. The clause disappears the moment either condition changes.
 - On unlock: pull; if the remote is newer, decrypt locally, `mergeDocs`, save, push.
 - All failures are silent-but-visible: a quiet status dot plus a "last synced" line in
   settings, never a blocking dialog.

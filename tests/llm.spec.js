@@ -112,6 +112,8 @@ async function setupVault(page) {
   await page.locator(".check").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: /Start empty/ }).click();
+  // The backup step asks before anything is uploaded; sync stays off here.
+  await page.getByRole("button", { name: "Not now" }).click();
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 }

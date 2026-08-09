@@ -75,6 +75,14 @@ export const es = {
   "setup.template.frame": "Empezar con marco",
   "setup.template.frameDesc": "Ocho áreas editables sobre las que reaccionar.",
 
+  "setup.backup.eyebrow": "Copia de seguridad",
+  "setup.backup.title": "Una sola copia es frágil",
+  "setup.backup.body": "Tu lista existe ahora en un único sitio: este navegador. Si se borran los datos del sitio - un programa de limpieza, un móvil nuevo, un repaso a los ajustes del navegador - se borra con ellos, y no quedaría nada a lo que recurrir.",
+  "setup.backup.note": "La copia del servidor es el mismo bloque sellado que hay aquí: ilegible sin tu frase de acceso, y la frase de acceso nunca sale de este dispositivo. Protege justo de ese descuido y de perder el aparato. Puedes desactivarla cuando quieras en los ajustes.",
+  "setup.backup.keep": "Guardar una copia cifrada en el servidor",
+  "setup.backup.working": "Subiendo la copia sellada.",
+  "setup.backup.later": "La copia no ha llegado. Tu lista sigue a salvo aquí; puedes volver a intentarlo desde los ajustes cuando quieras.",
+
   "template.health": "Salud y cuerpo",
   "template.money": "Dinero y seguridad",
   "template.work": "Trabajo y oficio",
@@ -107,6 +115,7 @@ export const es = {
   "outline.sub": "{open} de {total} sin cerrar",
   "outline.sortedNever": "sin ordenar nunca",
   "outline.sortedAt": "ordenada {ago}",
+  "outline.onlyHere": "solo en este navegador",
   "outline.add": "Nueva entrada",
   "outline.order": "Ordenar",
   "outline.orderNeedsTwo": "Hacen falta dos entradas para poder ordenar.",
@@ -616,6 +625,7 @@ export const es = {
   "a11y.searchOpen": "Abrir la búsqueda",
   "a11y.settingsOpen": "Abrir los ajustes",
   "a11y.mapOpen": "Abrir el mapa",
+  "a11y.onlyHere": "Esta lista solo está en este navegador. Configura una copia de seguridad.",
   "a11y.back": "Un nivel atrás",
 
   // -------------------------------------------------------------------- time

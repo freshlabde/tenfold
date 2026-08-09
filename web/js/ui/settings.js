@@ -10,7 +10,9 @@
 // status line and two actions - no progress bars, no spinner, no dialog: a
 // sync that fails is a quiet dot, never an interruption. The daily reminder
 // only appears with sync on, is off until switched on, and says out loud what
-// it cannot do on iOS outside the installed app.
+// it cannot do on iOS outside the installed app. Both export handlers stamp
+// doc.settings.exportedAt, which is what tells the outline that this vault is
+// no longer the only copy of itself.
 
 import { el, text, icon, brandMark } from "./dom.js";
 import { t, LOCALES, getLocale } from "../i18n.js";
@@ -617,6 +619,9 @@ function plaintextSheet(ctx) {
           click: () => {
             ctx.download(exportPlaintextMarkdown(ctx.doc), "tenfold-plaintext.md");
             closeSheet();
+            // A file left this app, so the vault is no longer the only copy -
+            // the outline's quiet "only in this browser" clause can go.
+            ctx.setSettings({ exportedAt: ctx.now() });
             ctx.toast(t("toast.exported"));
           },
         },
@@ -724,6 +729,8 @@ export function render(ctx) {
     group("settings.group.data", [
       row("settings.export", "settings.exportDesc", null, () => {
         ctx.download(exportEncrypted(ctx.vault), suggestedVaultFileName(ctx.now()));
+        // Same reasoning as the plaintext export: a copy now exists off-device.
+        ctx.setSettings({ exportedAt: ctx.now() });
         ctx.toast(t("toast.exported"));
       }),
       row("settings.import", "settings.importDesc", null, importSheet),

@@ -16,17 +16,37 @@ import { importEntry } from "./imageimport.js";
 
 function headerSub(ctx) {
   const roots = ctx.childrenOf(null);
-  if (!roots.length) return el("p", { class: "h-sub" }, [text(t("outline.subEmpty"))]);
-  const open = roots.filter((n) => n.status !== "done").length;
-  const sortedAt = ctx.doc.settings && ctx.doc.settings.sortedAt;
-  const sorted = sortedAt
-    ? t("outline.sortedAt", { ago: relativeTime(sortedAt, ctx.now()) })
-    : t("outline.sortedNever");
-  return el("p", { class: "h-sub" }, [
-    text(t("outline.sub", { open, total: roots.length })),
-    text(" · "),
-    el("span", { class: "hot" }, [text(sorted)]),
-  ]);
+  const settings = (ctx.doc && ctx.doc.settings) || {};
+  const parts = [];
+  if (!roots.length) parts.push(text(t("outline.subEmpty")));
+  else {
+    const open = roots.filter((n) => n.status !== "done").length;
+    const sortedAt = settings.sortedAt;
+    const sorted = sortedAt
+      ? t("outline.sortedAt", { ago: relativeTime(sortedAt, ctx.now()) })
+      : t("outline.sortedNever");
+    parts.push(
+      text(t("outline.sub", { open, total: roots.length })),
+      text(" · "),
+      el("span", { class: "hot" }, [text(sorted)]),
+    );
+  }
+
+  // No copy on the server, no export file ever written: this list exists in
+  // exactly one browser, and clearing the site data would end it. One quiet
+  // clause on a line that is already there - no banner, no dialog, and it
+  // disappears the moment either of the two exists.
+  if (ctx.sync.enabled || settings.exportedAt) return el("p", { class: "h-sub" }, parts);
+  parts.push(text(" · "), el("span", { class: "hot" }, [text(t("outline.onlyHere"))]));
+  return el(
+    "button",
+    {
+      class: "h-sub",
+      attrs: { type: "button", "aria-label": t("a11y.onlyHere") },
+      on: { click: () => ctx.go("settings") },
+    },
+    parts,
+  );
 }
 
 function emptyState(ctx) {

@@ -75,6 +75,14 @@ export const en = {
   "setup.template.frame": "Start with a frame",
   "setup.template.frameDesc": "Eight editable areas to react to.",
 
+  "setup.backup.eyebrow": "Backup",
+  "setup.backup.title": "One copy is fragile",
+  "setup.backup.body": "Your list now exists in exactly one place: this browser. Clearing the site data - a cleanup tool, a new phone, a tidy-up in the browser settings - deletes it, and there would be nothing left to fall back on.",
+  "setup.backup.note": "The copy on the server is the same sealed block that sits here: unreadable without your passphrase, and the passphrase never leaves this device. It protects against exactly that accident, and against losing the device. You can turn it off again at any time in settings.",
+  "setup.backup.keep": "Keep an encrypted copy on the server",
+  "setup.backup.working": "Uploading the sealed copy.",
+  "setup.backup.later": "The copy did not get through. Your list is safe here; you can try again from settings whenever you like.",
+
   "template.health": "Health and body",
   "template.money": "Money and security",
   "template.work": "Work and craft",
@@ -107,6 +115,7 @@ export const en = {
   "outline.sub": "{open} of {total} still open",
   "outline.sortedNever": "never ordered",
   "outline.sortedAt": "ordered {ago}",
+  "outline.onlyHere": "only in this browser",
   "outline.add": "New entry",
   "outline.order": "Put in order",
   "outline.orderNeedsTwo": "Two entries are needed before anything can be ordered.",
@@ -616,6 +625,7 @@ export const en = {
   "a11y.searchOpen": "Open search",
   "a11y.settingsOpen": "Open settings",
   "a11y.mapOpen": "Open the map",
+  "a11y.onlyHere": "This list is only in this browser. Set up a backup.",
   "a11y.back": "Back one level",
 
   // -------------------------------------------------------------------- time

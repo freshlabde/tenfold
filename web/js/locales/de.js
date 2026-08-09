@@ -75,6 +75,14 @@ export const de = {
   "setup.template.frame": "Mit Rahmen starten",
   "setup.template.frameDesc": "Acht änderbare Bereiche als Anstoß.",
 
+  "setup.backup.eyebrow": "Sicherung",
+  "setup.backup.title": "Eine einzige Kopie ist zerbrechlich",
+  "setup.backup.body": "Deine Liste liegt jetzt an genau einer Stelle: in diesem Browser. Wer die Websitedaten löscht - ein Aufräumprogramm, ein neues Handy, ein Griff in die Browsereinstellungen - löscht sie mit, und dann bleibt nichts, worauf du zurückgreifen kannst.",
+  "setup.backup.note": "Die Kopie auf dem Server ist derselbe versiegelte Block, der auch hier liegt: ohne deine Passphrase unlesbar, und die Passphrase verlässt dieses Gerät nie. Sie schützt genau vor diesem Missgeschick und davor, das Gerät zu verlieren. Du kannst sie jederzeit in den Einstellungen wieder abschalten.",
+  "setup.backup.keep": "Verschlüsselte Kopie auf dem Server behalten",
+  "setup.backup.working": "Die versiegelte Kopie wird hochgeladen.",
+  "setup.backup.later": "Die Kopie ist nicht durchgekommen. Deine Liste bleibt hier sicher; du kannst es jederzeit in den Einstellungen erneut versuchen.",
+
   "template.health": "Gesundheit und Körper",
   "template.money": "Geld und Sicherheit",
   "template.work": "Arbeit und Handwerk",
@@ -107,6 +115,7 @@ export const de = {
   "outline.sub": "{open} von {total} noch offen",
   "outline.sortedNever": "nie geordnet",
   "outline.sortedAt": "geordnet {ago}",
+  "outline.onlyHere": "nur in diesem Browser",
   "outline.add": "Neuer Eintrag",
   "outline.order": "Ordnen",
   "outline.orderNeedsTwo": "Zum Ordnen braucht es mindestens zwei Einträge.",
@@ -616,6 +625,7 @@ export const de = {
   "a11y.searchOpen": "Suche öffnen",
   "a11y.settingsOpen": "Einstellungen öffnen",
   "a11y.mapOpen": "Karte öffnen",
+  "a11y.onlyHere": "Diese Liste liegt nur in diesem Browser. Sicherung einrichten.",
   "a11y.back": "Eine Ebene zurück",
 
   // -------------------------------------------------------------------- time

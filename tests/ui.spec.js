@@ -53,6 +53,8 @@ async function setupVault(page, { frame = false } = {}) {
   await page.locator(".check").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: frame ? /Start with a frame/ : /Start empty/ }).click();
+  // The backup step asks before anything is uploaded; sync stays off here.
+  await page.getByRole("button", { name: "Not now" }).click();
   // First entry into a vault offers the About text once; dismiss it.
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");

@@ -55,6 +55,8 @@ async function setupVault(page) {
   await page.locator(".check").click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: /Start empty/ }).click();
+  // The backup step asks before anything is uploaded; sync stays off here.
+  await page.getByRole("button", { name: "Not now" }).click();
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 }
@@ -534,7 +536,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v25"');
+  expect(sw).toContain('const VERSION = "tenfold-v26"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
