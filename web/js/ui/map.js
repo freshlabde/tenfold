@@ -122,8 +122,12 @@ const KEEP_ON_SCREEN = 72;
  * real goal fits whole, and the ones that do not end on a whole word.
  */
 const LABEL_MAX = 32;
-/** Screen-space label geometry, for the collision pass. */
-const LABEL_LINE = 15;
+/** Screen-space label geometry, for the collision pass. Stacked names step
+ *  by the full HIT-RECT height, not the text height: with a 22px hit area a
+ *  15px step left neighbouring tap targets overlapping, and the top one ate
+ *  the tap meant for the name under it (surfaced when labels stopped
+ *  drifting - the drift had been masking the overlap). */
+const LABEL_LINE = 23;
 /** How far a colliding name may be pushed before it stops belonging to its
  *  body. Larger than the old 26, because a name is now also pushed clear of
  *  the discs it would otherwise sit on, and a rank-one disc is 38 units. */
@@ -874,8 +878,11 @@ export function render(ctx) {
       b.labelHit.setAttribute("x", (-w / 2 - 10).toFixed(1));
       b.labelHit.setAttribute("width", (w + 20).toFixed(1));
     }
-    // Place them once right away: a label must never appear at the origin for
-    // the one frame before the camera spring delivers its first update.
+    // Place them once right away, UNCONDITIONALLY: a tiny tree floats nothing,
+    // so no animation frame may ever come, and a label left at the origin
+    // stays there (two fresh goals both measured at x~0/y~3 - real bug).
+    // The camera guard in draw() keeps them current from here on.
+    placeLabels();
     if (ready) draw();
   }
 
