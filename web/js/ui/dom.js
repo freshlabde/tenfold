@@ -192,6 +192,19 @@ const PATHS = {
     "M8 15.6l4.9 2.6",
   ],
   target: ["M12 4.6v3", "M12 16.4v3", "M4.6 12h3", "M16.4 12h3", "M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z"],
+  // The context cards on the map: one hollow ring with threads running out to
+  // three places at once. Deliberately not the constellation glyph - that one
+  // is three bodies pulling on each other, this one is the single thing that
+  // several of them share.
+  threads: [
+    "M12 14.9a2.9 2.9 0 1 0 0-5.8 2.9 2.9 0 0 0 0 5.8z",
+    "M6.4 12h2.7",
+    "M14.9 12h2.7",
+    "M12 15.1v2.7",
+    "M4.7 12h.01",
+    "M19.3 12h.01",
+    "M12 19.3h.01",
+  ],
 };
 
 /**

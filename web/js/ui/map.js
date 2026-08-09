@@ -22,6 +22,18 @@
 // level-three ancestor. Each family carries one of the ten hues of the data
 // palette, which is what says at a glance which small orbs belong to which
 // goal; rank never rides on hue, so the ladder survives colour blindness.
+//
+// The sky also carries the one thing the mind map structurally cannot: the
+// CONTEXT CARDS. A card - a person, a place, an organisation, a topic - is
+// linked to any number of steps, and those steps sit in different families.
+// The tree can only ever draw a step under one parent, so a card that ties
+// three branches together is invisible there. Here it is a body of its own: a
+// hollow ring in a neutral silver (no family, no hue), joined by a thin dashed
+// thread to every step it is linked to, and pulled by a soft spring towards
+// each of them - so it settles BETWEEN its steps and drags the branches that
+// share it a little closer together. That pull is the picture the owner asked
+// for. Cards are behind a toggle in the header, because the sky must still be
+// readable as ten goals when nobody is asking that question.
 // A circle would have been the obvious arrangement and
 // is the wrong one: a phone is tall, and two ranks at the same height put two
 // names on the same line. The arrangement is not
@@ -42,6 +54,7 @@
 import { el, sel, text, icon, clear, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
 import { childrenOf } from "../model.js";
+import { listEntities, nodesForEntity } from "../entities.js";
 import { prefersReducedMotion, spring, rubberBand } from "../motion.js";
 import { buildScene, budgetsFor, makeRuler, modeToggle } from "./mindmap.js";
 
@@ -80,6 +93,57 @@ const R_BASE = [0, 11.6, 7.6, 5.2];
 const REST = [0, 74, 40, 24];
 /** Clearance kept between two bodies, by the deeper of the two. */
 const CLEAR = [18, 10, 6.5, 5];
+
+/**
+ * The context cards. One fixed size for all of them - a card has no rank and
+ * no family, so nothing about it may be read as a ladder. It sits between a
+ * depth-two and a depth-one part in size and is drawn hollow, which makes it
+ * read smaller than a filled disc of the same radius: a different species,
+ * quietly, without a second colour system.
+ */
+const R_CARD = 6;
+/** How far a card wants to sit from a step it is linked to. */
+const CARD_REST = 46;
+/** Soft: a card must not outrank the parent springs that build the families. */
+const CARD_K = 0.05;
+/**
+ * How much of that spring the LINKED body feels back. This is the whole point
+ * of the screen - two steps that share a person are pulled towards each other -
+ * but a root yields almost nothing, or a card could drag a goal off the ranked
+ * slot that carries its rank.
+ */
+const CARD_BACK = 0.2;
+const CARD_BACK_ROOT = 0.04;
+/**
+ * Clearance around a card, whatever it stands next to. Wider than the one
+ * between two parts, and not for the ring's sake: a card carries a NAME, and
+ * at nine units the first shot had "The bank" sitting on the rank-one disc
+ * because the label walk had nowhere left to go.
+ */
+const CARD_CLEAR = 15;
+/**
+ * Where a card with no links floats: on a ring just outside whatever the
+ * families ended up occupying. Fixed radii were tried first and they punish the
+ * small list - on a two-goal sky an unlinked card would sit so far out that the
+ * initial fit had to zoom past the goals to keep it on screen.
+ */
+const CARD_RING_PAD_X = 64;
+/**
+ * And on which part of that rim. A phone is tall and both of its ends are
+ * spoken for - the header floats over the top, the hint over the bottom - so an
+ * unlinked card is sent out SIDEWAYS: an arc of fifty degrees either side of
+ * the horizon, which is where a sky this shape actually has room. Below that
+ * arc a card's name lands on the hint line, above it on the subtitle. Both were
+ * on screen before this was written down.
+ */
+const CARD_RING_ARC = Math.PI * (50 / 180);
+/**
+ * Up to this many names on screen the cards carry theirs unconditionally. A
+ * card without its name is a silver ring nobody can read, so the threshold is
+ * generous; above it a card name appears when its family is focused, exactly
+ * like a part name.
+ */
+const LABEL_FEW = 12;
 
 /**
  * Ten families, ten hues out of the data palette. This module never names a
@@ -318,6 +382,91 @@ function buildBodies(nodes) {
   return bodies;
 }
 
+/** The family a body belongs to - its root, or itself. */
+function rootOf(body) {
+  let cur = body;
+  while (cur.parent) cur = cur.parent;
+  return cur;
+}
+
+/**
+ * The context cards as bodies. A card is linked to nodes, not to bodies, so a
+ * link whose node is not drawn (below the deepest level, or dropped because the
+ * tree is very large) simply does not become a thread - the alternative would
+ * be a line pointing at an ancestor, which says something that is not true.
+ * A card that loses every link this way floats with the unlinked ones.
+ *
+ * Its float is the AVERAGE of the drifts of the families it is tied into: a
+ * card inside one family then breathes exactly with it and its threads stay
+ * attached, and a card between two families splits the difference, which is
+ * the smallest visible mismatch available without moving a line per frame.
+ */
+function buildCards(entities, nodes, byId) {
+  const out = [];
+  for (const entity of listEntities(entities)) {
+    const links = [];
+    for (const node of nodesForEntity(nodes, entity.id)) {
+      const body = byId.get(node.id);
+      if (body) links.push(body);
+    }
+    const h = hash32(entity.id);
+    const card = {
+      id: entity.id,
+      entity,
+      links,
+      isCard: true,
+      // Not a rank and not a level: the label layer asks a body how far its
+      // name hangs below it, and a card answers like a part.
+      depth: 2,
+      r: R_CARD,
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      ax: 0,
+      ay: 0,
+      amp: 0,
+      pxc: 0,
+      pxs: 0,
+      pyc: 0,
+      pys: 0,
+      seed: h,
+      g: null,
+      gPlaced: false,
+    };
+    if (links.length) {
+      const seen = new Set();
+      let n = 0;
+      for (const body of links) {
+        const root = rootOf(body);
+        if (seen.has(root.id)) continue;
+        seen.add(root.id);
+        n += 1;
+        card.pxc += root.pxc;
+        card.pxs += root.pxs;
+        card.pyc += root.pyc;
+        card.pys += root.pys;
+        card.amp = Math.max(card.amp, root.amp);
+      }
+      card.pxc /= n;
+      card.pxs /= n;
+      card.pyc /= n;
+      card.pys /= n;
+    } else {
+      const amp = 2.4;
+      const px = unit(h) * Math.PI * 2;
+      const py = unit(Math.imul(h ^ 0x9e3779b9, 2654435761) >>> 0) * Math.PI * 2;
+      card.amp = amp;
+      card.pxc = amp * Math.cos(px);
+      card.pxs = amp * Math.sin(px);
+      card.pyc = amp * Math.cos(py);
+      card.pys = amp * Math.sin(py);
+    }
+    out.push(card);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- the physics
 
 /**
@@ -333,10 +482,16 @@ function buildBodies(nodes) {
  *   4. after integrating, overlaps are resolved by moving both bodies apart -
  *      position based, because a force alone lets small bodies sink into big
  *      ones at rest.
+ *
+ * The context cards join the same run as a fifth force: one soft spring per
+ * link, in both directions. They fall out of the first three - a card has no
+ * parent, no siblings and no ranked slot - but they are integrated and they
+ * collide with everything, which is what keeps a card from settling inside the
+ * step it belongs to.
  */
-function simulate(bodies) {
+function simulate(bodies, cards = []) {
   const n = bodies.length;
-  if (!n) return;
+  if (!n && !cards.length) return;
 
   // Ranked slots: rank one highest, then one step down per rank, alternating
   // left and right of the axis. The horizontal swing is widest in the middle,
@@ -375,7 +530,40 @@ function simulate(bodies) {
     b.y = p.y + Math.sin(a) * len + jy;
   }
 
-  const iterations = n <= 60 ? 300 : n <= 170 ? 210 : 130;
+  // A card starts in the middle of what it is linked to; an unlinked one starts
+  // on its ring, at an angle its id decides, and stays near it.
+  let ringX = 90;
+  let ringY = 90;
+  for (const b of bodies) {
+    if (Math.abs(b.x) + CARD_RING_PAD_X > ringX) ringX = Math.abs(b.x) + CARD_RING_PAD_X;
+    if (Math.abs(b.y) > ringY) ringY = Math.abs(b.y);
+  }
+  for (const c of cards) {
+    const a = (unit(c.seed) - 0.5) * 2 * CARD_RING_ARC;
+    const side = c.seed & 1 ? 1 : -1;
+    c.ax = side * Math.cos(a) * ringX;
+    c.ay = Math.sin(a) * ringY;
+    if (!c.links.length) {
+      c.x = c.ax;
+      c.y = c.ay;
+      continue;
+    }
+    let sx = 0;
+    let sy = 0;
+    for (const b of c.links) {
+      sx += b.x;
+      sy += b.y;
+    }
+    c.x = sx / c.links.length + (unit(c.seed >>> 5) - 0.5) * 9;
+    c.y = sy / c.links.length + (unit(c.seed >>> 11) - 0.5) * 9;
+  }
+
+  // Everything that is integrated and everything that collides. The three
+  // family forces above still see `bodies` alone - a card has no family.
+  const all = cards.length ? bodies.concat(cards) : bodies;
+  const m = all.length;
+
+  const iterations = m <= 60 ? 300 : m <= 170 ? 210 : 130;
   const damping = 0.82;
 
   for (let step = 0; step < iterations; step += 1) {
@@ -439,8 +627,39 @@ function simulate(bodies) {
       }
     }
 
+    // 3b - the cards. One spring per link, felt at both ends: the card is
+    // pulled between its steps, and the steps are pulled - gently - towards
+    // each other. A card with nothing linked to it holds its ring instead.
+    for (const c of cards) {
+      if (!c.links.length) {
+        c.vx += (c.ax - c.x) * 0.05;
+        c.vy += (c.ay - c.y) * 0.05;
+        continue;
+      }
+      for (const b of c.links) {
+        let dx = c.x - b.x;
+        let dy = c.y - b.y;
+        let d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 0.001) {
+          dx = 0.01;
+          dy = 0.01;
+          d = 0.014;
+        }
+        const f = (d - CARD_REST) * CARD_K;
+        const ux = dx / d;
+        const uy = dy / d;
+        c.vx -= ux * f;
+        c.vy -= uy * f;
+        const back = b.depth === 0 ? CARD_BACK_ROOT : CARD_BACK;
+        b.vx += ux * f * back;
+        b.vy += uy * f * back;
+      }
+      c.vx += -c.x * 0.0026;
+      c.vy += -c.y * 0.0004;
+    }
+
     // integrate
-    for (const b of bodies) {
+    for (const b of all) {
       b.vx *= damping;
       b.vy *= damping;
       const v = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
@@ -455,11 +674,12 @@ function simulate(bodies) {
 
     // 4 - collisions. O(n^2) with an early square-distance reject; at the
     // sizes this screen is built for that is far cheaper than a grid.
-    for (let i = 0; i < n; i += 1) {
-      const a = bodies[i];
-      for (let j = i + 1; j < n; j += 1) {
-        const c = bodies[j];
-        const want = a.r + c.r + CLEAR[Math.max(a.depth, c.depth)];
+    for (let i = 0; i < m; i += 1) {
+      const a = all[i];
+      for (let j = i + 1; j < m; j += 1) {
+        const c = all[j];
+        const want =
+          a.r + c.r + (a.isCard || c.isCard ? CARD_CLEAR : CLEAR[Math.max(a.depth, c.depth)]);
         let dx = c.x - a.x;
         let dy = c.y - a.y;
         const d2 = dx * dx + dy * dy;
@@ -646,6 +866,89 @@ function drawBody(body) {
   return g;
 }
 
+/**
+ * The glyph of a card. Four outlines for the four kinds, all hollow, all the
+ * same size and the same weight - the difference is a hint for whoever notices
+ * it and nothing depends on it: the name is on the label and in the a11y name.
+ */
+function cardGlyph(kind) {
+  const r = R_CARD;
+  if (kind === "place" || kind === "org") {
+    return sel("rect", {
+      class: "map-card-mark",
+      attrs: {
+        x: (-r).toFixed(1),
+        y: (-r).toFixed(1),
+        width: (r * 2).toFixed(1),
+        height: (r * 2).toFixed(1),
+        rx: kind === "place" ? "2.6" : "0.8",
+      },
+    });
+  }
+  if (kind === "topic") {
+    const d = r * 1.16;
+    return sel("path", {
+      class: "map-card-mark",
+      attrs: { d: `M0 ${-d.toFixed(2)}L${d.toFixed(2)} 0L0 ${d.toFixed(2)}L${(-d).toFixed(2)} 0Z` },
+    });
+  }
+  return sel("circle", { class: "map-card-mark", attrs: { r: r.toFixed(1) } });
+}
+
+/**
+ * One card: a thread to every step it is linked to, then the ring itself.
+ *
+ * The threads are drawn from REST position to REST position and are trimmed at
+ * both ends - they reach towards a body rather than touching it. That is what
+ * lets the whole card layer stay a transform per frame: the families breathe
+ * and the gap at the end of a thread breathes with them by a unit or two,
+ * which reads as air, where a line ending exactly on a moving disc would read
+ * as a seam that keeps coming apart.
+ */
+function drawCard(card) {
+  const cls = ["map-card", `is-${card.entity.kind}`];
+  if (!card.links.length) cls.push("is-loose");
+  const g = sel("g", { class: cls.join(" "), attrs: { "data-card": card.id } });
+  card.g = g;
+
+  for (const b of card.links) {
+    const dx = b.x - card.x;
+    const dy = b.y - card.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / d;
+    const uy = dy / d;
+    // Both ends give way; on a very short thread the gap shrinks with it
+    // rather than turning the line inside out.
+    const from = Math.min(R_CARD + 3, d * 0.34);
+    const to = Math.max(from + 0.5, d - Math.min(b.r + 4, d * 0.4));
+    g.appendChild(
+      sel("line", {
+        class: "map-card-link",
+        attrs: {
+          x1: (ux * from).toFixed(2),
+          y1: (uy * from).toFixed(2),
+          x2: (ux * to).toFixed(2),
+          y2: (uy * to).toFixed(2),
+        },
+      }),
+    );
+  }
+
+  g.appendChild(cardGlyph(card.entity.kind));
+  // The tap target, and the reason a card needs a generous one: the ring is
+  // six units across in a sky that opens at less than full scale.
+  g.appendChild(sel("circle", { class: "map-hit", attrs: { r: "15" } }));
+  return g;
+}
+
+/** A card name for a label. Never the relation, never the notes - see below. */
+function shortName(entity) {
+  const raw = (entity.name || "").trim();
+  if (raw.length <= LABEL_MAX) return raw;
+  const at = raw.lastIndexOf(" ", LABEL_MAX - 1);
+  return `${raw.slice(0, at > 10 ? at : LABEL_MAX - 1).trimEnd()}…`;
+}
+
 // ------------------------------------------------------------------ the screen
 
 export function render(ctx) {
@@ -659,10 +962,22 @@ export function render(ctx) {
   const mode = settings.mapMode === "sky" ? "sky" : "tree";
   const sky = mode === "sky";
 
+  // The context cards, and whether they are showing. The default is the
+  // question they answer: as soon as ONE card is linked to two steps there is a
+  // cross-link to see, and the sky opens with it. An explicit choice - the
+  // toggle in the header - always wins from then on, in either direction.
+  const livingCards = sky ? listEntities(ctx.entities) : [];
+  const autoCards = livingCards.some((c) => nodesForEntity(nodes, c.id).length >= 2);
+  const showCards =
+    typeof settings.mapCards === "boolean" ? settings.mapCards : autoCards;
+
   const bodies = sky ? buildBodies(nodes) : [];
-  if (sky) simulate(bodies);
 
   const byId = new Map(bodies.map((b) => [b.id, b]));
+  const cards = sky && showCards ? buildCards(ctx.entities, nodes, byId) : [];
+  const cardById = new Map(cards.map((c) => [c.id, c]));
+  if (sky) simulate(bodies, cards);
+
   for (const b of bodies) {
     const chain = [];
     let cur = b;
@@ -677,7 +992,9 @@ export function render(ctx) {
   // The mind map is measured against the live SVG, so its bounds only exist
   // once the screen has been laid out; until then this is a placeholder the
   // camera is never asked to fit.
-  let bounds = sky ? boundsOf(bodies) : { minX: -60, minY: -60, maxX: 60, maxY: 60 };
+  let bounds = sky
+    ? boundsOf(cards.length ? bodies.concat(cards) : bodies)
+    : { minX: -60, minY: -60, maxX: 60, maxY: 60 };
 
   // ------------------------------------------------------------- the canvas
 
@@ -715,12 +1032,18 @@ export function render(ctx) {
     tree.appendChild(g);
   }
 
+  // The card layer sits UNDER the families: a thread that ran over a lit disc
+  // would read as a scratch on it, and a card is the quieter of the two things
+  // on this screen.
+  const cardLayer = sel("g", { class: "map-cards" });
+  for (const c of cards) cardLayer.appendChild(drawCard(c));
+
   const core = sel("circle", { class: "map-core", attrs: { r: "150" } });
   core.setAttribute("fill", "url(#tf-core)");
 
   // The mind map hangs in the same scene, under the same core glow: the light
   // behind the list is the one thing both readings share.
-  const scene = sel("g", { class: "map-scene" }, [core, tree]);
+  const scene = sel("g", { class: "map-scene" }, [core, cardLayer, tree]);
   const labels = sel("g", { class: "map-labels" });
 
   const svg = sel("svg", {
@@ -858,7 +1181,24 @@ export function render(ctx) {
       set.set(f.id, f);
       for (const k of f.kids) set.set(k.id, k);
     }
+    // A card name follows the same economy, one step later: while the screen
+    // still holds few names they are all there, because an unnamed silver ring
+    // is a riddle rather than a link. Past that they behave like part names -
+    // the focused family brings its cards in with it.
+    if (cards.length) {
+      const family = f ? f.chain[f.chain.length - 1] : null;
+      const few = bodies.reduce((c, b) => (b.depth === 0 ? c + 1 : c), 0) + cards.length <= LABEL_FEW;
+      for (const c of cards) {
+        if (few || (family && linkedInto(c, family))) set.set(c.id, c);
+      }
+    }
     return [...set.values()];
+  }
+
+  /** Whether a card holds a thread into this family. */
+  function linkedInto(card, family) {
+    for (const b of card.links) if (rootOf(b) === family) return true;
+    return false;
   }
 
   let labelled = [];
@@ -871,19 +1211,36 @@ export function render(ctx) {
     clear(labels);
     labelled = labelSet();
     const f = focusId ? byId.get(focusId) : null;
+    const family = f ? f.chain[f.chain.length - 1] : null;
     for (const b of labelled) {
-      const dim = f && !f.chain.includes(b.chain[b.chain.length - 1]);
+      const card = !!b.isCard;
+      const dim = card
+        ? !!family && !linkedInto(b, family)
+        : f && !f.chain.includes(b.chain[b.chain.length - 1]);
       const g = sel("g", {
-        class: `map-label is-d${b.depth}${b.node.status === "done" ? " is-done" : ""}${dim ? " is-dim" : ""}`,
+        class: card
+          ? `map-label is-card${dim ? " is-dim" : ""}`
+          : `map-label is-d${b.depth}${b.node.status === "done" ? " is-done" : ""}${dim ? " is-dim" : ""}`,
         attrs: {
-          "data-label": b.id,
+          // A card carries the SAME hook as its body, so one branch in the tap
+          // handler answers for both.
+          [card ? "data-card" : "data-label"]: b.id,
           role: "button",
           tabindex: "0",
-          "aria-label": t("a11y.openNode", { title: b.node.title || shortTitle(b.node) }),
+          "aria-label": card
+            ? t("a11y.openEntity", { name: b.entity.name })
+            : t("a11y.openNode", { title: b.node.title || shortTitle(b.node) }),
         },
       });
       const hit = sel("rect", { class: "map-labelhit", attrs: { x: -40, y: -11, width: 80, height: 22 } });
-      const label = sel("text", { class: "map-labeltext", text: shortTitle(b.node) });
+      // A card's label is its NAME and nothing else. Whatever the relation says
+      // and whatever the notes hold stays in the card: this screen can be held
+      // up in a room, and a sensitive card is not treated differently here
+      // precisely because nothing sensitive is on it in the first place.
+      const label = sel("text", {
+        class: "map-labeltext",
+        text: card ? shortName(b.entity) : shortTitle(b.node),
+      });
       g.appendChild(hit);
       g.appendChild(label);
       labels.appendChild(g);
@@ -976,6 +1333,21 @@ export function render(ctx) {
       }
     }
 
+    // The cards, on the same two sines: each one drifts with the average of the
+    // families it is tied into, so its threads stay attached to what breathes.
+    for (const c of cards) {
+      if (!floats) {
+        if (!c.gPlaced) {
+          c.g.setAttribute("transform", `translate(${c.x.toFixed(2)},${c.y.toFixed(2)})`);
+          c.gPlaced = true;
+        }
+        continue;
+      }
+      const dx = c.pxc * sx + c.pxs * cx;
+      const dy = c.pyc * sy + c.pys * cy;
+      c.g.style.transform = `translate(${c.x + dx}px, ${c.y + dy}px)`;
+    }
+
     // Labels are a pure function of the camera now (rest positions, no
     // drift), so a frame in which the camera stood still owes them nothing -
     // and a still label cannot tremble.
@@ -998,7 +1370,10 @@ export function render(ctx) {
     labelCam.y = cam.y;
     labelCam.k = cam.k;
     const n = labelled.length;
-    const avoidDiscs = bodies.length <= AVOID_LIMIT;
+    // Cards are walked around like any other body: a name that lands on a
+    // silver ring is exactly as unreadable as one on a lit disc.
+    const avoid = cards.length ? bodies.concat(cards) : bodies;
+    const avoidDiscs = avoid.length <= AVOID_LIMIT;
     for (let i = 0; i < n; i += 1) {
       const b = labelled[i];
       // REST position, deliberately without the drift: a name that breathes
@@ -1036,7 +1411,7 @@ export function render(ctx) {
             break;
           }
           if (!hit && avoidDiscs) {
-            for (const c of bodies) {
+            for (const c of avoid) {
               // Its own body is NOT skipped. Both starting points already clear
               // it, but a walk that got deflected by something else could end
               // up back across it - which is exactly how a name landed on the
@@ -1048,7 +1423,12 @@ export function render(ctx) {
               if (Math.abs(cxs - sx) > half + cr) continue;
               const cys = cam.y + c.y * cam.k;
               if (Math.abs(cys - y) > LABEL_LINE / 2 + cr) continue;
-              y = cys + dir * (cr + LABEL_LINE / 2);
+              // One unit past the edge, not exactly on it: landing on the
+              // threshold made the very next pass read it as a hit again, so
+              // the walk could never come clear and fell back to its start -
+              // which is how a card name ended up lying across the rank-one
+              // disc it had just been pushed away from.
+              y = cys + dir * (cr + LABEL_LINE / 2 + 1);
               hit = true;
               break;
             }
@@ -1160,13 +1540,25 @@ export function render(ctx) {
       // branch - a subtree never has to be walked to keep its light.
       if (b.depth === 0) b.g.classList.toggle("is-path", !!f && f.chain.includes(b));
     }
+    // A card that reaches into the family being looked at keeps its light - it
+    // is part of what that branch is made of, even though it belongs to no
+    // family at all. The rest recede with the other nine.
+    cardLayer.setAttribute("class", f ? "map-cards has-focus" : "map-cards");
+    const family = f ? f.chain[f.chain.length - 1] : null;
+    for (const c of cards) c.g.classList.toggle("is-path", !!family && linkedInto(c, family));
   }
 
   function focusOn(body) {
     focusId = body.id;
     markFocus();
     buildLabels();
-    const box = boundsOf(branchOf(body));
+    // The branch, plus every card that reaches into it: coming closer to a
+    // family that shares a person with another one and leaving that person
+    // outside the frame would hide the exact thing this screen is for.
+    const branch = branchOf(body);
+    const inBranch = new Set(branch.map((b) => b.id));
+    const own = cards.filter((c) => c.links.some((b) => inBranch.has(b.id)));
+    const box = boundsOf(own.length ? branch.concat(own) : branch);
     const grown = {
       minX: box.minX - 30,
       minY: box.minY - 30,
@@ -1428,6 +1820,15 @@ export function render(ctx) {
    * Anything else on the canvas lets go and shows the whole sky again.
    */
   function handleTap(target) {
+    // A card first, because a card body and a card name carry the same hook and
+    // neither of them zooms: a context is not a branch to come closer to, it is
+    // a thing to open. One tap, the card sheet, done.
+    const ctxHit = target && target.closest ? target.closest("[data-card]") : null;
+    if (ctxHit) {
+      const card = cardById.get(ctxHit.getAttribute("data-card"));
+      if (card) openCard(card);
+      return;
+    }
     const hit = target && target.closest ? target.closest("[data-hit]") : null;
     if (hit) {
       const body = byId.get(hit.getAttribute("data-hit"));
@@ -1459,12 +1860,25 @@ export function render(ctx) {
     if (current) ctx.openNode(current);
   }
 
+  /** The card sheet - the same one the index and the chips under a step open. */
+  function openCard(card) {
+    stopLoop();
+    stopCam();
+    ctx.openEntity(card.id);
+  }
+
   labels.addEventListener("keydown", (ev) => {
     if (ev.key !== "Enter" && ev.key !== " ") return;
-    const lab = ev.target && ev.target.closest ? ev.target.closest("[data-label]") : null;
-    if (!lab) return;
+    const node = ev.target && ev.target.closest ? ev.target.closest("[data-label],[data-card]") : null;
+    if (!node) return;
     ev.preventDefault();
-    const body = byId.get(lab.getAttribute("data-label"));
+    const id = node.getAttribute("data-card");
+    if (id) {
+      const card = cardById.get(id);
+      if (card) openCard(card);
+      return;
+    }
+    const body = byId.get(node.getAttribute("data-label"));
     if (body) openBody(body);
   });
 
@@ -1491,10 +1905,20 @@ export function render(ctx) {
     0,
   );
   // Two independently counted things, so neither can end up as "1 goals".
+  // A third joins them only while the cards are showing: the line under the
+  // title says what is on the screen, not what the vault happens to hold.
   const subtitle = roots.length
-    ? `${roots.length === 1 ? t("map.goalsOne") : t("map.goals", { n: roots.length })} · ${
-        partCount === 1 ? t("map.partsOne") : t("map.parts", { n: partCount })
-      }`
+    ? [
+        roots.length === 1 ? t("map.goalsOne") : t("map.goals", { n: roots.length }),
+        partCount === 1 ? t("map.partsOne") : t("map.parts", { n: partCount }),
+        showCards && livingCards.length
+          ? livingCards.length === 1
+            ? t("map.contextsOne")
+            : t("map.contexts", { n: livingCards.length })
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : t("map.subEmpty");
 
   const head = el("div", { class: "map-veil" }, [
@@ -1519,6 +1943,29 @@ export function render(ctx) {
           stopCam();
           ctx.setSettings({ mapMode: next });
         }),
+        // The cards. Only in the sky, and only once there is at least one card
+        // to show - a switch for something that does not exist is furniture.
+        sky && livingCards.length
+          ? el(
+              "button",
+              {
+                class: `iconbtn map-cardbtn${showCards ? " is-on" : ""}`,
+                attrs: {
+                  type: "button",
+                  "aria-pressed": showCards ? "true" : "false",
+                  "aria-label": t("map.cards.toggle"),
+                },
+                on: {
+                  click: () => {
+                    stopLoop();
+                    stopCam();
+                    ctx.setSettings({ mapCards: !showCards });
+                  },
+                },
+              },
+              [icon("threads", 20)],
+            )
+          : null,
         el(
           "button",
           {

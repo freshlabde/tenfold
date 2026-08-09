@@ -30,6 +30,7 @@
                 --chip-lead-bg --chip-lead-color --chip-lead-shadow
      rows       --row-title-size --row-title-step --row-title-lead
      data       --data-1 .. --data-10 --map-halo-in --map-halo-mid --map-core
+                --map-card
 
    Anything else is a bug. Adding a value means adding it to all three skins -
    except the data palette, which is defined per THEME and shared by all three
@@ -471,6 +472,12 @@
   --map-halo-in: .20;
   --map-halo-mid: .06;
   --map-core: .07;
+
+  /* The context cards belong to NO family, so they are the one thing on this
+     screen drawn without hue: brushed silver at night, graphite on paper. It
+     sits outside the data palette on purpose - a card is not an eleventh
+     family, it is the thread between several of them. */
+  --map-card: #9AA3AE;
 }
 
 :root[data-theme="light"] {
@@ -490,6 +497,8 @@
   --map-halo-in: .10;
   --map-halo-mid: .035;
   --map-core: .03;
+
+  --map-card: #5E6673;
 }
 
 /* Where OKLCH is not available the whole palette falls back to the skin's

@@ -536,7 +536,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v32"');
+  expect(sw).toContain('const VERSION = "tenfold-v33"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -949,6 +949,266 @@ test("a two-goal tree in the mind map is not wrapped into stumps", async ({ page
   );
   expect(shown.map((lines) => lines.join(" ")).sort()).toEqual([TITLES[0], TITLES[9]].sort());
   expect(shown.every((lines) => lines.length <= 2)).toBe(true);
+});
+
+// ---------------------------------------------------------------------------
+// The context cards in the sky. A card is an n:m link - one person, many steps,
+// across families - which is the one thing the mind map structurally cannot
+// draw, so it lives here and nowhere else. What is checked below: the toggle
+// and that it is remembered, one ring per living card and one thread per link,
+// that a name is text and never markup, that a tap opens the card sheet, that a
+// sensitive card puts NOTHING but its name on the screen, and that the cards
+// buy no animation frame when motion is not wanted.
+
+/**
+ * A vault in the shape the question was asked about: two families with parts,
+ * one card linked into BOTH of them, one card with a single link, one card
+ * nobody has linked yet - and, unless told otherwise, a deleted card that must
+ * not reach the sky.
+ * @returns {Promise<void>}
+ */
+async function cardTree(page, opts = {}) {
+  await page.evaluate(async (o) => {
+    const { ctx } = await import("/web/js/app.js");
+    const add = (title, parentId) => {
+      ctx.commitCompose(title, parentId, "stay");
+      const kids = ctx.childrenOf(parentId);
+      return kids[kids.length - 1].id;
+    };
+    const anna = add("Sort things out with Anna", null);
+    const father = add("See my father regularly", null);
+    const a1 = add("A weekend away together", anna);
+    const a2 = add("Say the thing I keep not saying", anna);
+    const f1 = add("Call him on Sundays", father);
+
+    // The cross-link: one person, three steps, two families.
+    const shared = ctx.addEntity({ name: o.sharedName, kind: "person", relation: "my sister" });
+    ctx.linkEntity(a1, shared);
+    ctx.linkEntity(a2, shared);
+    ctx.linkEntity(f1, shared);
+    // One link only.
+    const one = ctx.addEntity({ name: "The bank", kind: "org" });
+    ctx.linkEntity(a1, one);
+    // And one nobody has linked.
+    ctx.addEntity({ name: "The workshop", kind: "place" });
+    if (o.sensitive) {
+      const s = ctx.addEntity({
+        name: "Doctor Vogt",
+        kind: "person",
+        relation: "my orthopaedist",
+        notes: "Told me the disc will not heal on its own.",
+        sensitivity: "high",
+      });
+      ctx.linkEntity(f1, s);
+    }
+    if (o.deleted) {
+      const gone = ctx.addEntity({ name: "Someone who left", kind: "person" });
+      ctx.deleteEntity(gone);
+    }
+    ctx.setSettings({ mapMode: "sky" });
+    ctx.go("outline", null, { replace: true });
+  }, { sharedName: opts.sharedName || "Anna", sensitive: !!opts.sensitive, deleted: !!opts.deleted });
+  await page.waitForTimeout(200);
+}
+
+test("the sky draws one ring per living card and one thread per link", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page, { deleted: true });
+  await openMap(page);
+
+  // Three living cards - the tombstoned one is not on the map.
+  await expect(page.locator(".map-card")).toHaveCount(3);
+  // Four links: three on the shared card, one on the single one. The unlinked
+  // card has none and says so by floating loose.
+  await expect(page.locator(".map-card-link")).toHaveCount(4);
+  await expect(page.locator(".map-card.is-loose")).toHaveCount(1);
+  // The kinds are four different outlines, not four colours.
+  await expect(page.locator(".map-card.is-person circle.map-card-mark")).toHaveCount(1);
+  await expect(page.locator(".map-card.is-org rect.map-card-mark")).toHaveCount(1);
+
+  // The default is the question the cards answer: one card is linked twice, so
+  // the sky opens with them - without anybody having chosen anything.
+  expect(
+    await page.evaluate(async () => (await import("/web/js/app.js")).ctx.doc.settings.mapCards),
+  ).toBeUndefined();
+  await expect(page.locator(".h-sub")).toHaveText("2 goals · 3 parts · 3 cards");
+});
+
+test("with nothing shared the cards stay off until they are asked for", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    ctx.commitCompose("Alpha", null, "stay");
+    const goal = ctx.childrenOf(null)[0].id;
+    ctx.commitCompose("A part", goal, "stay");
+    const part = ctx.childrenOf(goal)[0].id;
+    const card = ctx.addEntity({ name: "Anna", kind: "person" });
+    ctx.linkEntity(part, card);
+    ctx.setSettings({ mapMode: "sky" });
+    ctx.go("outline", null, { replace: true });
+  });
+  await page.waitForTimeout(200);
+  await openMap(page);
+
+  // Nothing is shared by two steps, so there is no cross-link to see and the
+  // sky stays what it was. The switch is there, and it says so.
+  await expect(page.locator(".map-card")).toHaveCount(0);
+  await expect(page.locator(".h-sub")).toHaveText("1 goal · 1 part");
+  const toggle = page.getByRole("button", { name: "Show the context cards" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(page.locator(".map-card")).toHaveCount(1);
+  await expect(page.locator(".h-sub")).toHaveText("1 goal · 1 part · 1 card");
+});
+
+test("the card toggle is remembered in the document, like the mode", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page);
+  await openMap(page);
+
+  const toggle = page.getByRole("button", { name: "Show the context cards" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
+  await expect(page.locator(".map-card")).toHaveCount(0);
+  await expect(page.locator(".h-sub")).toHaveText("2 goals · 3 parts");
+  expect(
+    await page.evaluate(async () => (await import("/web/js/app.js")).ctx.doc.settings.mapCards),
+  ).toBe(false);
+
+  // An explicit "no" outlives the default that would say yes: it is sealed with
+  // the rest of the document, so it survives a lock as the mode does.
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: "Lock now" }).click();
+  await page.locator('input[type="password"]').first().fill(PASS);
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+
+  await openMapRaw(page);
+  await expect(page.locator(".map-card")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show the context cards" }).click();
+  await expect(page.locator(".map-card")).toHaveCount(3);
+});
+
+test("a card is a different species: no family hue, no colour from the script", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page);
+  await openMap(page);
+
+  // The rings are all one size, and that size is smaller than the smallest
+  // goal on the screen - a card carries no rank, so it may not read as one.
+  const rings = await page
+    .locator(".map-card circle.map-card-mark, .map-card rect.map-card-mark")
+    .evaluateAll((list) => list.map((n) => Number(n.getAttribute("r") || n.getAttribute("width"))));
+  expect(new Set(rings.map((r) => Math.round(r * 10))).size).toBeLessThanOrEqual(2);
+  const goals = await page
+    .locator(`${roots} > .map-disc`)
+    .evaluateAll((list) => list.map((c) => Number(c.getAttribute("r"))));
+  expect(Math.min(...goals)).toBeGreaterThan(12);
+
+  // The one neutral on this screen, out of the tokens, and hollow: a card is
+  // never filled, whatever the theme.
+  const look = await page.locator(".map-card-mark").first().evaluate((n) => {
+    const s = getComputedStyle(n);
+    return { fill: s.fill, stroke: s.stroke, token: getComputedStyle(document.documentElement).getPropertyValue("--map-card").trim() };
+  });
+  expect(look.fill).toBe("none");
+  expect(look.token).not.toBe("");
+  // And the module writes no colour of its own on a card, exactly as with a body.
+  const inline = await page.locator(".map-card").evaluateAll((list) =>
+    list.map((g) => g.getAttribute("style") || ""),
+  );
+  for (const style of inline) expect(style).not.toMatch(/#[0-9a-f]{3}|rgb|oklch|hsl/i);
+});
+
+test("XSS canary: a card name is text inside the SVG label, never markup", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  const payload = "<img src=x onerror=1>";
+  await cardTree(page, { sharedName: payload });
+  await openMap(page);
+
+  const label = page.locator(".map-label.is-card .map-labeltext").first();
+  await expect(label).toHaveText(payload);
+  const shape = await label.evaluate((node) => ({
+    ns: node.namespaceURI,
+    kids: node.childNodes.length,
+    kind: node.firstChild ? node.firstChild.nodeType : 0,
+    value: node.textContent,
+  }));
+  expect(shape.ns).toBe("http://www.w3.org/2000/svg");
+  expect(shape.kids).toBe(1);
+  expect(shape.kind).toBe(3); // TEXT_NODE, and only that
+  expect(shape.value).toBe(payload);
+  expect(await page.locator("img").count()).toBe(0);
+  expect(await page.evaluate(() => window.XSS)).toBeUndefined();
+});
+
+test("tapping a card opens its card sheet - one tap, no zoom in between", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page);
+  await openMap(page);
+
+  // The ring itself. It opens the same door the index and the chips under a
+  // step open: the card sheet, on the context index, in one tap - a card is
+  // not a branch, so there is nothing to come closer to first.
+  await tap(page, page.locator('.map-card[data-card] > .map-hit').first());
+  await expect(page.locator(".sheet-title")).toHaveText("Card");
+  await expect(page.locator(".sheet .input").first()).toHaveValue("Anna");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator(".h-title")).toHaveText("Context");
+
+  // And its name, which is the same door. Closing the index goes back to the
+  // map it was opened from - the Close of the SCREEN, not the one the sheet
+  // leaves behind for a moment while it slides out.
+  await page.locator("#app").getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".h-title")).toHaveText("Map");
+  await expect(page.locator(".map-scene.is-ready")).toHaveCount(1);
+  await settled(page);
+  await tap(page, page.locator(".map-label.is-card .map-labelhit").first());
+  await expect(page.locator(".sheet-title")).toHaveText("Card");
+});
+
+test("a sensitive card puts its name on the map and nothing else", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page, { sensitive: true });
+  await openMap(page);
+
+  const names = await page
+    .locator(".map-label.is-card .map-labeltext")
+    .evaluateAll((list) => list.map((n) => n.textContent));
+  expect(names).toContain("Doctor Vogt");
+  // The relation and the notes are on the card, not on a screen that can be
+  // held up in a room - and the sensitive one looks like every other card.
+  const canvas = await page.locator(".map-canvas").textContent();
+  expect(canvas).not.toContain("orthopaedist");
+  expect(canvas).not.toContain("disc will not heal");
+  await expect(page.locator(".map-card")).toHaveCount(4);
+});
+
+test("with reduced motion the cards stand as still as everything else", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: PHONE, reducedMotion: "reduce" });
+  const page = await context.newPage();
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page);
+  await openMap(page);
+
+  await expect(page.locator(".map-card")).toHaveCount(3);
+  const first = await page.locator(".map-card").first().getAttribute("transform");
+  await page.waitForTimeout(500);
+  const probe = await page.evaluate(() => window.__tfMap);
+  expect(probe.frames).toBe(0);
+  expect(probe.loop).toBe(false);
+  expect(await page.locator(".map-card").first().getAttribute("transform")).toBe(first);
+  await context.close();
 });
 
 test("an empty vault in the mind map is the centre and nothing else", async ({ page }) => {

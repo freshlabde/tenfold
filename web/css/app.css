@@ -1517,6 +1517,72 @@ button.h-sub {
   rx: 6;
 }
 
+/* --------------------------------------------------- the map: context cards */
+
+/* A card is a DIFFERENT SPECIES on this screen, and every value below exists to
+   say so without a second colour system. It is hollow where a goal is filled,
+   it is one fixed size where a goal carries a ladder, and it is drawn in the
+   one neutral the map owns - silver at night, graphite on paper - because a
+   card belongs to no family and must not be read as an eleventh one. What is
+   worth looking at is not the ring anyway: it is the threads leaving it. */
+
+.map-cards { pointer-events: auto; }
+/* The card layer breathes with the families it is tied into, so it is composited
+   for the same reason the ten root groups are. */
+.map-cards > .map-card { will-change: transform; }
+
+/* The thread. Dashed and thin: it is a RELATION, not a branch - a connector in
+   this app means "is part of", and nothing here is part of anything. It carries
+   no family hue on purpose, whichever families it happens to join. */
+.map-card-link {
+  stroke: var(--map-card);
+  stroke-width: .9;
+  stroke-dasharray: 3.2 3.4;
+  stroke-linecap: round;
+  opacity: .55;
+  fill: none;
+  pointer-events: none;
+}
+
+.map-card-mark {
+  fill: none;
+  stroke: var(--map-card);
+  stroke-width: 1.35;
+  opacity: .9;
+  pointer-events: none;
+}
+
+/* A card nobody has linked yet still exists, and says so from the rim: it is
+   there, it is dimmer, and it is one tap from the step it belongs to. */
+.map-card.is-loose { opacity: .42; }
+.map-card { transition: opacity var(--dur) var(--ease); }
+/* Looking at one family: the cards that reach into it keep their light with it,
+   the rest step back with the other nine. */
+.map-cards.has-focus > .map-card:not(.is-path) { opacity: .28; }
+.map-cards.has-focus > .map-card.is-loose { opacity: .2; }
+
+/* The cards arrive after the families - the threads only mean something once
+   there is something for them to join. The delay is a fraction of the same
+   token, so reduced motion collapses this along with everything else. */
+.map-scene.is-ready .map-card {
+  animation: map-rise var(--dur-slow) var(--ease) backwards;
+  animation-delay: calc(var(--dur-slow) * .75);
+}
+
+/* The name of a card: the same label layer, one notch quieter. Smaller and
+   lighter than a part name, and in the card's own neutral, so a glance over the
+   sky reads the goals first and the shared things second. */
+.map-label.is-card .map-labeltext {
+  fill: var(--map-card);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .015em;
+}
+
+/* The switch in the header. Off it is as quiet as the other two icons; on it
+   takes the accent, the same way the mode toggle marks the reading you are in. */
+.map-cardbtn.is-on { color: var(--accent); }
+
 .map-veil {
   position: absolute;
   left: 0; right: 0; top: 0;

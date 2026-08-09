@@ -218,6 +218,9 @@ export const de = {
   "map.mode.label": "Darstellung der Karte",
   "map.mode.sky": "Sternbild",
   "map.mode.tree": "Mind-Map",
+  "map.contexts": "{n} Kontexte",
+  "map.contextsOne": "1 Kontext",
+  "map.cards.toggle": "Kontextkarten anzeigen",
   "map.hint.tree": "Jeder Titel vollständig. Tipp einen an, um ihn zu öffnen.",
   "map.hint.treeEmpty": "Schreib deine zehn auf. Jedes zweigt hier von der Mitte ab.",
 

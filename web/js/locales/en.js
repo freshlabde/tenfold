@@ -218,6 +218,9 @@ export const en = {
   "map.mode.label": "How the map is drawn",
   "map.mode.sky": "Constellation",
   "map.mode.tree": "Mind map",
+  "map.contexts": "{n} cards",
+  "map.contextsOne": "1 card",
+  "map.cards.toggle": "Show the context cards",
   "map.hint.tree": "Every title in full. Tap one to open it.",
   "map.hint.treeEmpty": "Write your ten. Each one branches off the centre here.",
 

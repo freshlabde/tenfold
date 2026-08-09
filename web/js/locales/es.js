@@ -218,6 +218,9 @@ export const es = {
   "map.mode.label": "Cómo se dibuja el mapa",
   "map.mode.sky": "Constelación",
   "map.mode.tree": "Mapa mental",
+  "map.contexts": "{n} fichas",
+  "map.contextsOne": "1 ficha",
+  "map.cards.toggle": "Mostrar las fichas de contexto",
   "map.hint.tree": "Cada título entero. Toca uno para abrirlo.",
   "map.hint.treeEmpty": "Escribe tus diez. Cada una sale del centro aquí.",
 
