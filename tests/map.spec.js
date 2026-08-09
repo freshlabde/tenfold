@@ -534,7 +534,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v24"');
+  expect(sw).toContain('const VERSION = "tenfold-v25"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -627,13 +627,25 @@ test("the mind map draws every living node, and every title in full", async ({ p
   const wanted = [...TITLES, "Three walks a week", "A dentist appointment", "Call him on Sundays"];
   expect(shown.slice().sort()).toEqual(wanted.slice().sort());
 
-  // And the ten still carry their rank, in the same figures as the outline.
+  // And the ten still carry their rank - now in a filled chip in the family
+  // hue, the same object the outline puts in front of a row, so the figure is
+  // read as a priority and not as a count.
+  await expect(page.locator(".mm-node.is-d0 .mm-chip")).toHaveCount(10);
+  await expect(page.locator(".mm-node.is-lead")).toHaveCount(1);
   const figures = await page
-    .locator(".mm-node.is-d0 .mm-rank")
+    .locator(".mm-node.is-d0 .mm-chip-num")
     .evaluateAll((list) => list.map((n) => n.textContent));
   expect(figures.slice().sort((a, b) => Number(a) - Number(b))).toEqual([
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
   ]);
+
+  // The three voices are actually three: a goal is set clearly larger than a
+  // part, and a part clearly larger than what hangs under it.
+  const size = (s) =>
+    page.locator(s).first().evaluate((n) => parseFloat(getComputedStyle(n).fontSize));
+  const [d0, d1] = [await size(".mm-title.is-d0"), await size(".mm-title.is-d1")];
+  expect(d0).toBeGreaterThan(d1 * 1.2);
+  expect(d1).toBeGreaterThan(12);
 });
 
 test("every title in the mind map is inside the frame and big enough to read", async ({ page }) => {

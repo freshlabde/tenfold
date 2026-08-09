@@ -1582,6 +1582,28 @@ input[type="search"]::-webkit-search-decoration {
    coloured body text at ten hues would have made ten of them unreadable. */
 .mm-dot { fill: var(--tint); stroke: none; pointer-events: none; }
 
+/* THREE VOICES, and they have to be told apart at arm's length without
+   reading a word of them - the whole complaint was that every row of this tree
+   looked like every other row, so a goal drowned in its own parts.
+
+     depth 0  the ten        16px, display weight, full ink, tinted rank chip
+     depth 1  the parts      13px, plain weight, full ink, tinted dot
+     depth 2  below that   11.5px, second ink
+     depth 3  the rest     11.5px, muted, the smallest dot and the +n badge
+
+   The bottom two share a size and part on ink alone: they are one voice, the
+   quiet one, and dropping the last level any smaller would put it under the
+   readability floor the camera is built around (map.js TREE_MIN_K).
+
+   Colour does NOT carry the ladder: the hue on this screen means WHICH FAMILY,
+   never how deep, and tinted body text at ten hues would be ten kinds of
+   unreadable. Size, weight and ink carry it, which is also what keeps it
+   working for an eye that cannot tell the ten hues apart.
+
+   These sizes are measured, not decorative: mindmap.js rules every line with
+   these very classes and derives its column widths and row heights from what
+   comes back, so changing a number here changes the layout. LINE/ROW_MIN/
+   ROW_PAD there must move with it. */
 .mm-title {
   fill: var(--text-2);
   font-family: var(--font-body);
@@ -1593,21 +1615,64 @@ input[type="search"]::-webkit-search-decoration {
 }
 .mm-title.is-d0 {
   fill: var(--text);
-  font-size: 13px; font-weight: var(--weight-title); letter-spacing: -.012em;
+  font-family: var(--font-display);
+  font-size: 16px; font-weight: var(--weight-display); letter-spacing: -.022em;
 }
-.mm-title.is-d2 { font-size: 11.5px; }
-.mm-title.is-d3 { fill: var(--muted); font-size: 11.5px; }
+.mm-title.is-d1 { fill: var(--text); font-size: 13px; font-weight: 400; }
+.mm-title.is-d2 { fill: var(--text-2); font-size: 11.5px; font-weight: 400; }
+.mm-title.is-d3 { fill: var(--muted); font-size: 11.5px; font-weight: 400; }
 
-/* The rank, in the mono rail in front of the title - the same place and the
-   same figures the outline sets it in, so the two screens agree. */
-.mm-rank {
-  fill: var(--text-4);
+/* The rank chip of a goal: the same object the outline puts in front of a row,
+   filled with the FAMILY hue instead of with the accent, because on this
+   screen the figure has to say "goal number four" and "this branch" in one
+   mark. The ink is --accent-ink for the reason it exists - it is the one token
+   that is dark under a dark theme's light fills and light under a light
+   theme's dark ones, which is exactly what a chip filled with a data hue
+   needs in both. */
+.mm-chip {
+  fill: var(--tint);
+  stroke: none;
+  pointer-events: none;
+}
+.mm-chip-num {
+  fill: var(--accent-ink);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums lining-nums;
-  font-size: 9.5px; font-weight: 700; letter-spacing: .03em;
+  font-size: 10.5px; font-weight: 700; letter-spacing: -.03em;
   dominant-baseline: middle;
   pointer-events: none;
 }
+/* Rank one takes a bigger chip AND the accent ring around it - the lead reads
+   as the lead here for the same reason it does in the list. The ring is held
+   off the chip by mindmap.js (LEAD_RING) rather than stroked onto it: rank one
+   is always family one, and in slate that hue is the accent, so a stroke would
+   have been brass drawn on brass. */
+.mm-node.is-lead .mm-chip-num { font-size: 12px; }
+.mm-chip-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+:root[data-skin="register"] .mm-chip-ring,
+:root[data-skin="breath"] .mm-chip-ring { rx: 0; }
+
+/* Register sets its figures in the serif, as it does in the list; breath keeps
+   the mono rail. Neither skin gives the chip its corners back - the radius is
+   the skin's to decide, the fill is the data's. */
+:root[data-skin="register"] .mm-chip { rx: 0; }
+:root[data-skin="register"] .mm-chip-num {
+  font-family: var(--font-display);
+  font-size: 12px; font-weight: 400; letter-spacing: 0;
+}
+:root[data-skin="register"] .mm-node.is-lead .mm-chip-num { font-size: 13.5px; }
+:root[data-skin="breath"] .mm-chip { rx: 0; }
+/* Breath sets its display weight at 300, which would have made a goal LIGHTER
+   than its own parts - the one place where borrowing the token inverts the
+   thing it was borrowed for. Here the ladder is size and ink, which is what
+   this skin says it is anyway. */
+:root[data-skin="breath"] .mm-title { font-weight: 300; }
+:root[data-skin="breath"] .mm-title.is-d0 { font-weight: 400; }
 
 .mm-more {
   fill: var(--text-4);
@@ -1621,7 +1686,15 @@ input[type="search"]::-webkit-search-decoration {
    sky strikes, in type instead of in light. */
 .mm-node.is-done .mm-title { fill: var(--text-4); }
 .mm-node.is-done .mm-dot { fill: color-mix(in srgb, var(--text) 30%, transparent); }
-.mm-node.is-done .mm-rank { opacity: .6; }
+/* A finished goal carries the seal instead of its figure - the same swap, in
+   the same green, that a finished row makes in the list. It comes after the
+   lead rule on purpose: rank one, once it is done, is done first. */
+.mm-node.is-done .mm-chip {
+  fill: color-mix(in srgb, var(--ok) 18%, transparent);
+  stroke: color-mix(in srgb, var(--ok) 45%, transparent);
+  stroke-width: 1;
+}
+.mm-chip-check { color: var(--ok); }
 
 /* The whole row answers the thumb, not the three-pixel dot. */
 .mm-hit { fill: transparent; cursor: pointer; }
@@ -1651,7 +1724,7 @@ input[type="search"]::-webkit-search-decoration {
 .mm-centre-label {
   fill: var(--text);
   font-family: var(--font-display);
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: var(--weight-title);
   letter-spacing: var(--tracking-display);
   dominant-baseline: middle;

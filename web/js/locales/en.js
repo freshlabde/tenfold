@@ -42,7 +42,8 @@ export const en = {
 
   // ------------------------------------------------------------------- setup
   "setup.welcome.eyebrow": "First run",
-  "setup.welcome.title": "Ten things. In order. Broken down until they are doable.",
+  "setup.welcome.title": "Ten goals. In order. Unfolded until they are within reach.",
+  "setup.welcome.about": "What is this? The method",
   "setup.welcome.body": "tenfold keeps one list and nothing else. Everything you write stays on this device, encrypted with a key only you hold. There is no account and no sign-in.",
   "setup.welcome.start": "Set up the vault",
   "setup.welcome.import": "I already have a vault file",

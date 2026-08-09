@@ -81,7 +81,7 @@ test("the app boots into the first run screen without console errors", async ({ 
   await freshApp(page);
 
   await expect(page.getByRole("button", { name: "Set up the vault" })).toBeVisible();
-  await expect(page.locator(".lock-title")).toContainText("Ten things");
+  await expect(page.locator(".lock-title")).toContainText("Ten goals");
   // The phone frame must not scroll sideways at the reference width.
   const overflow = await page.evaluate(() => document.body.scrollWidth - document.body.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);

@@ -42,7 +42,8 @@ export const es = {
 
   // ------------------------------------------------------------------- setup
   "setup.welcome.eyebrow": "Primer arranque",
-  "setup.welcome.title": "Diez cosas. En orden. Desglosadas hasta poder hacerlas.",
+  "setup.welcome.title": "Diez metas. En orden. Desglosadas hasta poder conseguirlas.",
+  "setup.welcome.about": "¿Qué es esto? El método",
   "setup.welcome.body": "tenfold lleva una sola lista y nada más. Todo lo que escribes se queda en este dispositivo, cifrado con una clave que solo tienes tú. No hay cuenta ni inicio de sesión.",
   "setup.welcome.start": "Crear la caja fuerte",
   "setup.welcome.import": "Ya tengo un archivo de caja fuerte",

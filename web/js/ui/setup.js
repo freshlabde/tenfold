@@ -104,6 +104,15 @@ function welcome(ctx) {
       el("p", { class: "lock-sub", style: { maxWidth: "34ch" } }, [text(t("setup.welcome.body"))]),
     ]),
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [
+      // What this app is must be readable BEFORE anything is set up - and it
+      // must be SEEN (owner: the quiet about link at the bottom was invisible).
+      // The method is the first offer on the first screen, above creating
+      // anything; the About screen renders without a vault.
+      el(
+        "button",
+        { class: "btn is-big is-wide", attrs: { type: "button" }, on: { click: () => ctx.go("about") } },
+        [icon("mark", 16), text(t("setup.welcome.about"))],
+      ),
       start,
       el(
         "button",
@@ -123,13 +132,6 @@ function welcome(ctx) {
           },
         },
         [text(t("sync.adopt.open"))],
-      ),
-      // What this app is must be readable BEFORE anything is set up -
-      // the About screen renders without a vault, same as from the lock.
-      el(
-        "button",
-        { class: "btn-ghost", attrs: { type: "button" }, on: { click: () => ctx.go("about") } },
-        [text(t("common.about"))],
       ),
       file,
     ]),

@@ -109,7 +109,7 @@ test("the language can be chosen on the setup screen before any vault exists", a
   await switcher.getByRole("button", { name: "Español" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   // The welcome headline is now Spanish, not detection-driven.
-  await expect(page.locator(".lock-title")).not.toHaveText(/Ten things|Zehn Dinge/);
+  await expect(page.locator(".lock-title")).not.toHaveText(/Ten goals|Zehn Ziele/);
 
   // The choice survives a reload while still locked/unset.
   await page.reload();

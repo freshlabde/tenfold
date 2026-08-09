@@ -42,7 +42,8 @@ export const de = {
 
   // ------------------------------------------------------------------- setup
   "setup.welcome.eyebrow": "Erster Start",
-  "setup.welcome.title": "Zehn Dinge. In Reihenfolge. Zerlegt, bis sie machbar sind.",
+  "setup.welcome.title": "Zehn Ziele. Sortiert. Aufgelöst, bis sie machbar sind.",
+  "setup.welcome.about": "Was ist das? Die Methode",
   "setup.welcome.body": "tenfold führt eine einzige Liste und sonst nichts. Alles, was du schreibst, bleibt auf diesem Gerät, verschlüsselt mit einem Schlüssel, den nur du hast. Es gibt kein Konto und keine Anmeldung.",
   "setup.welcome.start": "Tresor einrichten",
   "setup.welcome.import": "Ich habe schon eine Tresordatei",

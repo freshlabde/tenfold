@@ -35,9 +35,10 @@ const FAMILIES = 10;
  * line is the single number that decides how far the camera has to pull back;
  * so the budget is a width, it is spent against the measured advance of the
  * actual string in the actual skin, and it narrows with depth because a part is
- * read in the context of its goal. Roughly 18 characters at the top, 14 at the
- * bottom - but a string of capitals costs more than a string of i's, and only
- * the ruler knows that.
+ * read in the context of its goal. The top budget is the widest of the four
+ * although its type is the largest, because a goal that has to be cut to three
+ * words is not a goal any more; the rank chip is paid out of it too. A string
+ * of capitals costs more than a string of i's, and only the ruler knows that.
  *
  * These four numbers are the PROPORTION between the depths and the widest the
  * budgets are ever allowed to be. The absolute values come from the stage:
@@ -45,7 +46,7 @@ const FAMILIES = 10;
  * fits the half-phone it has to live in. A narrow phone therefore wraps a title
  * into more lines instead of pushing a column off the screen.
  */
-const MAXW = [132, 118, 108, 98];
+const MAXW = [156, 126, 114, 104];
 /**
  * No budget ever goes under this, whatever the stage says. Below it a title
  * would be shaved to two or three words and the map would stop being a reading
@@ -55,23 +56,64 @@ const MAXW = [132, 118, 108, 98];
 const MIN_BUDGET = 64;
 const MAX_LINES = 2;
 
-/** Type metrics of a row. A single line is 34 high, two lines 43 - inside the
- *  34..44 band a thumb can still separate two titles at a glance. */
-const LINE = 15;
-const ROW_MIN = 34;
-const ROW_PAD = 13;
+/**
+ * Type metrics, PER DEPTH - the three voices of this screen, in numbers.
+ *
+ * A goal is set a third larger than a part and its rows have to make room for
+ * that: leading, the floor under a one-line row and the air a two-line row
+ * adds. Because the row height is what the tidy stack spends, the whole tree
+ * breathes differently per level, which is half of what makes a goal read as a
+ * goal from arm's length. The other half is in app.css (.mm-title.is-d*), and
+ * these numbers must be kept in step with those font sizes - the ruler measures
+ * with the very same classes, so a change there changes the widths too.
+ */
+const LINE = [20, 16, 14.5, 14];
+const ROW_MIN = [42, 34, 31, 31];
+const ROW_PAD = [16, 13, 12, 12];
 
 /** The leading dot carries the family tint; the ring around it carries progress
- *  where there is any, on the same convention as the sky's completion arc. */
-const DOT_R = [4.2, 3.4, 3, 2.7];
+ *  where there is any, on the same convention as the sky's completion arc.
+ *  It steps down with depth: the ten are marks, the grandchildren are specks. */
+const DOT_R = [4.2, 3.4, 2.7, 2.4];
 const RING = 6.8;
-const DOT_GAP = 11;
+const DOT_GAP = 9;
+
+/**
+ * The rank chip of a goal - the one thing on this screen that carries the
+ * family hue as a FILL rather than as a hairline, because the ten were getting
+ * lost among their own parts (owner report) and a grey figure 9.5px high was
+ * not going to fix that. Same object as the outline's rank chip, tinted by
+ * family instead of by accent; rank one grows by a hair and takes the accent
+ * ring, so the lead still reads as the lead on both screens.
+ *
+ * A done goal carries the check instead of its figure, in the one green - the
+ * same swap rows.js makes.
+ */
+const CHIP_H = 16;
+const CHIP_MIN_W = 15;
+const CHIP_PAD = 4;
+const CHIP_GAP = 4;
+const CHIP_LEAD_GROW = 2;
+const CHECK = 11;
+/**
+ * The lead's ring, and the gap that makes it one. A stroke ON the chip would
+ * have been simpler and would have said nothing: rank one is always family one,
+ * and in slate the family-one hue IS the accent - brass on brass. Held off the
+ * chip it reads as a ring in any skin, whatever the two colours are doing.
+ *
+ * Both sides of it are charged to rank one's own title budget, which is the
+ * one row in the tree that can spare them: the ring then sits inside the row's
+ * width on both branches and the bounds the camera fits to need no exception.
+ */
+const LEAD_RING = 2.8;
 
 /** How far one level steps outward. Small on purpose: a column per level would
  *  be honest mind-map geometry and unreadable type on a 390pt screen. */
 const INDENT = 15;
-/** Centre plate edge to the first column - the length of the trunk. */
-const TRUNK = 20;
+/** Centre plate edge to the first column - the length of the trunk. Every unit
+ *  of it is a unit no title can have, and the curve reads as a trunk at 15 just
+ *  as well as it did at 20. */
+const TRUNK = 15;
 
 const CENTRE_H = 34;
 const CENTRE_PAD = 11;
@@ -79,8 +121,10 @@ const MARK = 16;
 const MARK_GAP = 6;
 
 const BADGE_GAP = 7;
-/** Air around the whole thing, so a fit never puts a letter on the edge. */
-const PAD = 10;
+/** Air around the whole thing, so a fit never puts a letter on the edge. The
+ *  camera spends its own margin on top of this one (map.js TREE_PAD), so every
+ *  unit here is a unit of air the screen already has twice. */
+const PAD = 6;
 /** How far the hit box of a row reaches past the end of its own text. Part of
  *  the bounds, so part of what has to fit on the phone. */
 const EDGE = 3;
@@ -104,6 +148,7 @@ function collect(nodes, node, depth, parent, index, siblings, out) {
       index,
       siblings,
       kids: [],
+      ring: 0,
       total: 0,
       done: 0,
       hidden: 0,
@@ -112,9 +157,11 @@ function collect(nodes, node, depth, parent, index, siblings, out) {
       lines: [],
       textW: 0,
       numW: 0,
+      chipW: 0,
+      chipH: 0,
       badgeW: 0,
       w: 0,
-      h: ROW_MIN,
+      h: ROW_MIN[Math.min(depth, ROW_MIN.length - 1)],
       x: 0,
       y: 0,
     };
@@ -176,6 +223,9 @@ export function fitLines(raw, maxW, measure) {
   const lines = [];
   let line = "";
   let i = 0;
+  // True once a word has been sliced: the tail is already ellipsised and must
+  // not be shaved a second time below.
+  let sliced = false;
   while (i < words.length && lines.length < MAX_LINES) {
     const next = line ? `${line} ${words[i]}` : words[i];
     if (measure(next) <= maxW) {
@@ -184,14 +234,20 @@ export function fitLines(raw, maxW, measure) {
       continue;
     }
     if (!line) {
-      const cut = shave(words[i]);
-      return { lines: [cut], w: measure(cut) };
+      // A single word wider than the whole budget: it has no boundary to cut
+      // on, so it is sliced - and nothing after it can be shown. It is PUSHED,
+      // never returned: returning threw away the lines already filled, which is
+      // how "Testament und Vorsorgevollmacht endlich regeln" came out of here as
+      // the one word "Vorsorgevoll…" once the goal type grew.
+      lines.push(shave(words[i]));
+      sliced = true;
+      break;
     }
     lines.push(line);
     line = "";
   }
   if (line) lines.push(line);
-  if (i < words.length) lines[lines.length - 1] = shave(lines[lines.length - 1]);
+  if (!sliced && i < words.length) lines[lines.length - 1] = shave(lines[lines.length - 1]);
   let w = 0;
   for (const l of lines) w = Math.max(w, measure(l));
   return { lines, w };
@@ -228,13 +284,27 @@ export function budgetsFor(target, centreHalf) {
 }
 
 /**
- * The fixtures of a row - the rank in front of a goal, the +n badge on a
- * summed-up one. Measured BEFORE any title is broken, because they are what the
- * title has to share its half of the phone with, and the budgets cannot be
- * derived without them.
+ * The fixtures of a row - the rank chip in front of a goal (with the lead's
+ * ring around it), the +n badge on a summed-up one. Measured BEFORE any title
+ * is broken, because they are what the title has to share its half of the phone
+ * with, and the budgets cannot be derived without them.
  */
 function fixtures(item, measure) {
-  item.numW = item.depth === 0 ? measure(String(item.index + 1), "mm-rank") + 5 : 0;
+  if (item.depth === 0) {
+    const lead = item.index === 0;
+    const grow = lead ? CHIP_LEAD_GROW : 0;
+    // A done goal shows the check, which is square whatever the figure was.
+    const inner = item.node.status === "done" ? CHECK : measure(String(item.index + 1), "mm-chip-num");
+    item.chipH = CHIP_H + grow;
+    item.chipW = Math.max(CHIP_MIN_W + grow, inner + CHIP_PAD * 2 + grow);
+    item.ring = lead ? LEAD_RING : 0;
+    item.numW = item.chipW + item.ring * 2 + CHIP_GAP;
+  } else {
+    item.chipW = 0;
+    item.chipH = 0;
+    item.ring = 0;
+    item.numW = 0;
+  }
   item.badgeW = item.hidden > 0 ? BADGE_GAP + measure(t("map.more", { n: item.hidden }), "mm-more") : 0;
 }
 
@@ -258,7 +328,10 @@ function shape(item, budgets, measure) {
   item.lines = fitted.lines;
   item.textW = fitted.w;
   item.w = DOT_GAP + item.numW + item.textW + item.badgeW;
-  item.h = Math.max(ROW_MIN, item.lines.length * LINE + ROW_PAD);
+  item.h = Math.max(ROW_MIN[d], item.lines.length * LINE[d] + ROW_PAD[d]);
+  // A goal's chip must never be taller than the band its row owns, or two
+  // neighbouring chips would touch where their titles do not.
+  if (item.chipH) item.h = Math.max(item.h, item.chipH + 12);
 }
 
 // -------------------------------------------------------------------- layout
@@ -325,10 +398,14 @@ function curve(px, py, cx, cy, side, trunk) {
   return `M${n2(px)} ${n2(py)}C${n2(px)} ${n2(py + k)} ${n2(cx - side * dx * 1.1)} ${n2(cy)} ${n2(cx)} ${n2(cy)}`;
 }
 
-/** One node: its ring, its dot, its rank, its full title, its badge, its box. */
+/** One node: its progress arc, its dot, its rank chip, its full title, its
+ *  badge, its box. */
 function drawNode(item) {
   const side = item.side;
   const cls = ["mm-node", `is-d${item.depth}`];
+  // The lead of the ten, exactly as the outline marks it - one row in the whole
+  // tree carries the accent, and it is the same row on both screens.
+  if (item.depth === 0 && item.index === 0) cls.push("is-lead");
   if (item.node.status === "done") cls.push("is-done");
   const g = sel("g", {
     class: cls.join(" "),
@@ -372,25 +449,60 @@ function drawNode(item) {
   // A figure that trails its own title reads as a count, not as a rank.
   const tx = side > 0 ? gx + DOT_GAP + item.numW : gx - DOT_GAP;
   if (item.depth === 0) {
+    const cx0 =
+      side > 0
+        ? gx + DOT_GAP + item.ring
+        : tx - item.textW - CHIP_GAP - item.ring - item.chipW;
+    if (item.ring) {
+      g.appendChild(
+        sel("rect", {
+          class: "mm-chip-ring",
+          attrs: {
+            x: n2(cx0 - item.ring),
+            y: n2(gy - item.chipH / 2 - item.ring),
+            width: n2(item.chipW + item.ring * 2),
+            height: n2(item.chipH + item.ring * 2),
+            rx: n2((item.chipH + item.ring * 2) * 0.31),
+          },
+        }),
+      );
+    }
     g.appendChild(
-      sel("text", {
-        class: "mm-rank",
-        text: String(item.index + 1),
+      sel("rect", {
+        class: "mm-chip",
         attrs: {
-          x: n2(side > 0 ? gx + DOT_GAP : tx - item.textW - 5),
-          y: n2(gy),
-          "text-anchor": anchor,
+          x: n2(cx0),
+          y: n2(gy - item.chipH / 2),
+          width: n2(item.chipW),
+          height: n2(item.chipH),
+          rx: n2(item.chipH * 0.31),
         },
       }),
     );
+    if (item.node.status === "done") {
+      const mark = icon("check", CHECK);
+      mark.setAttribute("class", "mm-chip-check");
+      mark.setAttribute("x", n2(cx0 + (item.chipW - CHECK) / 2));
+      mark.setAttribute("y", n2(gy - CHECK / 2));
+      g.appendChild(mark);
+    } else {
+      g.appendChild(
+        sel("text", {
+          class: "mm-chip-num",
+          text: String(item.index + 1),
+          attrs: { x: n2(cx0 + item.chipW / 2), y: n2(gy), "text-anchor": "middle" },
+        }),
+      );
+    }
   }
-  const top = gy - ((item.lines.length - 1) * LINE) / 2;
+  const lead = LINE[Math.min(item.depth, LINE.length - 1)];
+  const top = gy - ((item.lines.length - 1) * lead) / 2;
   item.lines.forEach((line, i) => {
     g.appendChild(
       sel("text", {
         class: `mm-title is-d${item.depth}`,
         text: line,
-        attrs: { x: n2(tx), y: n2(top + i * LINE), "text-anchor": anchor },
+        attrs: { x: n2(tx), y: n2(top + i * lead), "text-anchor": anchor },
       }),
     );
   });
@@ -549,8 +661,11 @@ export function buildScene(nodes, measure, target) {
   // still come out roughly level.
   const sides = [[], []];
   const tops = items.filter((it) => it.depth === 0);
+  // The real measured height of the branch, not a guess at it: row heights now
+  // differ per depth, and a split that still assumed one number for all of them
+  // would put the tall column on one side of the centre.
   const rowsOf = (it) => {
-    let sum = it.lines.length > 1 ? 43 : 34;
+    let sum = it.h;
     for (const kid of it.kids) sum += rowsOf(kid);
     return sum;
   };
