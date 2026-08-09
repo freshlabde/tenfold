@@ -453,6 +453,6 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v14"');
+  expect(sw).toContain('const VERSION = "tenfold-v15"');
   expect(sw).toContain('"./js/ui/map.js"');
 });

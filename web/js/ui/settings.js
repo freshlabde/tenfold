@@ -531,6 +531,72 @@ function llmGroup(ctx) {
   return group("settings.group.llm", rows);
 }
 
+// ----------------------------------------------------------------- security
+
+/**
+ * Turning the enrolment off again. The passphrase and the recovery key are
+ * untouched, and so is every other device: each credential carries its own
+ * wrapper label, so this removes exactly one envelope.
+ */
+function biometricOffSheet(ctx) {
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("webauthn.removeBody"))]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: async () => {
+            closeSheet();
+            await ctx.biometric.remove();
+            ctx.toast(t("webauthn.removed"));
+            ctx.render();
+          },
+        },
+      },
+      [text(t("webauthn.remove"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("webauthn.removeTitle"), body, footer });
+}
+
+/**
+ * The row only exists where the platform says it has a user-verifying
+ * authenticator of its own. Whether that authenticator also does PRF is only
+ * knowable once the prompt has run, so enrolment is allowed to fail and says
+ * so in one line instead of pretending.
+ */
+function biometricRow(ctx) {
+  if (!ctx.biometric.supported) return null;
+  const known = ctx.biometric.availableCached;
+  if (known === null) {
+    // Not asked yet: ask, and repaint once if the answer turns out to be yes.
+    ctx.biometric.available().then((ok) => {
+      if (ok && ctx.view.name === "settings") ctx.repaint();
+    });
+    return null;
+  }
+  if (known !== true) return null;
+  if (ctx.biometric.enrolled) {
+    return row("webauthn.title", "webauthn.onDesc", t("webauthn.on"), () => biometricOffSheet(ctx));
+  }
+  return row("webauthn.title", "webauthn.desc", null, async () => {
+    try {
+      await ctx.biometric.enrol();
+      ctx.toast(t("webauthn.enrolled"));
+    } catch {
+      ctx.toast(t("webauthn.failed"));
+    }
+    ctx.render();
+  });
+}
+
 function plaintextSheet(ctx) {
   const body = el("div", {}, [
     el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("settings.exportPlainWarn"))]),
@@ -672,6 +738,7 @@ export function render(ctx) {
     syncGroup(ctx),
     llmGroup(ctx),
     group("settings.group.security", [
+      biometricRow(ctx),
       row("settings.lock", "settings.lockDesc", null, () => ctx.lock(false), { danger: true }),
     ]),
     group("settings.group.app", [

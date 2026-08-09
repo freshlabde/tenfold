@@ -1,22 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="tenfold">
-  <!-- The unfold mark: one stroke becomes many, each shorter than the last.
-       No lettering, no emoji, no gradient beyond the plate light. -->
-  <defs>
-    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#262B35"/>
-      <stop offset="1" stop-color="#141820"/>
-    </linearGradient>
-    <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#F0C368"/>
-      <stop offset="1" stop-color="#D6A441"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#plate)"/>
-  <rect x="0" y="0" width="512" height="2" fill="#ffffff" opacity="0.09"/>
-  <g stroke="url(#brass)" stroke-width="26" stroke-linecap="round" fill="none">
-    <path d="M136 384V128"/>
-    <path d="M216 384V196"/>
-    <path d="M296 384V262"/>
-    <path d="M376 384V320"/>
+  <!--
+    The tenfold mark: a ten, drawn as an instrument.
+
+    The 0 is closed and whole - the ten goals, the shape of a life, one thing.
+    The 1 is the same stroke creased twice, so it reads as a rod folded into
+    three levels rather than a bar: the one goal you are in, unfolded until a
+    step small enough to do falls out of the bottom.
+
+    Two facts about the drawing. The ring carries slightly more weight than the
+    stem (60 against 56) because a curve of equal width reads lighter than a
+    straight - the correction is optical, not arithmetic. And the creases are
+    fine on purpose: at 512 they are clearly two folds, at 16 they close into
+    a solid stem and the mark simply says "10". The detail is a reward for the
+    size that can hold it, never a condition for reading it.
+
+    Transparent by design - this file is the mark itself, used in the tab, in
+    the manifest and as the source for the plated rasters. The plate lives in
+    icon-maskable.svg and in tools/make-icons.js.
+  -->
+  <style>
+    /* Progressive enhancement only. The brass below is a presentation
+       attribute, so if a strict style-src drops this block the mark still
+       draws - it just stops adapting to a light browser chrome. The value is
+       the light-skin accent from css/tokens.css, not an invented colour. */
+    @media (prefers-color-scheme: light) { .tf-mark { stroke: #8A6110; } }
+  </style>
+  <g class="tf-mark" stroke="#D6A441" fill="none" stroke-linecap="round">
+    <!-- the 1: one stroke, creased twice -->
+    <g stroke-width="56">
+      <path d="M60 116V165.33"/>
+      <path d="M60 231.33V280.67"/>
+      <path d="M60 346.67V396"/>
+    </g>
+    <!-- the 0: closed, whole -->
+    <circle cx="312" cy="256" r="138" stroke-width="60"/>
   </g>
 </svg>

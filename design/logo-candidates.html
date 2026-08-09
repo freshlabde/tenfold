@@ -1,0 +1,449 @@
+<!doctype html>
+<!--
+  design/logo-candidates.html - how the tenfold mark was arrived at, and what
+  it is. Not shipped with the app; open it in a browser to review.
+
+  Everything below is drawn from the same geometry that ships in
+  web/icons/icon.svg. Nothing here is a picture of the mark - it is the mark,
+  re-drawn at each size the sheet asks for, which is the only honest way to
+  judge whether it survives 16 pixels.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tenfold - the mark</title>
+<style>
+  :root {
+    --bg: #0F1115;
+    --bg-2: #14171D;
+    --surface: #171B22;
+    --surface-2: #12151B;
+    --line: rgba(255,255,255,.07);
+    --edge: rgba(255,255,255,.06);
+    --text: #E8EAEE;
+    --text-2: #9AA1AD;
+    --muted: #667080;
+    --brass: #D6A441;
+    --brass-2: #F0C368;
+    --brass-dark: #8A6110;
+    --ink: #171106;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", ui-sans-serif, "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 0 0 120px; -webkit-font-smoothing: antialiased; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 44px; }
+
+  .kicker {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .34em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 16px;
+  }
+  h1 { font-size: 46px; line-height: 1.05; letter-spacing: -.04em; font-weight: 700; margin: 0 0 18px; }
+  h2 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .3em; text-transform: uppercase;
+    color: var(--brass); margin: 0 0 22px; font-weight: 500;
+  }
+  h3 { font-size: 17px; letter-spacing: -.02em; margin: 0 0 6px; font-weight: 600; }
+  p { color: var(--text-2); font-size: 14.5px; line-height: 1.68; margin: 0 0 14px; max-width: 66ch; }
+  p.tight { max-width: 54ch; font-size: 13.5px; }
+  em { color: var(--text); font-style: normal; }
+
+  /* --------------------------------------------------------------- hero */
+  .hero {
+    border-bottom: 1px solid var(--line);
+    padding: 88px 0 78px;
+    display: grid; grid-template-columns: 1fr 340px; gap: 64px; align-items: center;
+  }
+  .hero-mark {
+    aspect-ratio: 1; border-radius: 30px;
+    background: radial-gradient(130% 130% at 28% 18%, #232935, #0D1015);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 30px 70px -30px rgba(0,0,0,.9);
+    display: grid; place-items: center;
+  }
+  .hero-mark svg { width: 74%; height: 74%; }
+
+  /* ------------------------------------------------------------- section */
+  section { padding: 72px 0 0; }
+  .sec-head { border-top: 1px solid var(--line); padding-top: 26px; margin-bottom: 34px; }
+
+  /* ------------------------------------------------------------ specimen */
+  .rail { display: flex; align-items: flex-end; gap: 26px; flex-wrap: wrap; }
+  .cell { display: grid; justify-items: center; gap: 9px; }
+  .cap { font-family: var(--mono); font-size: 9.5px; color: var(--muted); letter-spacing: .1em; }
+  .tile { display: grid; place-items: center; border-radius: 5px; }
+  .t-dark  { background: #0A0C10; }
+  .t-plate { background: linear-gradient(180deg, #262B35, #141820); }
+  .t-amber { background: var(--brass); }
+  .t-paper { background: #E4E6EA; }
+  .t-white { background: #FFFFFF; }
+  .tile svg, .tile img { display: block; }
+
+  /* --------------------------------------------------------- construction */
+  .constr { display: grid; grid-template-columns: 420px 1fr; gap: 52px; align-items: start; }
+  .grid-plate {
+    width: 420px; height: 420px; border-radius: 14px;
+    background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
+    position: relative;
+  }
+  .grid-plate svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 9px 20px; align-items: baseline; }
+  dt { font-family: var(--mono); font-size: 11px; color: var(--brass); letter-spacing: .08em; white-space: nowrap; }
+  dd { margin: 0; font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
+
+  /* --------------------------------------------------------------- cards */
+  /* Five to a row on purpose: a round of candidates is only readable as a
+     round if you can see all of it at once. */
+  .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  @media (max-width: 980px) { .cards { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
+  .card {
+    background: linear-gradient(180deg, var(--surface), var(--bg-2));
+    border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 20px;
+  }
+  .card.dead { opacity: .78; }
+  .card.win { border-color: rgba(214,164,65,.44); box-shadow: 0 0 0 1px rgba(214,164,65,.14); }
+  .card .box {
+    height: 132px; border-radius: 10px; background: #0C0F14;
+    display: grid; place-items: center; margin-bottom: 15px;
+  }
+  .card .box svg { width: 96px; height: 96px; }
+  .card .mini { display: flex; gap: 9px; align-items: center; justify-content: center; margin-top: 11px; }
+  .card h3 { font-size: 14.5px; }
+  .card .why { font-family: var(--mono); font-size: 10.5px; line-height: 1.62; color: var(--muted); margin: 7px 0 0; letter-spacing: .01em; }
+  .card.win .why { color: var(--brass); }
+  .tag {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--muted); display: block; margin-bottom: 8px;
+  }
+  .card.win .tag { color: var(--brass); }
+
+  /* -------------------------------------------------------------- context */
+  .ctx { display: grid; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); gap: 24px; }
+  .ctx > div { background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .tabstrip { background: #DEE1E6; border-radius: 9px; padding: 9px 10px 0; display: flex; gap: 6px; }
+  .tabstrip.dark { background: #202124; }
+  .tabstrip .t {
+    background: #fff; border-radius: 9px 9px 0 0; padding: 8px 13px;
+    display: flex; gap: 9px; align-items: center; font-size: 12px; color: #3c4043;
+  }
+  .tabstrip.dark .t { background: #35363a; color: #e8eaed; }
+  .springboard {
+    background: linear-gradient(155deg, #2c313d, #14171e); border-radius: 14px;
+    padding: 22px; display: flex; gap: 20px; justify-content: center;
+  }
+  .springboard .app { display: grid; justify-items: center; gap: 8px; font-size: 10.5px; color: #cdd2da; }
+  .springboard img { display: block; }
+  .r-squircle { border-radius: 22.5%; }
+  .r-circle { border-radius: 50%; }
+  .ctx h3 { font-size: 13px; margin-bottom: 12px; }
+  .ctx .cap { display: block; margin-top: 12px; }
+
+  .where { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .where div {
+    border-left: 2px solid rgba(214,164,65,.4); padding: 4px 0 4px 15px;
+  }
+  .where code { font-family: var(--mono); font-size: 11.5px; color: var(--brass); display: block; margin-bottom: 4px; }
+  .where span { font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================== HERO -->
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <p class="kicker">tenfold &middot; the mark</p>
+      <h1>A ten, drawn<br>as an instrument.</h1>
+      <p>
+        The <em>0</em> is closed and whole: the ten goals, the shape of a life, one thing you
+        can hold. The <em>1</em> is the same stroke creased twice - not a bar but a rod folded
+        into three levels, the one goal you are inside, unfolded until a step small enough to
+        do falls out of the bottom.
+      </p>
+      <p>
+        The whole idea is in two moves and no illustration. Nothing here is a target, a tick or
+        an arrow; nothing needs colour to be understood; and at sixteen pixels the creases
+        close, the mark says <em>10</em>, and no meaning is lost.
+      </p>
+    </div>
+    <div class="hero-mark" id="hero"></div>
+  </div>
+</div>
+
+<!-- ====================================================== CONSTRUCTION -->
+<div class="wrap">
+  <section>
+    <div class="sec-head"><h2>Construction</h2></div>
+    <div class="constr">
+      <div class="grid-plate" id="constr"></div>
+      <div>
+        <h3>Two weights, one optical.</h3>
+        <p class="tight">
+          The ring is drawn at 60 against the stem's 56. That is not a mistake and not
+          arithmetic: a curve of equal width reads lighter than a straight, and the four units
+          are what it takes for the two to look the same weight. Everything else is symmetrical
+          about the centre.
+        </p>
+        <dl>
+          <dt>grid</dt><dd>512 &times; 512, mark 448 &times; 336, centred</dd>
+          <dt>stem</dt><dd>x&nbsp;60, stroke&nbsp;56, round cap</dd>
+          <dt>ring</dt><dd>c&nbsp;312/256, r&nbsp;138, stroke&nbsp;60</dd>
+          <dt>creases</dt><dd>10 units &mdash; 3&nbsp;% of the stem</dd>
+          <dt>bearing</dt><dd>56 &mdash; exactly one stem width</dd>
+          <dt>safe zone</dt><dd>maskable at 0.73 &rarr; 204.4 of 204.8</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- =========================================================== SPECIMEN -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <h2>The size ladder</h2>
+      <p>
+        Every mark below is the shipping geometry, re-drawn at that size - not one image scaled.
+        The creases are a reward for the size that can hold them, never a condition for reading
+        the mark.
+      </p>
+    </div>
+    <div class="rail" id="ladder"></div>
+    <div class="sec-head" style="margin-top:56px"><h2>Reproduction</h2></div>
+    <div class="rail" id="repro"></div>
+  </section>
+</div>
+
+<!-- ============================================================ ROUND 1 -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <h2>Round one &mdash; five directions</h2>
+      <p>
+        Drawn, then judged at 16 and 32 pixels rather than at 512, which is where four of the
+        five died. The note under each is the reason, not a rationalisation after the fact.
+      </p>
+    </div>
+    <div class="cards" id="round1"></div>
+  </section>
+</div>
+
+<!-- ============================================================ ROUND 2 -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <h2>Round two &mdash; what a ten can be</h2>
+      <p>
+        The numeral survived, so the question became which parts of it carry the folding. Eight
+        were drawn; these are the ones worth keeping on the page.
+      </p>
+    </div>
+    <div class="cards" id="round2"></div>
+  </section>
+</div>
+
+<!-- ============================================================ ROUND 3 -->
+<div class="wrap">
+  <section>
+    <div class="sec-head">
+      <h2>Round three &mdash; the crease</h2>
+      <p>
+        One number left to settle. Too fine and the fold is invisible even at 512; too open and
+        the stem stops being a stroke and becomes three dots - the mark reads <em>:O</em>. Ten
+        units is the width at which the crease is unmistakable on a home screen and closes to a
+        whisper in a tab.
+      </p>
+    </div>
+    <div class="rail" id="creases"></div>
+  </section>
+</div>
+
+<!-- =========================================================== IN PLACE -->
+<div class="wrap">
+  <section>
+    <div class="sec-head"><h2>In place</h2></div>
+    <div class="ctx">
+      <div>
+        <h3>Tab strip</h3>
+        <div class="tabstrip" id="tab-light"></div>
+        <div class="tabstrip dark" id="tab-dark" style="margin-top:12px"></div>
+        <span class="cap">SVG favicon &middot; darkens itself against a light chrome</span>
+      </div>
+      <div>
+        <h3>Home screen</h3>
+        <div class="springboard" id="springboard"></div>
+        <span class="cap">any &middot; maskable in a circle &middot; maskable in a squircle</span>
+      </div>
+    </div>
+    <div class="where" style="margin-top:30px" id="where"></div>
+  </section>
+</div>
+
+<script>
+/* =========================================================================
+   The shipping geometry. Identical to web/icons/icon.svg - if that file
+   changes, change this and nothing else on the page.
+   ====================================================================== */
+const MARK = (c, w) => `
+  <g stroke="${c}" fill="none" stroke-linecap="round">
+    <g stroke-width="56">
+      <path d="M60 116V165.33"/>
+      <path d="M60 231.33V280.67"/>
+      <path d="M60 346.67V396"/>
+    </g>
+    <circle cx="312" cy="256" r="138" stroke-width="60"/>
+  </g>`;
+
+const svg = (inner, size, extra = "") =>
+  `<svg viewBox="0 0 512 512" ${size ? `width="${size}" height="${size}"` : ""} ${extra}
+        xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${inner}</svg>`;
+
+const $ = (id) => document.getElementById(id);
+
+/* ------------------------------------------------------------------ hero */
+$("hero").innerHTML = svg(MARK("#D6A441"), null, 'preserveAspectRatio="xMidYMid meet"');
+
+/* ---------------------------------------------------------- construction */
+const guides = `
+  <g stroke="rgba(255,255,255,.09)" stroke-width="1" fill="none">
+    <rect x="64" y="88" width="384" height="336"/>
+    <line x1="256" y1="0" x2="256" y2="512"/>
+    <line x1="0" y1="256" x2="512" y2="256"/>
+  </g>
+  <g stroke="rgba(214,164,65,.30)" stroke-width="1" fill="none" stroke-dasharray="4 5">
+    <line x1="60" y1="40" x2="60" y2="472"/>
+    <line x1="312" y1="40" x2="312" y2="472"/>
+    <line x1="40" y1="88" x2="472" y2="88"/>
+    <line x1="40" y1="424" x2="472" y2="424"/>
+    <circle cx="312" cy="256" r="138"/>
+  </g>`;
+$("constr").innerHTML = svg(guides + MARK("#D6A441"), null, 'preserveAspectRatio="xMidYMid meet"');
+
+/* ---------------------------------------------------------------- ladder */
+$("ladder").innerHTML = [512, 192, 96, 64, 48, 32, 24, 16]
+  .map((z) => {
+    const box = Math.min(z, 220);
+    const inner = Math.round(box * 0.9);
+    return `<div class="cell">
+      <div class="tile t-plate" style="width:${box + 14}px;height:${box + 14}px">
+        ${svg(MARK("#D6A441"), inner)}
+      </div><span class="cap">${z === 512 ? "512 @220" : z}</span></div>`;
+  })
+  .join("");
+
+/* ----------------------------------------------------------- reproduction */
+$("repro").innerHTML = [
+  ["t-dark", "#D6A441", "ON SLATE"],
+  ["t-dark", "#E8EAEE", "ONE COLOUR"],
+  ["t-amber", "#171106", "KNOCKED OUT"],
+  ["t-paper", "#8A6110", "ON LIGHT"],
+  ["t-white", "#0F1115", "BLACK ON WHITE"],
+]
+  .map(([cls, colour, label]) => `
+    <div class="cell">
+      <div class="tile ${cls}" style="width:104px;height:104px">${svg(MARK(colour), 84)}</div>
+      <div class="tile ${cls}" style="width:34px;height:34px;margin-top:-2px">${svg(MARK(colour), 26)}</div>
+      <span class="cap">${label}</span>
+    </div>`)
+  .join("");
+
+/* --------------------------------------------------------------- round 1 */
+const R1 = [
+  { n: "Switchback", why: "REJECTED — one line folding down through three levels. Reads as an S, then as a 5. A mark that is already a different number is finished.",
+    d: (c) => `<path d="M392 150 H120 V256 H344 V362 H204" fill="none" stroke="${c}" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>` },
+  { n: "Spine", why: "REJECTED — the outline drawn flat. Legible at every size and owned by nobody: it is the align-left button in every toolbar ever made.",
+    d: (c) => `<g fill="none" stroke="${c}" stroke-width="48" stroke-linecap="round"><path d="M150 124V388"/><path d="M150 160H396"/><path d="M150 256H322"/><path d="M150 352H248"/></g>` },
+  { n: "Ten", why: "KEPT — the numeral as a monogram. The only candidate still readable at 16, and the only one that says the name rather than describing it.",
+    d: (c) => `<g fill="none" stroke="${c}" stroke-width="50" stroke-linecap="round"><path d="M118 130V382"/><path d="M394 158 A108 108 0 1 1 300 174"/></g>` },
+  { n: "Crease", why: "REJECTED — the sealed plate with a fold across it. Below 64 the fold silts up and the plate becomes an anonymous rounded square.",
+    d: (c) => `<rect x="96" y="96" width="320" height="320" rx="78" fill="${c}" opacity=".22"/><path d="M168 328H240V256H312V184" fill="none" stroke="${c}" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>` },
+  { n: "Sheet", why: "REJECTED — a sheet folded once and stood up. Handsome at 512, a solid blob at 16, and closer to a book than to a life.",
+    d: (c) => `<path d="M256 104 L128 168 V344 L256 408 Z" fill="${c}" opacity=".5"/><path d="M256 104 L384 168 V344 L256 408 Z" fill="${c}"/>` },
+];
+
+const R2 = [
+  { n: "Folded stem", why: "REJECTED — the 1 as a hinged rod. At size the kink reads as a wobble, and the mark looks like a 2 that went wrong.",
+    d: (c) => `<g fill="none" stroke="${c}" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"><path d="M112 130 L150 215 L112 297 L150 382"/><circle cx="330" cy="256" r="106"/></g>` },
+  { n: "Dial of ten", why: "REJECTED — the ring cut into ten marks, one per goal. True to the name and instantly a clock, or worse, a spinner.",
+    d: (c) => `<circle cx="256" cy="256" r="150" fill="none" stroke="${c}" stroke-width="40" stroke-dasharray="62 32.2" stroke-dashoffset="15"/><path d="M256 106V236" fill="none" stroke="${c}" stroke-width="40" stroke-linecap="round"/>` },
+  { n: "Descent", why: "REJECTED — the constellation from the map, falling. Two circles and a stem at any small size is a magnifying glass.",
+    d: (c) => `<g fill="none" stroke="${c}" stroke-width="40" stroke-linecap="round"><path d="M232 178 L300 292"/><path d="M282 316 L214 392"/><circle cx="196" cy="140" r="72"/><circle cx="322" cy="330" r="42"/></g><circle cx="196" cy="416" r="26" fill="${c}"/>` },
+  { n: "Creased ring", why: "REJECTED — folding the 0 as well as the 1. The ring stops being whole, and a broken circle is a pie chart with an opinion.",
+    d: (c) => `<g fill="none" stroke="${c}" stroke-width="48" stroke-linecap="round"><path d="M116 132V196"/><path d="M116 224V318"/><path d="M116 346V382"/><circle cx="330" cy="256" r="106" stroke-dasharray="180 42" stroke-dashoffset="60"/></g>` },
+  { n: "Creased stem", why: "SHIPPED — the 0 left whole, the 1 creased. The fold lands on the part of the mark that is about one goal, and the ten stays intact.",
+    win: true, d: (c) => MARK(c) },
+];
+
+const renderCards = (into, list) => {
+  $(into).innerHTML = list
+    .map((m) => `
+      <article class="card ${m.win ? "win" : "dead"}">
+        <div class="box">${svg(m.d("#D6A441"), 96)}</div>
+        <span class="tag">${m.win ? "shipped" : "explored"}</span>
+        <h3>${m.n}</h3>
+        <div class="mini">
+          ${[32, 24, 16].map((z) => `<div class="tile t-dark" style="width:${z + 10}px;height:${z + 10}px">${svg(m.d("#D6A441"), z)}</div>`).join("")}
+        </div>
+        <p class="why">${m.why}</p>
+      </article>`)
+    .join("");
+};
+renderCards("round1", R1);
+renderCards("round2", R2);
+
+/* --------------------------------------------------------------- round 3 */
+function creased(colour, gap) {
+  const TOP = 88, BOT = 424, S = 56;
+  const seg = (BOT - TOP - 2 * gap) / 3;
+  let o = "";
+  for (let i = 0; i < 3; i++) {
+    const a = TOP + i * (seg + gap);
+    o += `<path d="M60 ${(a + S / 2).toFixed(2)}V${(a + seg - S / 2).toFixed(2)}" fill="none" stroke="${colour}" stroke-width="${S}" stroke-linecap="round"/>`;
+  }
+  return o + `<circle cx="312" cy="256" r="138" fill="none" stroke="${colour}" stroke-width="60"/>`;
+}
+$("creases").innerHTML = [
+  [22, "too open — three dots"],
+  [15, "still dotted at 20"],
+  [10, "shipped"],
+  [6, "too fine — gone by 192"],
+]
+  .map(([g, label]) => {
+    const shipped = g === 10;
+    const colour = shipped ? "#D6A441" : "#8E7B54";
+    return `<div class="cell">
+      <div class="tile t-plate" style="width:146px;height:146px">${svg(creased(colour, g), 124)}</div>
+      <div class="mini" style="display:flex;gap:8px;margin-top:2px">
+        ${[32, 20, 16].map((z) => `<div class="tile t-plate" style="width:${z + 10}px;height:${z + 10}px">${svg(creased(colour, g), z)}</div>`).join("")}
+      </div>
+      <span class="cap"${shipped ? ' style="color:#D6A441"' : ""}>GAP ${g} &middot; ${label}</span>
+    </div>`;
+  })
+  .join("");
+
+/* -------------------------------------------------------------- in place */
+const tab = (n) => `<div class="t">${svg(MARK(n === "light" ? "#8A6110" : "#D6A441"), 16)}tenfold</div>`;
+$("tab-light").innerHTML = tab("light") + tab("light");
+$("tab-dark").innerHTML = tab("dark") + tab("dark");
+
+$("springboard").innerHTML = [
+  ["../web/icons/icon-192.png", "r-squircle"],
+  ["../web/icons/icon-192-maskable.png", "r-circle"],
+  ["../web/icons/icon-192-maskable.png", "r-squircle"],
+]
+  .map(([src, cls]) => `<div class="app"><img class="${cls}" src="${src}" width="84" height="84" alt="">tenfold</div>`)
+  .join("");
+
+$("where").innerHTML = [
+  ["web/icons/icon.svg", "The mark. Transparent, brass, and it swaps to the light-skin accent against a light browser chrome."],
+  ["web/icons/icon-maskable.svg", "Slate plate, mark at 0.73 so no launcher mask can clip it."],
+  ["icon-192/512(-maskable).png", "Rasterised from the two SVGs by tools/make-icons.js. Nothing is drawn twice by hand."],
+  ["web/icons/favicon-32.png", "Plated fallback for browsers that still ignore an SVG favicon. In the service worker shell."],
+  ["web/js/ui/dom.js → icon(\"mark\")", "The same ten, re-cut for the 24-grid icon set: first run, lock, and every empty screen."],
+]
+  .map(([code, text]) => `<div><code>${code}</code><span>${text}</span></div>`)
+  .join("");
+</script>
+</body>
+</html>

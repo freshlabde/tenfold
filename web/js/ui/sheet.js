@@ -13,8 +13,33 @@ import { t } from "../i18n.js";
 
 let openState = null;
 
+/**
+ * Listeners for "a sheet went up / came down". app.js uses this to keep the
+ * browser history in step: an open sheet owns one history entry, so a back
+ * gesture closes the sheet instead of leaving the screen behind it.
+ */
+const listeners = new Set();
+/** True while openSheet is replacing one sheet with the next - the pair of
+ *  events in between would otherwise read as "closed, then opened again". */
+let reopening = false;
+
 export function isSheetOpen() {
   return !!openState;
+}
+
+/** @param {(open: boolean) => void} fn */
+export function onSheetChange(fn) {
+  listeners.add(fn);
+}
+
+function emit(open) {
+  for (const fn of listeners) {
+    try {
+      fn(open);
+    } catch {
+      // A listener must never be able to break the sheet it is watching.
+    }
+  }
 }
 
 /**
@@ -22,7 +47,9 @@ export function isSheetOpen() {
  * @param {{title:string, body:Node, footer?:Node, onClose?:Function}} spec
  */
 export function openSheet(layer, spec) {
+  reopening = true;
   closeSheet();
+  reopening = false;
   const previous = document.activeElement;
 
   const scrim = el("div", { class: "scrim", attrs: { "aria-hidden": "true" }, on: { click: () => closeSheet() } });
@@ -81,6 +108,7 @@ export function openSheet(layer, spec) {
   openState = { layer, scrim, sheet, previous, onClose: spec.onClose };
   const firstField = sheet.querySelector("input, textarea, button:not(.iconbtn)");
   if (firstField) queueMicrotask(() => firstField.focus());
+  emit(true);
   return sheet;
 }
 
@@ -105,4 +133,5 @@ export function closeSheet() {
   }
   if (previous && typeof previous.focus === "function") previous.focus();
   if (typeof onClose === "function") onClose();
+  if (!reopening) emit(false);
 }

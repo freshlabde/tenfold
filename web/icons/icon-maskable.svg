@@ -1,21 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="tenfold">
-  <!-- Maskable variant: the mark sits inside the 80% safe zone so a circular
-       or squircle mask cannot clip a stroke. -->
+  <!--
+    Maskable variant. Android crops this to a circle, a squircle or a rounded
+    square of the launcher's choosing and guarantees only the middle 80% - a
+    circle of radius 204.8 around the centre. The mark from icon.svg is drawn
+    here at 0.73, which puts its furthest corner at 204.4 from the centre: it
+    survives the harshest of those masks with a hair to spare and nothing to
+    give away.
+
+    The plate is the app's own surface gradient (see --surface / --bg-2 in
+    css/tokens.css), with the light edge the app puts on every slab.
+  -->
   <defs>
-    <linearGradient id="plateM" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#262B35"/>
       <stop offset="1" stop-color="#141820"/>
     </linearGradient>
-    <linearGradient id="brassM" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#F0C368"/>
-      <stop offset="1" stop-color="#D6A441"/>
-    </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="url(#plateM)"/>
-  <g stroke="url(#brassM)" stroke-width="22" stroke-linecap="round" fill="none">
-    <path d="M170 350V162"/>
-    <path d="M227 350V212"/>
-    <path d="M284 350V252"/>
-    <path d="M341 350V300"/>
+  <rect width="512" height="512" fill="url(#plate)"/>
+  <rect x="0" y="0" width="512" height="2" fill="#ffffff" opacity="0.09"/>
+  <g transform="translate(256 256) scale(0.73) translate(-256 -256)"
+     stroke="#D6A441" fill="none" stroke-linecap="round">
+    <g stroke-width="56">
+      <path d="M60 116V165.33"/>
+      <path d="M60 231.33V280.67"/>
+      <path d="M60 346.67V396"/>
+    </g>
+    <circle cx="312" cy="256" r="138" stroke-width="60"/>
   </g>
 </svg>

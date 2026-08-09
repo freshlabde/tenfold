@@ -156,6 +156,50 @@ test("the lock screen can wipe the vault and start over", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Set up the vault" })).toBeVisible();
 });
 
+// The second owner complaint of 2026-08-09: the browser back button left the
+// app instead of walking back inside it.
+test("the browser back button walks back through the app", async ({ page }) => {
+  test.setTimeout(90_000);
+  await freshApp(page);
+  await setupVault(page, { frame: true });
+
+  // outline -> focus -> leaf
+  const first = await page.locator(".row-title").first().textContent();
+  await page.locator(".row").first().click();
+  await expect(page.locator(".hero-title")).toHaveText(String(first));
+  await page.getByRole("button", { name: "Details" }).click();
+  await expect(page.locator(".leaf-title")).toHaveText(String(first));
+
+  // Two browser backs return through focus to the outline, and the app lives.
+  await page.goBack();
+  await expect(page.locator(".hero-title")).toHaveText(String(first));
+  await page.goBack();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  // Still a live app, not a blank document.
+  await expect(page.locator(".row").first()).toBeVisible();
+});
+
+test("with a sheet open the back button closes only the sheet", async ({ page }) => {
+  test.setTimeout(90_000);
+  await freshApp(page);
+  await setupVault(page, { frame: true });
+
+  await page.getByRole("button", { name: /settings/i }).click();
+  await expect(page.locator(".h-title")).toHaveText("Settings");
+
+  await page.getByRole("button", { name: /Export as readable text/ }).click();
+  await expect(page.locator(".sheet")).toBeVisible();
+
+  await page.goBack();
+  // The sheet is gone, the screen behind it is not.
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  await expect(page.locator(".h-title")).toHaveText("Settings");
+
+  // And the next back leaves settings the ordinary way.
+  await page.goBack();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+});
+
 test("abuse limits: creation cap and rate limit apply to tunnel clients", async ({ request }) => {
   // A forged cf-connecting-ip marks the request as coming through the tunnel,
   // so the limits apply (plain loopback without the header is exempt).

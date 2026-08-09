@@ -982,6 +982,8 @@ button { -webkit-tap-highlight-color: transparent; }
   letter-spacing: var(--tracking-display); line-height: 1.05;
 }
 .lock-sub { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 30ch; }
+/* The biometric way in, above the field it does not replace. */
+.lock-bio { margin: 26px 0 4px; }
 .lock-foot { flex: none; padding: 14px var(--gutter) 0; display: flex; justify-content: space-between; align-items: center; }
 /* The escape hatch under the language row: present, but never loud. */
 .lock-reset { flex: none; display: flex; justify-content: center; padding: 0 var(--gutter) 4px; }

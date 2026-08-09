@@ -5,9 +5,15 @@
 // from outside the vault - somebody must be able to read what this app does
 // before typing a secret into it.
 //
+// When this device has enrolled its own authenticator, the first thing on the
+// screen is the biometric button, and it fires itself once - that is the answer
+// to "a reload locks the vault immediately": reload, one touch, back in.
+//
 // What it deliberately does NOT do: it does not say whether a passphrase was
 // "almost" right, does not count attempts on screen, does not remember what
 // was typed, and never keeps the entered secret in a variable after the call.
+// A cancelled or failed biometric prompt says nothing at all - it just leaves
+// the passphrase field focused, because cancelling is not an error.
 
 import { el, text, icon, clear } from "./dom.js";
 import { t } from "../i18n.js";
@@ -16,11 +22,14 @@ import { langSwitch } from "./langswitch.js";
 let mode = "pass";
 let failed = false;
 let busy = false;
+/** The automatic prompt fires once per arrival on this screen, never per paint. */
+let prompted = false;
 
 export function reset() {
   mode = "pass";
   failed = false;
   busy = false;
+  prompted = false;
 }
 
 export function render(ctx) {
@@ -96,6 +105,11 @@ export function render(ctx) {
     [text(t("common.about"))],
   );
 
+  // The device's own authenticator, when this device enrolled one. The button
+  // is above the field because it is the shorter way in; the field below it
+  // never goes away.
+  const biometric = !isKey && ctx.biometric.enrolled ? biometricButton(ctx, input) : null;
+
   queueMicrotask(() => input.focus());
 
   return el("section", { class: "screen" }, [
@@ -105,6 +119,7 @@ export function render(ctx) {
       el("p", { class: "lock-sub" }, [
         text(ctx.autoLocked ? t("lock.autoLocked", { minutes: ctx.idleMinutes }) : t("lock.sub")),
       ]),
+      biometric,
       el("div", { class: "field" }, [input]),
       err,
     ]),
@@ -122,6 +137,42 @@ export function render(ctx) {
       ),
     ]),
   ]);
+}
+
+/**
+ * The biometric way in. One button, one neutral label - naming Face ID or
+ * Touch ID would be wrong on half the devices that can do this - and one
+ * automatic attempt when the screen appears.
+ */
+function biometricButton(ctx, field) {
+  const button = el(
+    "button",
+    { class: "btn is-primary is-big is-wide", attrs: { type: "button" }, dataset: { bio: "unlock" } },
+    [icon("unlock", 18), text(t("webauthn.unlock"))],
+  );
+
+  let running = false;
+  const attempt = async () => {
+    if (running || busy) return;
+    running = true;
+    try {
+      await ctx.unlockBiometric();
+      ctx.enterApp();
+    } catch {
+      // Cancelled, dismissed, a credential this vault does not know: the
+      // passphrase is right there, and nothing is said about it.
+      running = false;
+      if (field && field.isConnected) field.focus();
+    }
+  };
+
+  button.addEventListener("click", attempt);
+  if (!prompted) {
+    prompted = true;
+    // One frame later, so the screen is painted behind the system prompt.
+    requestAnimationFrame(() => attempt());
+  }
+  return el("div", { class: "lock-bio" }, [button]);
 }
 
 /** The wipe is irreversible on this device - say so in plain words first. */

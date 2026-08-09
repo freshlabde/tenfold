@@ -167,6 +167,81 @@ export async function rotateMasterKey(vault, oldMasterKey, { passphrase }): Prom
 - Recovery key: 7 groups of 4 from a confusable-free base32 alphabet (137 bits), input
   normalisation tolerates case, hyphens, spaces.
 
+### Biometric unlock (WebAuthn PRF) — `web/js/webauthn.js`
+
+Touch ID on a Mac, Face ID on an iPhone, Windows Hello, an Android screen lock: the
+platform authenticator becomes **one more envelope on the vault**, using the raw-key wrapper
+prepared in wave 1. It is the answer to "a reload locks the vault immediately" — reload,
+one touch, back in. The passphrase path never goes away.
+
+```js
+export function supported(): boolean               // PublicKeyCredential + credentials.create/get
+export async function platformAvailable(): boolean // isUserVerifyingPlatformAuthenticatorAvailable
+export function platformAvailableCached(): boolean|null   // null = not asked yet
+export function enrolled(vault): boolean           // local pointer AND matching wrapper in the vault
+export function wrapperLabel(): string|null
+export async function enrol(vault, masterKey): Promise<VaultFile>  // caller saves
+export async function unlock(vault): Promise<CryptoKey>
+export async function revoke(vault): Promise<VaultFile>            // caller saves
+export function forget(): void
+```
+
+- **Derivation.** `credentials.create` with a platform authenticator, `residentKey: "preferred"`,
+  `userVerification: "required"`, `attestation: "none"`, extension `prf.eval.first = <32 random
+  bytes, per vault>`. The PRF output is reduced by one fixed step — `SHA-256(prf.first)` → 32
+  bytes — and handed to `addRawKeyWrapper(vault, masterKey, bytes, "webauthn:<credIdPrefix>")`,
+  which runs HKDF over it again. `unlock` repeats the same evaluation through
+  `credentials.get` and calls `unlockWithRawKey`. If `create()` returns no PRF results, one
+  immediate `get()` is tried (some platforms only evaluate on assertions); if that is empty too,
+  the device is reported unsupported and **nothing is enrolled**.
+- **What is stored.** `localStorage["tenfold.webauthn"] = { credentialId, salt }` — two
+  device-local, non-secret pointers. Nothing key-like: without the authenticator and the user
+  verification it insists on, they derive nothing. **The master key never touches storage**;
+  the PRF output is recomputed from the hardware on every unlock and never cached.
+- **No personal data, no server.** The credential's user handle is the fixed opaque string
+  `"tenfold"` — no name, no address, no account. There is no relying party to verify the
+  assertion; the challenge is fresh random and unverified, because this is a key derivation
+  gated by a fingerprint, not an authentication handshake. No `fetch` in this module.
+- **Sync.** The wrapper travels inside the VaultFile, so it reaches other devices — the
+  credential does not. Every device enrols its own, and labels are per credential
+  (`webauthn:<first 12 chars of the base64url credential id>`), so revoking on device A leaves
+  device B's wrapper alone. Re-enrolling the same credential replaces its own envelope instead
+  of colliding with it. `rotateMasterKey` drops all raw wrappers, as documented above.
+- **UI.** Settings → Security carries one row with a neutral label (`webauthn.title`,
+  "Unlock with face or fingerprint" — naming Face ID would be wrong on half the devices that
+  can do this); the row only exists where the platform reports a user-verifying platform
+  authenticator. The lock screen shows the biometric button **above** the passphrase field
+  whenever this device is enrolled, and fires it once automatically on arrival. A cancelled or
+  failed prompt is silent — no banner, no counter — and leaves the passphrase field focused.
+
+## Browser history (wave: session UX)
+
+The browser history mirrors the in-app view stack. The wanted depth is derived, never
+book-kept by hand:
+
+```
+depth = state.stack.length + (isSheetOpen() ? 1 : 0)     // the sheet guard is that +1
+```
+
+`ctx.go` pushes, `{ replace: true }` collapses the stack (and the reconciliation walks the
+browser back to the new depth, so entries that can no longer be reached are not left behind),
+`ctx.back` pops. A `popstate` runs the same back logic as the in-app arrow: with a sheet open
+it closes the sheet — the guard entry is exactly what that press spends; otherwise it walks
+the in-app stack; at the outline root it lets the navigation leave the app.
+
+**Nothing calls the history API directly.** Every routing change calls one `syncHistory()`,
+which reconciles depth once per task in a microtask: `pushState` is synchronous, a traversal
+is not, so a close-then-open pair in the same task (the row menu handing over to the editor
+sheet) would otherwise push first and travel back afterwards and leave the page an entry below
+where the app thinks it is. Reconciled, the pair cancels out and any number of steps costs one
+`history.go(-n)`, whose popstate is suppressed. That bug was real and cost the app its DOM.
+
+A history entry carries the screen NAME only — never a node id, because browsers persist
+history state to disk for session restore. The entries are decorative anyway: routing reads
+the app's own counters, never `history.state`. A reload always lands on lock/setup at depth 0,
+so `#s=<code>` and `?view=today` keep working unchanged (both strip themselves with
+`replaceState`, preserving the state object).
+
 ## `web/js/model.js` (BUILT) — pure tree functions, no IO
 
 ```js

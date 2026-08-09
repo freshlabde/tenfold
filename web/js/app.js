@@ -38,6 +38,7 @@ import {
 } from "./entities.js";
 import * as sync from "./sync.js";
 import * as push from "./push.js";
+import * as webauthn from "./webauthn.js";
 import { llmEnabled, llmMode, bindContext as bindLlmContext } from "./llm.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
@@ -54,7 +55,7 @@ import * as searchScreen from "./ui/search.js";
 import * as settingsScreen from "./ui/settings.js";
 import * as aboutScreen from "./ui/about.js";
 import * as entityScreen from "./ui/entity.js";
-import { openSheet, closeSheet, isSheetOpen } from "./ui/sheet.js";
+import { openSheet, closeSheet, isSheetOpen, onSheetChange } from "./ui/sheet.js";
 import { openEditor } from "./ui/editor.js";
 import { openStoryGuide } from "./ui/storyguide.js";
 import * as assist from "./ui/assist.js";
@@ -210,6 +211,7 @@ async function lock(auto = false) {
   closeSheet();
   clearTimeout(idleTimer);
   state.view = { name: "lock", id: null };
+  syncHistory();
   render();
   if (!auto) toast(t("toast.locked"));
 }
@@ -240,27 +242,150 @@ function live(message) {
   liveEl.textContent = message;
 }
 
+// ------------------------------------------------------------------- history
+//
+// The browser's history mirrors the in-app view stack: one entry per screen
+// that was navigated into, plus one guard entry while a sheet is open. A back
+// gesture - the browser button, the phone's swipe, Alt+Left - therefore lands
+// exactly where the app's own back arrow lands, and only leaves the app when
+// there is nothing left to go back to.
+//
+// What goes INTO a history entry is the screen name and nothing else. No node
+// id: browsers persist history state to disk for session restore, and even a
+// uuid out of an encrypted list has no business outside memory. The entries are
+// decorative anyway - routing reads the counters below, never history.state.
+
+/** How many entries the browser holds above the one the page was loaded with. */
+let historyDepth = 0;
+/** How many the app's own state says there should be. */
+let wantedDepth = 0;
+/** A reconciliation is already queued for this task. */
+let syncScheduled = false;
+/** A traversal of ours is in flight; nothing else may touch the history until
+ *  its popstate has landed, or the two would race. */
+let traversing = false;
+/** popstate events we caused ourselves and must not act on. */
+let popSuppress = 0;
+
+/**
+ * The depth the app wants: one entry per screen on the stack, plus one for an
+ * open sheet - the guard that makes a back gesture close the sheet instead of
+ * leaving the screen behind it.
+ */
+function depthNow() {
+  return state.stack.length + (isSheetOpen() ? 1 : 0);
+}
+
+function historyEntry() {
+  return { view: state.view.name, sheet: isSheetOpen() };
+}
+
+/**
+ * Bring the browser's history in line with the app's stack. EVERYTHING routing
+ * related goes through here and nothing calls the history API directly, for one
+ * reason: pushState is synchronous, a traversal is not. A close-then-open pair
+ * in the same task - the row menu handing over to the editor sheet - would
+ * otherwise push first and travel back afterwards, and the page would end up an
+ * entry below where the app thinks it is. Here the two cancel out before
+ * anything is issued, and any number of steps costs exactly one traversal.
+ */
+function syncHistory() {
+  wantedDepth = depthNow();
+  if (syncScheduled) return;
+  syncScheduled = true;
+  queueMicrotask(reconcileHistory);
+}
+
+function reconcileHistory() {
+  syncScheduled = false;
+  // A traversal in flight finishes first; its popstate calls back in here.
+  if (traversing) return;
+  const delta = wantedDepth - historyDepth;
+  try {
+    if (delta > 0) {
+      for (let i = 0; i < delta; i += 1) history.pushState(historyEntry(), "");
+      historyDepth = wantedDepth;
+    } else if (delta < 0) {
+      historyDepth = wantedDepth;
+      traversing = true;
+      popSuppress += 1;
+      history.go(delta);
+    } else {
+      // Same depth, possibly another screen: keep the entry's label current.
+      history.replaceState(historyEntry(), "");
+    }
+  } catch {
+    // A browser that refuses (sandbox, traversal rate limit): the app routes on
+    // its own stack regardless, only the back button loses its manners.
+    traversing = false;
+    popSuppress = Math.max(0, popSuppress - 1);
+    historyDepth = wantedDepth;
+  }
+}
+
 // ------------------------------------------------------------------- routing
 
 function go(name, id = null, opts = {}) {
   if (!SCREENS[name]) return;
+  const same = state.view.name === name && state.view.id === id;
+  // `replace` collapses the in-app stack; the reconciliation above then walks
+  // the browser back to the same depth, so a back press from the root leaves
+  // the app instead of stepping through screens that are no longer reachable.
   if (opts.replace) state.stack = [];
-  else if (state.view.name !== name || state.view.id !== id) state.stack.push({ ...state.view });
+  else if (!same) state.stack.push({ ...state.view });
   state.view = { name, id };
   state.compose = null;
+  syncHistory();
   render(opts.direction || "in");
 }
 
-function back() {
+/**
+ * One step back. `fromHistory` marks the call a popstate already paid for: the
+ * browser has moved on its own, so the depth is corrected there, not here.
+ */
+function stepBack(fromHistory = false) {
   const prev = state.stack.pop();
+  let moved = false;
   if (prev) {
     state.view = prev;
-  } else if (state.doc) {
+    moved = true;
+  } else if (state.doc && state.view.name !== "outline") {
     state.view = { name: "outline", id: null };
+    moved = true;
   }
   state.compose = null;
-  render("out");
+  syncHistory();
+  // A popstate that changed nothing (the root screen) must not repaint - the
+  // screen would flash for a press that deliberately does nothing.
+  if (moved || !fromHistory) render("out");
 }
+
+function back() {
+  stepBack(false);
+}
+
+window.addEventListener("popstate", () => {
+  if (popSuppress > 0) {
+    popSuppress -= 1;
+    traversing = false;
+    // Whatever piled up while we were travelling is settled now.
+    reconcileHistory();
+    return;
+  }
+  // A real back gesture: the browser has left one of our entries behind.
+  historyDepth = Math.max(0, historyDepth - 1);
+  if (isSheetOpen()) {
+    // The guard entry was spent on the sheet, which is exactly what it is for.
+    closeSheet();
+    syncHistory();
+    return;
+  }
+  stepBack(true);
+});
+
+// An open sheet owns one history entry for as long as it is up - opened or
+// closed by any route: the X, the scrim, Escape, a footer button, a popstate.
+onSheetChange(() => syncHistory());
 
 let painting = false;
 
@@ -351,6 +476,22 @@ function setLanguage(lang) {
   render();
 }
 
+/**
+ * What every unlock has in common, whichever envelope released the key: the
+ * document is opened, lifted to the current schema before any screen or merge
+ * can see it, and the idle clock starts. The key stays in this module - it is
+ * not put on ctx, and it is never written anywhere.
+ * @param {CryptoKey} key
+ */
+async function openWithMasterKey(key) {
+  state.masterKey = key;
+  state.doc = upgradeDoc(await openFromVault(state.vault, key));
+  state.autoLocked = false;
+  applyPresentation(state.doc.settings || {});
+  state.savedAt = await lastSavedAt();
+  touchIdle();
+}
+
 // ------------------------------------------------------------------- context
 
 const ctx = {
@@ -416,6 +557,7 @@ const ctx = {
       state.introAbout = true;
       state.view = { name: "about", id: null };
       state.stack = [];
+      syncHistory();
       render();
       return;
     }
@@ -425,6 +567,7 @@ const ctx = {
       state.pendingView = null;
       state.view = { name: "outline", id: null };
       state.stack = [];
+      syncHistory();
       ctx.go("today");
       return;
     }
@@ -435,10 +578,12 @@ const ctx = {
     state.introAbout = false;
     state.view = { name: "outline", id: null };
     state.stack = [];
+    syncHistory();
     if (state.pendingView === "today") {
       state.pendingView = null;
       state.view = { name: "today", id: null };
       state.stack = [{ name: "outline", id: null }];
+      syncHistory();
     }
     setSettings({ aboutRead: true });
     // Persist immediately - the debounced autosave loses this flag when the
@@ -470,6 +615,7 @@ const ctx = {
     });
     closeSheet();
     state.view = { name: "setup", id: null };
+    syncHistory();
     render();
   },
 
@@ -526,6 +672,7 @@ const ctx = {
     if (targetParent !== parentId) {
       state.stack.push({ ...state.view });
       state.view = targetParent === null ? { name: "outline", id: null } : { name: "focus", id: targetParent };
+      syncHistory();
     }
     mutate((list) => [...list, node]);
   },
@@ -958,15 +1105,51 @@ const ctx = {
       kind === "recovery"
         ? await unlockWithRecoveryKey(state.vault, secret)
         : await unlockWithPassphrase(state.vault, secret);
-    state.masterKey = key;
-    // Every document that comes out of the vault is lifted to the current
-    // schema right here, before any screen or merge can see it. Invisible:
-    // an old vault simply has empty stories and an empty index.
-    state.doc = upgradeDoc(await openFromVault(state.vault, key));
-    state.autoLocked = false;
-    applyPresentation(state.doc.settings || {});
-    state.savedAt = await lastSavedAt();
-    touchIdle();
+    await openWithMasterKey(key);
+  },
+
+  /**
+   * The device's own authenticator instead of the passphrase. Everything after
+   * the key arrives is identical - the app cannot tell which envelope opened
+   * the vault, and does not need to.
+   */
+  async unlockBiometric() {
+    if (!state.vault) throw new VaultUnlockError();
+    const key = await webauthn.unlock(state.vault);
+    await openWithMasterKey(key);
+  },
+
+  /**
+   * Face ID / Touch ID as one more envelope. The wrapper travels inside the
+   * vault, so it reaches the other devices through sync - but the credential
+   * behind it is device-local, and each device carries its own label, so
+   * turning it off here cannot lock another device out.
+   */
+  biometric: {
+    get supported() {
+      return webauthn.supported();
+    },
+    /** null until the platform has been asked - the screens repaint on the answer. */
+    get availableCached() {
+      return webauthn.platformAvailableCached();
+    },
+    available: () => webauthn.platformAvailable(),
+    get enrolled() {
+      return webauthn.enrolled(state.vault);
+    },
+    async enrol() {
+      if (!state.vault || !state.masterKey) throw new Error("vault is locked");
+      state.vault = await webauthn.enrol(state.vault, state.masterKey);
+      // flushSave re-seals the payload into the vault we just extended, so the
+      // new wrapper is stored and pushed with the same cycle as any edit.
+      await flushSave();
+    },
+    async remove() {
+      if (!state.vault) return;
+      state.vault = await webauthn.revoke(state.vault);
+      if (state.masterKey && state.doc) await flushSave();
+      else await saveVault(state.vault);
+    },
   },
 
   async setVault(vault) {
@@ -976,6 +1159,7 @@ const ctx = {
     state.doc = null;
     state.stack = [];
     state.view = { name: "lock", id: null };
+    syncHistory();
     render();
   },
 
@@ -1179,7 +1363,9 @@ function takePairingFromFragment() {
   } catch {
     code = null;
   }
-  history.replaceState(null, "", location.pathname + location.search);
+  // history.state is carried over: this strips the fragment, it does not hand
+  // the entry back to somebody else.
+  history.replaceState(history.state, "", location.pathname + location.search);
   return code;
 }
 
@@ -1192,6 +1378,7 @@ async function handlePairing(code) {
     // deliberate press, not a link.
     setupScreen.prime(code, true);
     state.view = { name: "setup", id: null };
+    syncHistory();
     render();
     return;
   }
@@ -1201,6 +1388,7 @@ async function handlePairing(code) {
   } catch (err) {
     setupScreen.prime(code, false, err && err.code ? err.code : "offline");
     state.view = { name: "setup", id: null };
+    syncHistory();
     render();
   }
 }
@@ -1216,7 +1404,11 @@ function takePendingView() {
   if (view === null) return null;
   params.delete("view");
   const query = params.toString();
-  history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash}`);
+  history.replaceState(
+    history.state,
+    "",
+    `${location.pathname}${query ? `?${query}` : ""}${location.hash}`,
+  );
   return view === "today" ? "today" : null;
 }
 
@@ -1234,6 +1426,11 @@ async function boot() {
   }
   state.savedAt = state.vault ? await lastSavedAt().catch(() => null) : null;
   state.view = state.vault ? { name: "lock", id: null } : { name: "setup", id: null };
+  // A reload always lands here, on the entry the page was loaded with: marked
+  // as ours, never pushed. That is what keeps a reload free of history
+  // weirdness - the lock screen is the bottom of the app's own stack, and a
+  // back press from it leaves the app, as it should.
+  syncHistory();
   render();
 
   if (pairing) await handlePairing(pairing);

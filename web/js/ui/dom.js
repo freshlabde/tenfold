@@ -160,8 +160,17 @@ const PATHS = {
   trash: ["M5 7h14", "M9.5 7V5h5v2", "M6.8 7l.8 12.5h8.8L17.2 7"],
   calendar: ["M4.5 6.5h15v13h-15z", "M4.5 10.5h15", "M8.5 4v4", "M15.5 4v4"],
   clock: ["M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z", "M12 7.5V12l3 2"],
-  // The mark: ten strokes that fold from one into many.
-  mark: ["M4 20V4", "M9 20V9", "M14 20v-5", "M19 20v-2"],
+  // The mark - the same ten that sits in the tab and on the home screen (see
+  // icons/icon.svg): a closed 0 for the whole of the list, and a 1 creased
+  // twice into the three levels a goal unfolds through. Drawn again here
+  // rather than scaled, because this set is stroked at 1.7 and the logo at 56
+  // - the creases have to open up a little to survive the lighter weight.
+  mark: [
+    "M2.8 5V8.1",
+    "M2.8 10.5V13.5",
+    "M2.8 15.9V19",
+    "M14.2 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14",
+  ],
   // The map: three bodies and the pull between them.
   constellation: [
     "M18 8.4a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z",
