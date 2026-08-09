@@ -938,7 +938,10 @@ export function render(ctx) {
       b.driftY = (b.parent ? b.parent.driftY : 0) + dy;
     }
 
-    placeLabels();
+    // Labels are a pure function of the camera now (rest positions, no
+    // drift), so a frame in which the camera stood still owes them nothing -
+    // and a still label cannot tremble.
+    if (cam.x !== labelCam.x || cam.y !== labelCam.y || cam.k !== labelCam.k) placeLabels();
   }
 
   /**
@@ -949,13 +952,24 @@ export function render(ctx) {
    * still belongs to its body. Cheap enough to run every frame: the order
    * never changes, so the result cannot flicker between two solutions.
    */
+  /** The camera state the labels were last computed for. */
+  const labelCam = { x: NaN, y: NaN, k: NaN };
+
   function placeLabels() {
+    labelCam.x = cam.x;
+    labelCam.y = cam.y;
+    labelCam.k = cam.k;
     const n = labelled.length;
     const avoidDiscs = bodies.length <= AVOID_LIMIT;
     for (let i = 0; i < n; i += 1) {
       const b = labelled[i];
-      const ax = b.x + (b.driftX || 0);
-      const ay = b.y + (b.driftY || 0);
+      // REST position, deliberately without the drift: a name that breathes
+      // with its body rasterises anew every frame and reads as trembling
+      // (owner report). The orb drifts a few units under a perfectly still
+      // name - calmer, and it makes label placement a pure function of the
+      // camera, so it only needs recomputing when the camera moves.
+      const ax = b.x;
+      const ay = b.y;
       const lift = b.r + (b.depth === 0 ? 17 : 12);
       const half = b.labelWidth / 2 + 4;
       // Clamp horizontally so a name near the edge slides inward instead of
@@ -990,9 +1004,11 @@ export function render(ctx) {
               // up back across it - which is exactly how a name landed on the
               // very disc it belongs to.
               const cr = c.r * cam.k + 3;
-              const cxs = cam.x + (c.x + (c.driftX || 0)) * cam.k;
+              // Rest positions here too - drifting thresholds made the walk
+              // flip between two answers on alternating frames.
+              const cxs = cam.x + c.x * cam.k;
               if (Math.abs(cxs - sx) > half + cr) continue;
-              const cys = cam.y + (c.y + (c.driftY || 0)) * cam.k;
+              const cys = cam.y + c.y * cam.k;
               if (Math.abs(cys - y) > LABEL_LINE / 2 + cr) continue;
               y = cys + dir * (cr + LABEL_LINE / 2);
               hit = true;
