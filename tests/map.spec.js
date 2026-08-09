@@ -534,7 +534,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v23"');
+  expect(sw).toContain('const VERSION = "tenfold-v24"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -810,6 +810,131 @@ test("below the third level the mind map sums up, exactly as the sky does", asyn
   await expect(page.locator(".mm-node.is-d3")).toHaveCount(1);
   await expect(page.locator(".mm-node.is-d4")).toHaveCount(0);
   await expect(page.locator(".mm-more")).toHaveText("+6");
+});
+
+/**
+ * The owner's own list, in the shape that broke: nine German goals, sixteen
+ * parts under seven of them, two grandchildren under two of those, and one
+ * branch that goes deeper still - the row that carries a +n badge and reaches
+ * furthest out. Built through the app's own compose path, so it is the same
+ * document the map would have read from the vault.
+ */
+const GERMAN_GOALS = [
+  "Schulden bei der Bank endlich vollständig abbezahlen",
+  "Die Firma verkaufsfähig aufstellen und übergeben",
+  "Wieder zehn Kilometer am Stück laufen können",
+  "Die Sache mit Anna in Ruhe klären",
+  "Meinen Vater regelmäßig jede Woche besuchen",
+  "Ein Rücken, der morgens nicht mehr wehtut",
+  "Spanisch bis zum Niveau B2 sprechen lernen",
+  "Testament und Vorsorgevollmacht endlich regeln",
+  "Die Werkstatt im Keller fertig einrichten",
+];
+const GERMAN_PARTS = [
+  [0, ["Monatliche Rate mit der Bank neu verhandeln", "Alle Abos und Verträge durchgehen und kündigen", "Einen Tilgungsplan bis Ende nächsten Jahres aufstellen"]],
+  [1, ["Buchhaltung der letzten drei Jahre prüfen lassen", "Nachfolger für die Produktionsleitung finden", "Bewertungsgutachten beim Steuerberater beauftragen"]],
+  [2, ["Zweimal pro Woche eine lockere Runde am Fluss laufen", "Ordentliche Laufschuhe mit Laufbandanalyse kaufen"]],
+  [4, ["Jeden Sonntagabend anrufen, ohne Ausnahme", "Einmal im Monat zum Mittagessen hinfahren"]],
+  [5, ["Rückenübungen jeden Morgen vor dem Frühstück", "Termin bei der Orthopädin ausmachen"]],
+  [6, ["Jeden Tag zwanzig Minuten Vokabeln wiederholen", "Einen Konversationskurs am Abend suchen"]],
+  [8, ["Werkbank und Regale aufbauen und verschrauben", "Alte Farbeimer und Reste zum Wertstoffhof bringen"]],
+];
+const GERMAN_GRAND = [
+  [0, ["Unterlagen für das Gespräch bei der Bank zusammenstellen", "Termin mit dem Berater der Sparkasse vereinbaren"]],
+  [8, ["Suche nach Anfänger-Tutorial für Motorenreparatur (Vespa)", "Passendes Werkzeug für die Vespa zusammenstellen"]],
+];
+
+async function ownerTree(page) {
+  await page.evaluate(
+    async ({ goals, parts, grand }) => {
+      const { ctx } = await import("/web/js/app.js");
+      const add = (title, parentId) => {
+        ctx.commitCompose(title, parentId, "stay");
+        const kids = ctx.childrenOf(parentId);
+        return kids[kids.length - 1].id;
+      };
+      const rootIds = goals.map((title) => add(title, null));
+      const firstPart = new Map();
+      for (const [index, titles] of parts) {
+        firstPart.set(index, titles.map((title) => add(title, rootIds[index]))[0]);
+      }
+      for (const [index, titles] of grand) {
+        const kids = titles.map((title) => add(title, firstPart.get(index)));
+        // One level deeper under the first grandchild, with more below it: that
+        // is the row that carries the +n badge, and the widest one in the tree.
+        const deeper = add("Ersatzteilliste für den Vergaser der Vespa zusammenstellen und bestellen", kids[0]);
+        for (let i = 0; i < 3; i += 1) add(`Teilbestellung Nummer ${i + 1} beim Händler aufgeben`, deeper);
+      }
+      ctx.setSettings({ mapMode: "tree" });
+      ctx.go("outline", null, { replace: true });
+    },
+    { goals: GERMAN_GOALS, parts: GERMAN_PARTS, grand: GERMAN_GRAND },
+  );
+  await expect(page.locator(".row-shell")).toHaveCount(GERMAN_GOALS.length);
+}
+
+/** Every row of the mind map, inside the stage, and still readable. */
+async function expectComplete(page, where) {
+  const stage = await page.locator(".map-stage").boundingBox();
+  const rows = await page.locator(".mm-node").evaluateAll((list) =>
+    list.map((g) => {
+      const r = g.getBoundingClientRect();
+      const line = g.querySelector(".mm-title");
+      return {
+        left: r.left,
+        right: r.right,
+        h: line ? line.getBoundingClientRect().height : 0,
+        text: g.textContent,
+      };
+    }),
+  );
+  expect(rows.length).toBeGreaterThan(20);
+  for (const row of rows) {
+    // Half a pixel of tolerance: a glyph's ink can overhang its advance width.
+    expect(row.left, `${where}: off the left edge - ${row.text}`).toBeGreaterThan(stage.x - 0.5);
+    expect(row.right, `${where}: off the right edge - ${row.text}`).toBeLessThan(
+      stage.x + stage.width + 0.5,
+    );
+    expect(row.h, `${where}: too small to read - ${row.text}`).toBeGreaterThan(9);
+  }
+}
+
+test("the mind map opens complete on a phone, whatever that phone is wide", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await ownerTree(page);
+
+  // The narrow phone first, and fresh - this is the one that used to open with
+  // a column outside the viewport, because the line budgets were fixed numbers
+  // and only the camera was asked to make them fit.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await openMind(page);
+  await expectComplete(page, "360");
+
+  // And the same tree on a wider stage: the scene is rebuilt against the new
+  // budgets, so the map grows into the room instead of staying cut to the
+  // narrow one.
+  await page.setViewportSize(PHONE);
+  await expect
+    .poll(async () => (await page.locator(".map-stage").boundingBox()).width)
+    .toBe(PHONE.width);
+  await settled(page);
+  await expectComplete(page, "390");
+});
+
+test("a two-goal tree in the mind map is not wrapped into stumps", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, [TITLES[0], TITLES[9]]);
+  await openMind(page);
+
+  // A stage-derived budget must never punish a small list: two goals still
+  // stand on one line each, whole.
+  const shown = await page.locator(".mm-node").evaluateAll((list) =>
+    list.map((g) => [...g.querySelectorAll(".mm-title")].map((n) => n.textContent)),
+  );
+  expect(shown.map((lines) => lines.join(" ")).sort()).toEqual([TITLES[0], TITLES[9]].sort());
+  expect(shown.every((lines) => lines.length <= 2)).toBe(true);
 });
 
 test("an empty vault in the mind map is the centre and nothing else", async ({ page }) => {

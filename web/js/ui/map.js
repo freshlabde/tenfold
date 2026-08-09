@@ -43,7 +43,7 @@ import { el, sel, text, icon, clear, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
 import { childrenOf } from "../model.js";
 import { prefersReducedMotion, spring, rubberBand } from "../motion.js";
-import { buildScene, makeRuler, modeToggle } from "./mindmap.js";
+import { buildScene, budgetsFor, makeRuler, modeToggle } from "./mindmap.js";
 
 // ----------------------------------------------------------------- constants
 
@@ -151,10 +151,27 @@ const TREE_MAX_K = 1.25;
 /**
  * The floor under the scale, and the reason this mode exists: below it the
  * smallest title in the tree stops being readable at arm's length, and the
- * screen would be asking for the zoom it was built to abolish. Under the floor
- * the tree is simply wider than the phone and the camera pans.
+ * screen would be asking for the zoom it was built to abolish.
+ *
+ * It is no longer a clip: it is what the tree is BUILT to, see treeTarget().
  */
 const TREE_MIN_K = 0.78;
+
+/**
+ * The width the mind map is built for, from the width of the stage: the widest
+ * the tree may be so that the readability floor still shows ALL of it. The line
+ * budgets are derived from this (mindmap.js budgetsFor), which is the whole
+ * answer to a tree that used to open with a column outside the phone - a
+ * narrower stage now buys a taller tree, and vertical panning is the only scroll
+ * this screen ever asks for.
+ *
+ * The pad here is the one fitTree() spends below, or the two would disagree by
+ * exactly the air around the tree.
+ */
+function treeTarget(w) {
+  const pad = Math.min(TREE_PAD, w * 0.04);
+  return Math.max(1, w - pad * 2) / TREE_MIN_K;
+}
 
 // --------------------------------------------------------------------- seed
 
@@ -758,7 +775,15 @@ export function render(ctx) {
     const top = Math.min(FIT_TOP, size.h * 0.18);
     const availW = size.w - pad * 2;
     const availH = size.h - top - FIT_BOTTOM;
-    const k = Math.max(TREE_MIN_K, Math.min(availW / bw, TREE_MAX_K));
+    // The scene was built for availW / TREE_MIN_K (treeTarget), so bw is at most
+    // that and this scale is at or above the readability floor - the floor is
+    // enforced where the budgets are cut, not here by pulling the camera in.
+    // It can still come out under the floor: a budget that hit MIN_BUDGET on a
+    // very narrow stage, or the one frame of a resize before the rebuild. Then
+    // the tree is shown SMALLER rather than clipped - a map that is complete and
+    // a shade under the floor can still be read; one with a column outside the
+    // phone cannot.
+    const k = Math.min(availW / bw, TREE_MAX_K);
     const cx = (box.minX + box.maxX) / 2;
     const cy = (box.minY + box.maxY) / 2;
     const y = bh * k <= availH ? top + availH / 2 - cy * k : top - box.minY * k;
@@ -1179,12 +1204,18 @@ export function render(ctx) {
    * once, in the same frame that first knows how big the stage is.
    */
   let mindTree = null;
-  function buildMind() {
+  let mindScene = null;
+  /** Whether the scene was built for a stage that had already reported a size. */
+  let mindStaged = false;
+
+  function buildMind(staged) {
     if (sky || mindTree) return;
     const ruler = makeRuler(svg);
-    const built = buildScene(nodes, ruler.measure);
+    const built = buildScene(nodes, ruler.measure, treeTarget(size.w));
     ruler.dispose();
     mindTree = built.g;
+    mindScene = built;
+    mindStaged = !!staged;
     bounds = built.bounds;
     for (const item of built.items) byId.set(item.id, item);
     scene.appendChild(mindTree);
@@ -1195,16 +1226,34 @@ export function render(ctx) {
     mindTree.classList.add("is-ready");
   }
 
+  /**
+   * The stage has said how wide it really is - on the first frame that has a
+   * size, and on every resize after it. If that changes the line budgets, the
+   * scene is built ONCE more against them; if it does not, nothing happens,
+   * which is what keeps a resize observer from feeding itself.
+   */
+  function refitMind() {
+    if (sky || !mindTree) return;
+    const next = budgetsFor(treeTarget(size.w), mindScene.centreHalf);
+    if (mindStaged && next.every((v, i) => v === mindScene.budgets[i])) return;
+    mindTree.remove();
+    mindTree = null;
+    buildMind(true);
+  }
+
   requestAnimationFrame(function start() {
     if (!alive()) return;
-    // Text can be measured as soon as the SVG is in the document; only the
-    // camera fit needs the stage size. Build first, so the tree never waits
-    // on a stage that reports 0x0 for a few frames.
-    buildMind();
-    if (!measure()) {
+    // The stage size first: the mind map's line budgets are derived from it.
+    // A stage that still reports 0x0 does not hold the tree back - it is built
+    // against the default size and rebuilt one frame later, once the real width
+    // is in (which is also the frame in which the ruler can measure text).
+    const staged = measure();
+    buildMind(staged);
+    if (!staged) {
       requestAnimationFrame(start);
       return;
     }
+    refitMind();
     base = fitFor(bounds);
     cam.x = base.x;
     cam.y = base.y;
@@ -1225,6 +1274,9 @@ export function render(ctx) {
         return;
       }
       if (!measure()) return;
+      // A width change can change the line budgets, and a scene built for the
+      // old width would be refitted into a phone it no longer fits.
+      refitMind();
       base = fitFor(bounds);
       const f = sky && focusId ? byId.get(focusId) : null;
       if (f) focusOn(f);

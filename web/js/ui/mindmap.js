@@ -38,8 +38,21 @@ const FAMILIES = 10;
  * read in the context of its goal. Roughly 18 characters at the top, 14 at the
  * bottom - but a string of capitals costs more than a string of i's, and only
  * the ruler knows that.
+ *
+ * These four numbers are the PROPORTION between the depths and the widest the
+ * budgets are ever allowed to be. The absolute values come from the stage:
+ * budgetsFor() below scales the whole vector down until the deepest row still
+ * fits the half-phone it has to live in. A narrow phone therefore wraps a title
+ * into more lines instead of pushing a column off the screen.
  */
 const MAXW = [132, 118, 108, 98];
+/**
+ * No budget ever goes under this, whatever the stage says. Below it a title
+ * would be shaved to two or three words and the map would stop being a reading
+ * of the list; a tree that still does not fit at this width is shown smaller
+ * instead (see fitTree in ui/map.js) - complete beats large.
+ */
+const MIN_BUDGET = 64;
 const MAX_LINES = 2;
 
 /** Type metrics of a row. A single line is 34 high, two lines 43 - inside the
@@ -68,6 +81,9 @@ const MARK_GAP = 6;
 const BADGE_GAP = 7;
 /** Air around the whole thing, so a fit never puts a letter on the edge. */
 const PAD = 10;
+/** How far the hit box of a row reaches past the end of its own text. Part of
+ *  the bounds, so part of what has to fit on the phone. */
+const EDGE = 3;
 
 // --------------------------------------------------------------------- shape
 
@@ -182,20 +198,65 @@ export function fitLines(raw, maxW, measure) {
 }
 
 /**
+ * The line budgets, derived from the stage instead of decreed.
+ *
+ * The tree is two columns around one centre, so a ROW at depth d has exactly
+ * half the target width to live in, and the fixed geometry has to come out of
+ * it first: half the centre plate, the trunk, one indent per level, the gap
+ * after the dot, the reach of the hit box and the air around the whole thing.
+ * What is left is what the row may spend - the title plus, where there is one,
+ * the rank in front of it or the +n badge behind it (see shape()).
+ *
+ * The four depths keep their authored PROPORTION - one factor for the whole
+ * vector, taken from the depth with the least room - because a map whose parts
+ * were suddenly as wide as its goals would read as a different screen. The
+ * factor never goes above 1: a wide stage does not stretch a title into one
+ * endless line, it simply lets the camera magnify (TREE_MAX_K).
+ *
+ * @param {number} target the widest the whole tree may be, in user units
+ * @param {number} centreHalf half the centre plate
+ * @returns {number[]} one budget per depth
+ */
+export function budgetsFor(target, centreHalf) {
+  const half = Math.max(1, target / 2);
+  let factor = 1;
+  for (let d = 0; d < MAXW.length; d += 1) {
+    const fixed = centreHalf + TRUNK + d * INDENT + DOT_GAP + EDGE + PAD;
+    factor = Math.min(factor, (half - fixed) / MAXW[d]);
+  }
+  return MAXW.map((w) => Math.max(MIN_BUDGET, Math.round(w * factor)));
+}
+
+/**
+ * The fixtures of a row - the rank in front of a goal, the +n badge on a
+ * summed-up one. Measured BEFORE any title is broken, because they are what the
+ * title has to share its half of the phone with, and the budgets cannot be
+ * derived without them.
+ */
+function fixtures(item, measure) {
+  item.numW = item.depth === 0 ? measure(String(item.index + 1), "mm-rank") + 5 : 0;
+  item.badgeW = item.hidden > 0 ? BADGE_GAP + measure(t("map.more", { n: item.hidden }), "mm-more") : 0;
+}
+
+/**
  * Real text extents, one item at a time. Everything the layout does downstream -
  * the column reach, the badge position, the hit box, the bounds the camera fits
  * to - is a function of what came back from here, which is why the ruler runs
  * in the live SVG with the very classes the finished nodes will carry.
+ *
+ * The budget of a depth belongs to the whole ROW, so a goal pays for its rank
+ * out of it and a summed-up row for its +n badge: those two are the reason a
+ * column used to reach further than its budget said it would, which is what put
+ * the outer titles off the phone.
  */
-function shape(item, measure) {
+function shape(item, budgets, measure) {
   const raw = (item.node.title || "").trim() || t("editor.newTitle");
   const cls = `mm-title is-d${item.depth}`;
-  const budget = MAXW[item.depth] || MAXW[MAXW.length - 1];
+  const d = Math.min(item.depth, budgets.length - 1);
+  const budget = Math.max(MIN_BUDGET, budgets[d] - item.numW - item.badgeW);
   const fitted = fitLines(raw, budget, (value) => measure(value, cls));
   item.lines = fitted.lines;
   item.textW = fitted.w;
-  item.numW = item.depth === 0 ? measure(String(item.index + 1), "mm-rank") + 5 : 0;
-  item.badgeW = item.hidden > 0 ? BADGE_GAP + measure(t("map.more", { n: item.hidden }), "mm-more") : 0;
   item.w = DOT_GAP + item.numW + item.textW + item.badgeW;
   item.h = Math.max(ROW_MIN, item.lines.length * LINE + ROW_PAD);
 }
@@ -460,17 +521,26 @@ export function makeRuler(svg) {
  * Build the whole mind map.
  * @param {Array} nodes the living document
  * @param {(value: string, cls: string) => number} measure a ruler
- * @returns {{g: SVGElement, items: Array, bounds: Object, centreHalf: number}}
+ * @param {number} [target] the widest the finished tree may be, in user units -
+ *   the stage width divided by the readability floor. Left out, the authored
+ *   budgets stand as they are, which is what a caller without a stage gets.
+ * @returns {{g: SVGElement, items: Array, bounds: Object, centreHalf: number,
+ *   budgets: number[]}}
  */
-export function buildScene(nodes, measure) {
+export function buildScene(nodes, measure, target) {
   const roots = childrenOf(nodes, null);
   const items = [];
   roots.forEach((root, i) => collect(nodes, root, 0, null, i, roots.length, items));
-  for (const item of items) shape(item, measure);
 
   const label = t("outline.title");
   const centreHalf = (CENTRE_PAD * 2 + MARK + MARK_GAP + measure(label, "mm-centre-label")) / 2;
   const columnX = centreHalf + TRUNK;
+
+  // The fixtures of every row first, then the budgets the stage leaves over,
+  // then the titles: the order the geometry actually depends on.
+  for (const item of items) fixtures(item, measure);
+  const budgets = budgetsFor(target === undefined ? Infinity : target, centreHalf);
+  for (const item of items) shape(item, budgets, measure);
 
   // READING order beats symmetry (owner decision): the right side carries
   // rank one downwards, the left side continues where the right left off -
@@ -509,8 +579,8 @@ export function buildScene(nodes, measure) {
   let minY = -CENTRE_H / 2;
   let maxY = CENTRE_H / 2;
   for (const it of items) {
-    const x0 = it.side > 0 ? it.x - 9 : it.x - (it.w + 3);
-    const x1 = it.side > 0 ? it.x + it.w + 3 : it.x + 9;
+    const x0 = it.side > 0 ? it.x - 9 : it.x - (it.w + EDGE);
+    const x1 = it.side > 0 ? it.x + it.w + EDGE : it.x + 9;
     if (x0 < minX) minX = x0;
     if (x1 > maxX) maxX = x1;
     if (it.y - it.h / 2 < minY) minY = it.y - it.h / 2;
@@ -520,6 +590,9 @@ export function buildScene(nodes, measure) {
     g,
     items,
     centreHalf,
+    // What this scene was built for, so a caller can ask - without building
+    // anything - whether a new stage width would even change the budgets.
+    budgets,
     bounds: { minX: minX - PAD, minY: minY - PAD, maxX: maxX + PAD, maxY: maxY + PAD },
   };
 }
