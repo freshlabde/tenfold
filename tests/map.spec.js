@@ -536,7 +536,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v33"');
+  expect(sw).toContain('const VERSION = "tenfold-v34"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -934,6 +934,103 @@ test("the mind map opens complete on a phone, whatever that phone is wide", asyn
     .toBe(PHONE.width);
   await settled(page);
   await expectComplete(page, "390");
+});
+
+/**
+ * The owner's report, as a document: one goal whose part carries five steps of
+ * its own, repeated at the front and at the back of the ten so that the same
+ * shape lands once on the right branch and once on the left. Whatever the row
+ * load does with the split, one of the two is on each side.
+ */
+async function deepBothSides(page) {
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    const add = (title, parentId) => {
+      ctx.commitCompose(title, parentId, "stay");
+      const kids = ctx.childrenOf(parentId);
+      return kids[kids.length - 1].id;
+    };
+    const deep = (goalTitle) => {
+      const goal = add(goalTitle, null);
+      const part = add("The relationship with my father", goal);
+      for (const step of [
+        "Call him every Sunday evening",
+        "Drive over for lunch once a month",
+        "Go through the old photographs",
+        "Talk about the time after the company",
+        "Plan his eightieth birthday properly",
+      ]) {
+        add(step, part);
+      }
+      add("Do not forget Anna's birthday", goal);
+      add("Speak to my brother again", goal);
+    };
+    deep("The people who are close to me");
+    for (const title of ["Pay off the debt", "Make the company sellable", "Run ten kilometres"]) {
+      const goal = add(title, null);
+      add("A first part under it", goal);
+      add("A second part under it", goal);
+    }
+    deep("The people I work with every day");
+    ctx.setSettings({ mapMode: "tree" });
+    ctx.go("outline", null, { replace: true });
+  });
+  await expect(page.locator(".row-shell")).toHaveCount(5);
+}
+
+test("every level of the mind map is its own column, on both branches", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await deepBothSides(page);
+  await openMind(page);
+
+  // The owner's complaint, as a measurement. A row's ANCHORED text edge - where
+  // its title starts on the right branch, where it ends on the left - is what a
+  // reader lines the levels up by, and depth two used to land on the same one
+  // as depth one: the nodes were there, the level was not. Both branches are
+  // checked, because right-aligned text is where an indent is easiest to lose.
+  const rows = await page.locator(".mm-node").evaluateAll((list) =>
+    list.map((g) => {
+      const dot = g.querySelector(".mm-dot");
+      const title = g.querySelector(".mm-title");
+      const box = title.getBoundingClientRect();
+      const x = Number(dot.getAttribute("cx"));
+      return { depth: Number([...g.classList].find((c) => /^is-d\d$/.test(c)).slice(4)),
+        side: x < 0 ? -1 : 1,
+        // A coordinate that grows OUTWARD on either branch, so one comparison
+        // covers both: the start of the text on the right, the negated end of
+        // it on the left.
+        reach: x < 0 ? -box.right : box.left };
+    }),
+  );
+  for (const side of [1, -1]) {
+    const at = (d) => rows.filter((r) => r.side === side && r.depth === d).map((r) => r.reach);
+    const [ones, twos] = [at(1), at(2)];
+    expect(ones.length, `depth one on side ${side}`).toBeGreaterThan(0);
+    expect(twos.length, `depth two on side ${side}`).toBeGreaterThan(0);
+    // Every depth-two row starts a clear column further out than every
+    // depth-one row - not a hairline, a step a reader cannot miss. The floor is
+    // sixteen device-independent pixels because the geometry this replaced
+    // came out at about twelve and that is what the owner could not see; the
+    // shipped step renders at a little over nineteen, the same on both
+    // branches, which is the mirroring this also guards.
+    expect(Math.min(...twos) - Math.max(...ones), `side ${side} indent`).toBeGreaterThan(16);
+  }
+
+  // And the step is only half of it: a parent puts down ONE rail and every one
+  // of its children elbows off that rail, which is what says the five steps
+  // belong to the part above them rather than standing beside it. One rail per
+  // node that has children, one stub per child, one spine per branch side.
+  expect(rows.length).toBe(27); // five goals, twelve parts, ten steps
+  // Seven nodes have children: the five goals, and the one part under each of
+  // the two deep goals.
+  expect(await page.locator(".mm-rail").count()).toBe(7);
+  expect(await page.locator(".mm-rail.is-d0").count()).toBe(5);
+  expect(await page.locator(".mm-rail.is-d1").count()).toBe(2);
+  expect(await page.locator(".mm-spine").count()).toBe(2);
+  expect(await page.locator(".mm-link.is-trunk").count()).toBe(5);
+  expect(await page.locator(".mm-link.is-d0").count()).toBe(12);
+  expect(await page.locator(".mm-link.is-d1").count()).toBe(10);
 });
 
 test("a two-goal tree in the mind map is not wrapped into stumps", async ({ page }) => {

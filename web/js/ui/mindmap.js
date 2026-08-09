@@ -8,8 +8,9 @@
 // advance width of every line in the current skin, and those widths decide the
 // column reach, the hit box and the bounds the camera fits to. Rows never
 // collide, by construction rather than by a pass: every node owns a disjoint
-// vertical band, and a parent takes its own band in the middle of its children,
-// which is what gives the branch its up/down split.
+// vertical band, a parent takes the FIRST band of its own block, and it puts
+// down one rail that every one of its children elbows off - so which rows hang
+// under which is carried by the geometry, not by the type size.
 //
 // What it deliberately does NOT do: no float, no simulation, no randomness and
 // no clock - a mind map that breathed would be unreadable, which is the whole
@@ -45,8 +46,19 @@ const FAMILIES = 10;
  * budgetsFor() below scales the whole vector down until the deepest row still
  * fits the half-phone it has to live in. A narrow phone therefore wraps a title
  * into more lines instead of pushing a column off the screen.
+ *
+ * The proportion is NOT even, and the reason is the indent (STEP below). One
+ * scale factor is taken from the depth with the least room, so whichever depth
+ * is tightest sets the width of the whole tree; the deep step outward that
+ * makes level two read as its own column had to be paid by somebody, and these
+ * last two numbers are who pays. They are cut just far enough that depth zero
+ * stays the binding constraint at 360pt exactly as it was before the indent
+ * grew - a goal keeps every unit of title it had, a third-level row gives up
+ * about a fifth of its own. That is the right way round: the top of the tree is
+ * read from across the room, the bottom of it is read in context, and a row at
+ * depth three already carries the +n badge that says the rest is inside.
  */
-const MAXW = [156, 126, 114, 104];
+const MAXW = [156, 126, 106, 80];
 /**
  * No budget ever goes under this, whatever the stage says. Below it a title
  * would be shaved to two or three words and the map would stop being a reading
@@ -68,8 +80,8 @@ const MAX_LINES = 2;
  * with the very same classes, so a change there changes the widths too.
  */
 const LINE = [20, 16, 14.5, 14];
-const ROW_MIN = [42, 34, 31, 31];
-const ROW_PAD = [16, 13, 12, 12];
+const ROW_MIN = [42, 34, 29, 29];
+const ROW_PAD = [16, 13, 11, 11];
 
 /** The leading dot carries the family tint; the ring around it carries progress
  *  where there is any, on the same convention as the sky's completion arc.
@@ -107,13 +119,111 @@ const CHECK = 11;
  */
 const LEAD_RING = 2.8;
 
-/** How far one level steps outward. Small on purpose: a column per level would
- *  be honest mind-map geometry and unreadable type on a 390pt screen. */
-const INDENT = 15;
+/**
+ * How far one level steps outward - one number PER LEVEL, not one for all.
+ *
+ * The owner's report: a goal with a part that had five steps of its own read as
+ * one flat list, "diese Ebene fehlt komplett". The nodes were there; the step
+ * that was meant to say which of them hung under which was fifteen units, about
+ * eleven pixels once the camera has fitted the tree, and eleven pixels is not a
+ * column - it is a wobble. So the steps are now spent where the reading
+ * actually breaks:
+ *
+ *   [0] goal -> part   20   the smallest step a RAIL will fit in: a parent's
+ *                           completion ring is 6.8 out and so is its child's,
+ *                           which at the old fifteen left 1.4 units of clear
+ *                           air between two rings - no room for a bracket at
+ *                           all. Twenty is not there to be read as an indent
+ *                           (on the right branch the rank chip eats it anyway,
+ *                           the figure sitting between the dot and the title);
+ *                           it is there so the goal can hold its parts.
+ *   [1] part -> step   24   the step that was missing, and the one the whole
+ *                           complaint is about. At the fit scale this is a good
+ *                           twenty pixels: a column, not a wobble, and it
+ *                           mirrors exactly on the left branch because the text
+ *                           there ends at the CHILD's dot, never the parent's.
+ *   [2] step -> below  18   enough to keep the ladder going without paying for
+ *                           a fourth full column out of the last budget.
+ *
+ * Every unit here is a unit of title the row cannot have (budgetsFor), and the
+ * cost is cumulative down the tree - which is why MAXW above gives the two deep
+ * levels less to start with instead of letting them drag the whole tree narrow.
+ */
+const STEP = [20, 24, 18];
+/** Where each depth's column stands, measured from the first one: the running
+ *  sum of STEP. Kept as its own table because budgetsFor needs the total, and a
+ *  loop that re-derived it there would be the second place to get it wrong. */
+const COLUMN = STEP.reduce((acc, step) => [...acc, acc[acc.length - 1] + step], [0]);
 /** Centre plate edge to the first column - the length of the trunk. Every unit
- *  of it is a unit no title can have, and the curve reads as a trunk at 15 just
+ *  of it is a unit no title can have, and the curve read as a trunk at 15 just
  *  as well as it did at 20. */
 const TRUNK = 15;
+/**
+ * How far off the plate the vault's own rail stands, which splits the trunk
+ * into a fixed pair: SPINE_IN of air beside the plate, then TRUNK - SPINE_IN of
+ * stub into each goal.
+ *
+ * The ten used to leave the plate as ten separate curves from ONE point, and
+ * with fifteen units of horizontal room against a tree several hundred units
+ * tall they were not curves, they were a rope: ten near-vertical lines lying on
+ * top of each other beside the centre. Nobody had complained about it because
+ * there was nothing beside it to compare with - and then the rails arrived,
+ * running parallel to the rope a few units further out, and the doubling was
+ * the first thing the eye went to. So the vault holds the ten the same way
+ * everything else on this screen holds its children: one rail, ten stubs. The
+ * rope is gone and the rule is now the same at every level of the map.
+ */
+const SPINE_IN = 6;
+
+/**
+ * The spine, and the second half of the answer to the missing level.
+ *
+ * Indent alone says "this row starts further out"; it does not say WHOSE row it
+ * is. So a parent no longer fans a separate curve at each of its children:
+ * it puts down one rail - out of its own dot, then straight down the run of its
+ * children - and every child elbows off that rail at its own height. It is the
+ * oldest mind-map convention there is and it does the one thing five separate
+ * curves could not: five steps on one rail are visibly five steps of ONE part.
+ *
+ * RAIL is how far in front of the parent's own dot the rail stands, and it is
+ * DOT_GAP exactly - the rail is the column a title starts at. That is the one
+ * value that clears the completion ring (6.8) without reaching into the text,
+ * on either branch, at every depth; and because it lands on a column the row
+ * already owns, the rail costs the layout nothing - no bound moves, no budget
+ * is spent on it. It never crosses a letter either: a rail spans only the bands
+ * of its own children, and the parent's own band is not one of them.
+ */
+const RAIL = DOT_GAP;
+/** The fillet where a stub leaves the rail, and where the rail leaves the
+ *  parent. Small, and never more than a third of the stub it is bending, or the
+ *  shortest bracket in the tree comes out as a hook instead of a corner. */
+const ELBOW = 4.5;
+const ELBOW_SHARE = 0.34;
+/**
+ * Where a parent that HAS children sits in their block: at the TOP of it.
+ *
+ * Three arrangements were built on the owner's own tree and looked at:
+ * centred everywhere (what shipped), top everywhere, and the compromise -
+ * goals centred among their parts, everything below at the top.
+ *
+ * Centred is the prettier diagram: the branch splits up and down and the whole
+ * family balances around the trunk. It is also exactly what caused the report.
+ * A parent standing third in a run of six reads as the third of six, and no
+ * amount of type will argue a reader out of what the vertical order is telling
+ * them. The compromise lost for the same reason one level up: a goal centred
+ * among three parts, the first of which carries five steps of its own, ends up
+ * BELOW that whole block - the goal was read seventh in its own family.
+ *
+ * At the top of its block a parent is what a reader already knows how to read:
+ * a heading, then the things under it, top to bottom, the same order as the
+ * list this map is a second reading OF. The rail makes it a bracket instead of
+ * a stack, and the up/down split the old geometry bought is still there - it is
+ * between the ten families now, not inside them. What it costs is the trunk:
+ * ten goals pushed to the top of their blocks leave the centre plate on longer
+ * curves than ten goals sitting in the middle of theirs. That is the price, it
+ * is paid in a line rather than in a word, and it is the right way round.
+ */
+const PARENT_TOP = true;
 
 const CENTRE_H = 34;
 const CENTRE_PAD = 11;
@@ -258,8 +368,10 @@ export function fitLines(raw, maxW, measure) {
  *
  * The tree is two columns around one centre, so a ROW at depth d has exactly
  * half the target width to live in, and the fixed geometry has to come out of
- * it first: half the centre plate, the trunk, one indent per level, the gap
- * after the dot, the reach of the hit box and the air around the whole thing.
+ * it first: half the centre plate, the trunk, the whole indent down to that
+ * level (COLUMN, the running sum of STEP - which is why a deeper indent is paid
+ * by every level under it and not only by the one it belongs to), the gap after
+ * the dot, the reach of the hit box and the air around the whole thing.
  * What is left is what the row may spend - the title plus, where there is one,
  * the rank in front of it or the +n badge behind it (see shape()).
  *
@@ -277,7 +389,7 @@ export function budgetsFor(target, centreHalf) {
   const half = Math.max(1, target / 2);
   let factor = 1;
   for (let d = 0; d < MAXW.length; d += 1) {
-    const fixed = centreHalf + TRUNK + d * INDENT + DOT_GAP + EDGE + PAD;
+    const fixed = centreHalf + TRUNK + COLUMN[Math.min(d, COLUMN.length - 1)] + DOT_GAP + EDGE + PAD;
     factor = Math.min(factor, (half - fixed) / MAXW[d]);
   }
   return MAXW.map((w) => Math.max(MIN_BUDGET, Math.round(w * factor)));
@@ -337,13 +449,14 @@ function shape(item, budgets, measure) {
 // -------------------------------------------------------------------- layout
 
 /**
- * The tidy stack. Columns come from depth, rows from the measured line count,
- * and a parent takes its own row in the MIDDLE of its children - the upper half
- * above it, the lower half below - which is the split that makes a branch look
- * like a branch instead of an indented list. Because the cursor only ever moves
- * forward, every node owns a vertical band nobody else can be in: two titles
- * cannot overlap, at any depth, for any list, without a collision pass.
- * Reading order survives it, top to bottom, rank by rank.
+ * The tidy stack. Columns come from depth (COLUMN, one step per level), rows
+ * from the measured line count, and a parent takes the FIRST row of its own
+ * block - see PARENT_TOP for why it used to take the middle one and why it no
+ * longer does. Because the cursor only ever moves forward, every node owns a
+ * vertical band nobody else can be in: two titles cannot overlap, at any depth,
+ * for any list, without a collision pass. Reading order survives it, top to
+ * bottom, rank by rank - and now a parent is read before the things under it,
+ * which is the order the outline itself has.
  * @returns {number} the bottom of the band this subtree occupies
  */
 function stack(item, x, y, side) {
@@ -354,10 +467,11 @@ function stack(item, x, y, side) {
     item.y = y + item.h / 2;
     return y + item.h;
   }
-  const childX = x + side * INDENT;
-  // floor, not ceil: with one child the parent stays above it, which is what
-  // a reader expects, and with four it sits exactly in the middle.
-  const up = Math.floor(kids.length / 2);
+  const childX = x + side * STEP[Math.min(item.depth, STEP.length - 1)];
+  // How many children go ABOVE the parent: none, now that a parent heads its
+  // own block. The other arrangement is one constant away, and floor rather
+  // than ceil is what put the parent above its only child when it was in use.
+  const up = PARENT_TOP ? 0 : Math.floor(kids.length / 2);
   let cursor = y;
   for (let i = 0; i < up; i += 1) cursor = stack(kids[i], childX, cursor, side);
   item.y = cursor + item.h / 2;
@@ -382,21 +496,37 @@ function shiftBranch(item, dy) {
 const n2 = (v) => v.toFixed(2);
 
 /**
- * One edge, one cubic. The trunk leaves the centre plate horizontally and
- * arrives at its goal the same way; a branch inside a family drops out of its
- * parent and curves outward into the child, because there the vertical distance
- * is the large one and a horizontal S would read as a wobble.
+ * The rail: out of the parent horizontally, a fillet, then straight down the
+ * run of the children it holds. With PARENT_TOP the parent is above the whole
+ * run, so this is one unbroken bracket; the constant is left as a switch, and a
+ * centred parent simply gets a rail that also reaches up.
+ *
+ * The x of the rail is passed in rather than derived, because the centre plate
+ * uses this too - the vault is the parent of the ten and holds them the same
+ * way a part holds its steps, see spineFor().
  */
-function curve(px, py, cx, cy, side, trunk) {
-  const dx = Math.abs(cx - px);
-  const dy = cy - py;
-  if (trunk) {
-    const k = Math.max(10, dx * 0.62);
-    return `M${n2(px)} ${n2(py)}C${n2(px + side * k)} ${n2(py)} ${n2(cx - side * k)} ${n2(cy)} ${n2(cx)} ${n2(cy)}`;
-  }
-  const k = Math.max(10, Math.abs(dy) * 0.5) * (dy < 0 ? -1 : 1);
-  return `M${n2(px)} ${n2(py)}C${n2(px)} ${n2(py + k)} ${n2(cx - side * dx * 1.1)} ${n2(cy)} ${n2(cx)} ${n2(cy)}`;
+function railPath(rx, px, py, side, first, last) {
+  const bottom = Math.max(py, last);
+  const top = Math.min(py, first);
+  const turn = Math.min(ELBOW, Math.abs(bottom - py) / 2, RAIL * ELBOW_SHARE * 2);
+  const head = `M${n2(px)} ${n2(py)}L${n2(rx - side * turn)} ${n2(py)}Q${n2(rx)} ${n2(py)} ${n2(rx)} ${n2(py + turn)}`;
+  const up = top < py ? `M${n2(rx)} ${n2(top)}L${n2(rx)} ${n2(py)}` : "";
+  return `${head}L${n2(rx)} ${n2(bottom)}${up}`;
 }
+
+/** One child, off the rail: a fillet away from the vertical, then straight into
+ *  its own dot. Every stub is the same shape at the same depth, which is what
+ *  makes a run of five read as a run. */
+function stubPath(rx, py, side, kx, ky) {
+  const turn = Math.min(ELBOW, Math.abs(ky - py) / 2, Math.abs(kx - rx) * ELBOW_SHARE);
+  const from = ky >= py ? ky - turn : ky + turn;
+  return `M${n2(rx)} ${n2(from)}Q${n2(rx)} ${n2(ky)} ${n2(rx + side * turn)} ${n2(ky)}L${n2(kx)} ${n2(ky)}`;
+}
+
+/** Where the vault's own rail stands: just off the plate, so the ten hang from
+ *  it at arm's length and the stub into each goal is about as long as the stub
+ *  from a goal into one of its parts. */
+const spineX = (centreHalf) => centreHalf + SPINE_IN;
 
 /** One node: its progress arc, its dot, its rank chip, its full title, its
  *  badge, its box. */
@@ -534,21 +664,39 @@ function drawNode(item) {
   return g;
 }
 
-/** One family: the trunk, every edge below it, then every node. */
+/** One family: the trunk, then every parent's rail and its children's stubs,
+ *  then every node. The rail carries the depth of the PARENT that put it down,
+ *  so app.css can let a part hold its own five steps a shade firmer than a goal
+ *  holds its parts - the bundle that was reading as a flat list is the one that
+ *  needs the extra weight. */
 function drawBranch(root, centreHalf) {
   const g = sel("g", { class: `mm-branch is-fam${root.fam}` });
   g.style.setProperty("--i", String(root.index));
   const links = sel("g", { class: "mm-links" });
+  // The trunk is now the goal's own stub off the vault's rail - the rail itself
+  // is drawn once per side, with the centre, because it carries all ten
+  // families and the centre is not a family.
   links.appendChild(
     sel("path", {
       class: "mm-link is-trunk",
-      attrs: { d: curve(root.side * centreHalf, 0, root.x, root.y, root.side, true) },
+      attrs: { d: stubPath(root.side * spineX(centreHalf), 0, root.side, root.x, root.y) },
     }),
   );
   walk(root, (it) => {
+    if (!it.kids.length) return;
+    const rx = it.x + it.side * RAIL;
+    links.appendChild(
+      sel("path", {
+        class: `mm-rail is-d${it.depth}`,
+        attrs: { d: railPath(rx, it.x, it.y, it.side, it.kids[0].y, it.kids[it.kids.length - 1].y) },
+      }),
+    );
     for (const kid of it.kids) {
       links.appendChild(
-        sel("path", { class: "mm-link", attrs: { d: curve(it.x, it.y, kid.x, kid.y, it.side, false) } }),
+        sel("path", {
+          class: `mm-link is-d${it.depth}`,
+          attrs: { d: stubPath(rx, it.y, it.side, kid.x, kid.y) },
+        }),
       );
     }
   });
@@ -557,9 +705,35 @@ function drawBranch(root, centreHalf) {
   return g;
 }
 
-/** The vault, as a node: the mark and the name of the list, on one plate. */
-function drawCentre(halfW, label) {
+/**
+ * The vault, as a node: the mark and the name of the list on one plate, and the
+ * rail it holds its ten from - one per side that has any, spanning that side's
+ * goals. It is drawn here and not in a branch because it belongs to all of
+ * them: the centre is not a family, so the rail takes the accent the plate
+ * takes and none of the ten hues.
+ * @param {Array[]} sides the goals per side, right first
+ */
+function drawCentre(halfW, label, sides) {
   const g = sel("g", { class: "mm-centre" });
+  [1, -1].forEach((side, s) => {
+    const roots = sides[s];
+    if (!roots.length) return;
+    g.appendChild(
+      sel("path", {
+        class: "mm-spine",
+        attrs: {
+          d: railPath(
+            side * spineX(halfW),
+            side * halfW,
+            0,
+            side,
+            roots[0].y,
+            roots[roots.length - 1].y,
+          ),
+        },
+      }),
+    );
+  });
   g.appendChild(
     sel("rect", {
       class: "mm-centre-plate",
@@ -686,7 +860,7 @@ export function buildScene(nodes, measure, target) {
   });
 
   const g = sel("g", { class: "mm-tree" });
-  g.appendChild(drawCentre(centreHalf, label));
+  g.appendChild(drawCentre(centreHalf, label, sides));
   for (const root of tops) g.appendChild(drawBranch(root, centreHalf));
 
   let minX = -centreHalf;

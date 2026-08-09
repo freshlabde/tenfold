@@ -1670,6 +1670,53 @@ button.h-sub {
    still reads as one thing where five of them leave the centre together. */
 .mm-link.is-trunk { stroke: color-mix(in srgb, var(--tint) 46%, transparent); stroke-width: 1.5; }
 
+/* The vault's own rail, the one line on this screen that holds more than one
+   family - so it takes the accent the centre plate takes and none of the ten
+   hues, for the same reason the plate does: the centre is not a family. It is
+   set quieter than the plate's own edge, because it is a spine and not a
+   boundary; what has to be seen on it are the ten stubs leaving it. */
+.mm-spine {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 24%, transparent);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* THE RAIL - the line that says a row OWNS the rows under it.
+   The owner's report was not that the deep rows were missing, it was that they
+   read as siblings of the row above them: five steps under one part came out as
+   one flat run of six. Indent alone does not fix that, because indent says
+   "further out" and not "belonging to whom". The rail does: one bracket out of
+   the parent's own dot, straight down the run, and every child elbowing off it
+   at its own height.
+
+   It is drawn a shade firmer than the stubs that leave it - the rail is the
+   claim, the stub is only the delivery - and the rail a PART puts down over its
+   own steps is firmer still. That last step is deliberately NOT a ladder: a
+   goal's own bracket needs no help, because a goal is set a third larger and
+   carries a filled rank chip, and the level below a step is muted content that
+   extra weight would only fight. The emphasis goes where the reading broke and
+   nowhere else. Above 46% the ten hues start shouting at each other on a full
+   tree; this stops just under it. */
+.mm-rail {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tint) 38%, transparent);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.mm-rail.is-d1 {
+  stroke: color-mix(in srgb, var(--tint) 45%, transparent);
+  stroke-width: 1.45;
+}
+/* A stub is the quietest line on the screen: it has one job, which is to land
+   on a dot, and five of them at equal weight would rebuild the fan the rail was
+   put there to replace. */
+.mm-link.is-d1, .mm-link.is-d2 { stroke: color-mix(in srgb, var(--tint) 30%, transparent); }
+
 /* The tint rides on the dot, never on the letters: a title has one job, and
    coloured body text at ten hues would have made ten of them unreadable. */
 .mm-dot { fill: var(--tint); stroke: none; pointer-events: none; }
@@ -1679,13 +1726,21 @@ button.h-sub {
    looked like every other row, so a goal drowned in its own parts.
 
      depth 0  the ten        16px, display weight, full ink, tinted rank chip
-     depth 1  the parts      13px, plain weight, full ink, tinted dot
-     depth 2  below that   11.5px, second ink
-     depth 3  the rest     11.5px, muted, the smallest dot and the +n badge
+     depth 1  the parts      13px, medium weight, full ink, tinted dot
+     depth 2  below that   11.5px, plain weight, second ink
+     depth 3  the rest     11.5px, plain weight, muted, smallest dot, +n badge
 
    The bottom two share a size and part on ink alone: they are one voice, the
    quiet one, and dropping the last level any smaller would put it under the
    readability floor the camera is built around (map.js TREE_MIN_K).
+
+   The step from a part to its own steps is the one that failed in the field,
+   and it is NOT repaired here: 13px to 11.5px is as far as type can go before
+   the bottom of the tree stops being readable at all. What repairs it is
+   geometry - a 26-unit indent and the rail (mindmap.js STEP, .mm-rail below) -
+   and the one thing this ladder adds to that is a weight step at depth one, so
+   a part is set a shade firmer than the steps hanging off it. Type supports the
+   structure here; it is no longer asked to carry it.
 
    Colour does NOT carry the ladder: the hue on this screen means WHICH FAMILY,
    never how deep, and tinted body text at ten hues would be ten kinds of
@@ -1710,7 +1765,7 @@ button.h-sub {
   font-family: var(--font-display);
   font-size: 16px; font-weight: var(--weight-display); letter-spacing: -.022em;
 }
-.mm-title.is-d1 { fill: var(--text); font-size: 13px; font-weight: 400; }
+.mm-title.is-d1 { fill: var(--text); font-size: 13px; font-weight: 500; }
 .mm-title.is-d2 { fill: var(--text-2); font-size: 11.5px; font-weight: 400; }
 .mm-title.is-d3 { fill: var(--muted); font-size: 11.5px; font-weight: 400; }
 
@@ -1765,6 +1820,9 @@ button.h-sub {
    this skin says it is anyway. */
 :root[data-skin="breath"] .mm-title { font-weight: 300; }
 :root[data-skin="breath"] .mm-title.is-d0 { font-weight: 400; }
+/* The weight step from a part to its steps survives here too, one notch down
+   the scale: 400 over 300, not 500 over 400, or breath would stop being breath. */
+:root[data-skin="breath"] .mm-title.is-d1 { font-weight: 400; }
 
 .mm-more {
   fill: var(--text-4);
