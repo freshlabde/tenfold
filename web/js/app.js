@@ -1470,7 +1470,32 @@ async function boot() {
   if ("serviceWorker" in navigator && !navigator.webdriver && location.protocol !== "file:") {
     // Registered outside the test runner: a cached shell would otherwise hide
     // source changes from Playwright between runs.
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    //
+    // Updates apply THEMSELVES. Without this, a deploy only reaches a device
+    // on the SECOND reload: the first one still serves from the old cache
+    // while the new worker installs in the background - the owner sat on a
+    // week-old map wondering why nothing changed. When the new worker takes
+    // control the page reloads once; the guard stops any loop, and an open
+    // sheet or a mid-edit composer is respected by waiting for idle.
+    // On the very first visit clients.claim() also fires controllerchange -
+    // that is adoption, not an update, and must not reload a fresh page.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || reloadedForUpdate || !navigator.serviceWorker.controller) return;
+      reloadedForUpdate = true;
+      location.reload();
+    });
+    navigator.serviceWorker
+      .register("./sw.js")
+      .then((reg) => {
+        // Ask for a fresh check on every return to the app, not only on
+        // navigation - an installed PWA can live for days without one.
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") reg.update().catch(() => {});
+        });
+      })
+      .catch(() => {});
   }
 }
 
