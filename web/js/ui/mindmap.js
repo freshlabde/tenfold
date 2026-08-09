@@ -472,14 +472,25 @@ export function buildScene(nodes, measure) {
   const centreHalf = (CENTRE_PAD * 2 + MARK + MARK_GAP + measure(label, "mm-centre-label")) / 2;
   const columnX = centreHalf + TRUNK;
 
-  // Rank one goes right and top, rank two left and top, and so on down: the
-  // two columns stay the same length within one goal of each other, and the
-  // list still reads top to bottom on both sides.
+  // READING order beats symmetry (owner decision): the right side carries
+  // rank one downwards, the left side continues where the right left off -
+  // never 1/3/5 right and 2/4/6 left, which read as a shuffle whenever one
+  // branch grew large. The split point follows the row load, so the columns
+  // still come out roughly level.
   const sides = [[], []];
   const tops = items.filter((it) => it.depth === 0);
+  const rowsOf = (it) => {
+    let sum = it.lines.length > 1 ? 43 : 34;
+    for (const kid of it.kids) sum += rowsOf(kid);
+    return sum;
+  };
+  const totalRows = tops.reduce((sum, it) => sum + rowsOf(it), 0);
+  let rightRows = 0;
   tops.forEach((it, i) => {
     it.fam = i % FAMILIES;
-    sides[i % 2].push(it);
+    const goRight = rightRows === 0 || rightRows + rowsOf(it) / 2 <= totalRows / 2;
+    if (goRight) rightRows += rowsOf(it);
+    sides[goRight ? 0 : 1].push(it);
   });
 
   [1, -1].forEach((side, s) => {

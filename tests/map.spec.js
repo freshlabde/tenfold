@@ -82,11 +82,30 @@ async function settled(page) {
   );
 }
 
-/** Open the map and wait until the layout has been fitted to the viewport. */
-async function openMap(page) {
+/** Open the map screen (whatever mode it starts in). */
+async function openMapRaw(page) {
+  // The click must not fall into a still-running view transition of the
+  // PREVIOUS navigation: Playwright then retries it, and the retry lands on
+  // whatever the new header put at those coordinates - which is the mode
+  // toggle, silently switching the map to the constellation.
+  await settled(page);
   await page.getByRole("button", { name: "Open the map" }).click();
   await expect(page.locator(".map-canvas")).toBeVisible();
   await expect(page.locator(".map-scene.is-ready")).toHaveCount(1);
+  await settled(page);
+}
+
+/** Open the map in the CONSTELLATION. The mind map is the default now, so
+ *  the sky specs switch over explicitly first. */
+async function openMap(page) {
+  await openMapRaw(page);
+  const sky = page.getByRole("button", { name: "Constellation" });
+  if ((await sky.getAttribute("aria-pressed")) !== "true") {
+    await sky.click();
+    await settled(page);
+  }
+  await expect(page.locator(".map-scene.is-ready")).toHaveCount(1);
+  await expect(page.locator(".map-tree > .map-body").first()).toBeVisible();
   await settled(page);
 }
 
@@ -143,7 +162,8 @@ test("the keyboard opens the map on a desktop", async ({ page }) => {
 
   await page.locator("body").press("m");
   await expect(page.locator(".map-canvas")).toBeVisible();
-  await expect(page.locator(roots)).toHaveCount(2);
+  // The mind map is the default reading now.
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
 });
 
 test("the layout is deterministic - the same list draws the same sky", async ({ page }) => {
@@ -514,7 +534,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v22"');
+  expect(sw).toContain('const VERSION = "tenfold-v23"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -527,10 +547,9 @@ test("the map is in the service worker shell", async () => {
 // that a tap goes straight through to the node instead of coming closer first,
 // and that nothing on this screen ever moves.
 
-/** Open the map and switch it into the mind map. */
+/** Open the map - the mind map IS the default reading now. */
 async function openMind(page) {
-  await openMap(page);
-  await page.getByRole("button", { name: "Mind map" }).click();
+  await openMapRaw(page);
   await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
   await settled(page);
 }
@@ -539,23 +558,24 @@ test("the map header carries the two readings, and the choice is remembered", as
   await freshApp(page);
   await setupVault(page);
   await addRoots(page, TITLES.slice(0, 4));
-  await openMap(page);
+  await openMapRaw(page);
 
-  // The constellation is where the screen starts, and it says so.
+  // The mind map is where the screen starts now (owner decision), and it
+  // says so.
   const sky = page.getByRole("button", { name: "Constellation" });
   const tree = page.getByRole("button", { name: "Mind map" });
-  await expect(sky).toHaveAttribute("aria-pressed", "true");
-  await expect(tree).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".mm-tree")).toHaveCount(0);
-
-  await tree.click();
+  await expect(tree).toHaveAttribute("aria-pressed", "true");
+  await expect(sky).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
-  await expect(page.locator(roots)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Mind map" })).toHaveAttribute("aria-pressed", "true");
+
+  await sky.click();
+  await expect(page.locator(roots).first()).toBeVisible();
+  await expect(page.locator(".mm-tree")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Constellation" })).toHaveAttribute("aria-pressed", "true");
   // It lives in the document, not in the session: the setting is sealed with
   // everything else, which is what makes it survive a lock.
   expect(await page.evaluate(async () => (await import("/web/js/app.js")).ctx.doc.settings.mapMode)).toBe(
-    "tree",
+    "sky",
   );
 
   await page.getByRole("button", { name: "Close" }).click();
@@ -567,13 +587,13 @@ test("the map header carries the two readings, and the choice is remembered", as
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 
   await page.getByRole("button", { name: "Open the map" }).click();
-  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Mind map" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(roots)).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Constellation" })).toHaveAttribute("aria-pressed", "true");
 
   // And back the other way, so neither mode is a one-way door.
-  await page.getByRole("button", { name: "Constellation" }).click();
-  await expect(page.locator(roots)).toHaveCount(4);
-  await expect(page.locator(".mm-tree")).toHaveCount(0);
+  await page.getByRole("button", { name: "Mind map" }).click();
+  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await expect(page.locator(roots)).toHaveCount(0);
 });
 
 test("the mind map draws every living node, and every title in full", async ({ page }) => {
@@ -660,8 +680,7 @@ test("in the mind map a tap opens the node, with no zoom step in between", async
   // And a goal opens its own screen the same way, in one tap.
   await page.locator(".crumb-pill").first().click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
-  await openMap(page);
-  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await openMind(page);
   await tap(page, page.locator('.mm-node.is-d0 [data-hit]').first());
   await expect(page.locator(".hero-title")).toHaveText(TITLES[0]);
 });
@@ -786,8 +805,7 @@ test("below the third level the mind map sums up, exactly as the sky does", asyn
     ctx.go("outline", null, { replace: true });
   });
   await page.waitForTimeout(300);
-  await openMap(page);
-  await expect(page.locator(".mm-tree.is-ready")).toHaveCount(1);
+  await openMind(page);
 
   await expect(page.locator(".mm-node.is-d3")).toHaveCount(1);
   await expect(page.locator(".mm-node.is-d4")).toHaveCount(0);

@@ -637,7 +637,9 @@ export function render(ctx) {
   // Which reading of the tree. Unknown values fall back to the sky, so a
   // document written by a newer version can never leave this screen blank.
   const settings = ctx.doc.settings || {};
-  const mode = settings.mapMode === "tree" ? "tree" : "sky";
+  // The mind map is the DEFAULT reading (owner decision): structure first,
+  // atmosphere one toggle away.
+  const mode = settings.mapMode === "sky" ? "sky" : "tree";
   const sky = mode === "sky";
 
   const bodies = sky ? buildBodies(nodes) : [];
@@ -1186,15 +1188,23 @@ export function render(ctx) {
     bounds = built.bounds;
     for (const item of built.items) byId.set(item.id, item);
     scene.appendChild(mindTree);
+    // The tree is static - it is ready the moment it exists. Waiting for the
+    // camera fit to mark it ready left a rebuilt screen (history reconciler
+    // re-renders after a focus round trip) stuck in the measure() retry loop
+    // with a built but never-"ready" tree.
+    mindTree.classList.add("is-ready");
   }
 
   requestAnimationFrame(function start() {
     if (!alive()) return;
+    // Text can be measured as soon as the SVG is in the document; only the
+    // camera fit needs the stage size. Build first, so the tree never waits
+    // on a stage that reports 0x0 for a few frames.
+    buildMind();
     if (!measure()) {
       requestAnimationFrame(start);
       return;
     }
-    buildMind();
     base = fitFor(bounds);
     cam.x = base.x;
     cam.y = base.y;
@@ -1445,6 +1455,14 @@ export function render(ctx) {
         // Two readings of one list, so the switch belongs next to the title of
         // that list and not in settings three screens away.
         modeToggle(mode, (next) => {
+          // A tap that was meant for the previous screen can land here when
+          // the view transition swaps the DOM under a pressed finger - the
+          // toggle sits exactly where the outline's open-the-map button was.
+          // A mode switch during a transition is never intentional.
+          const mid = document
+            .getAnimations()
+            .some((a) => String((a.effect && a.effect.pseudoElement) || "").includes("view-transition"));
+          if (mid) return;
           stopLoop();
           stopCam();
           ctx.setSettings({ mapMode: next });
