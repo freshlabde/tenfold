@@ -393,9 +393,12 @@ input[type="search"]::-webkit-search-decoration {
 }
 .crumb-pill {
   flex: none;
-  /* 16ch cut "Run ten kilometres again" down to "RUN TEN KI…", which names
-     nothing. The row scrolls sideways, so a longer pill costs nothing. */
-  max-width: 24ch;
+  /* The row scrolls sideways, so a longer pill costs nothing - and since the
+     leaf redesign the breadcrumb is the ONLY carrier of ancestry, so cutting
+     the parent's name matters more than it used to. 24ch still truncated a
+     24-character title because ch ignores the .09em tracking; 34ch lets every
+     real goal name through and only reins in the outliers. */
+  max-width: 34ch;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   border: 0; border-radius: var(--radius-s);
   padding: 7px 10px;
