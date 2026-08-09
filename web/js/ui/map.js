@@ -31,7 +31,7 @@
 // here. And with prefers-reduced-motion, or while the tab is hidden, there is
 // no animation frame at all - the sky simply stands still.
 
-import { el, sel, text, icon, clear } from "./dom.js";
+import { el, sel, text, icon, clear, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
 import { childrenOf } from "../model.js";
 import { prefersReducedMotion, spring, rubberBand } from "../motion.js";
@@ -1287,7 +1287,7 @@ export function render(ctx) {
   const head = el("div", { class: "map-veil" }, [
     el("div", { class: "head-row" }, [
       el("div", {}, [
-        el("div", { class: "eyebrow" }, [text(t("app.name"))]),
+        brandMark(),
         el("h1", { class: "h-title" }, [text(t("map.title"))]),
       ]),
       el("div", { class: "head-actions" }, [

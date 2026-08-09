@@ -10,7 +10,7 @@
 // derives a card automatically; a detected name is only ever a prefilled
 // suggestion the user confirms.
 
-import { el, text, icon, clear } from "./dom.js";
+import { el, text, icon, clear, brandMark } from "./dom.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { t } from "../i18n.js";
 import { ENTITY_KINDS } from "../model.js";
@@ -278,7 +278,7 @@ export function render(ctx) {
   const head = el("div", { class: "head" }, [
     el("div", { class: "head-row" }, [
       el("div", {}, [
-        el("div", { class: "eyebrow" }, [text(t("app.name"))]),
+        brandMark(),
         el("h1", { class: "h-title" }, [text(t("entities.title"))]),
       ]),
       el("div", { class: "head-actions" }, [

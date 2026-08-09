@@ -125,6 +125,10 @@ input[type="search"]::-webkit-search-decoration {
 
 .head { flex: none; padding: 10px var(--gutter) 8px; }
 
+/* The brand eyebrow: mark + wordmark, accent on the mark only. */
+.eyebrow.brand { display: flex; align-items: center; gap: 7px; }
+.eyebrow.brand svg { color: var(--accent); flex: none; }
+
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 9.5px;
@@ -326,6 +330,17 @@ input[type="search"]::-webkit-search-decoration {
   overflow-wrap: anywhere;
 }
 .hero-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+/* Story and note are previews here - clamped so a well-told story can never
+   crowd the children and the action bar off a phone screen. */
+.hero-story,
+.hero-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hero-story { -webkit-line-clamp: 3; }
+.hero-note { -webkit-line-clamp: 2; }
+.hero-card.is-tappable { cursor: pointer; }
 .hero-meta { margin-top: 13px; display: flex; align-items: center; gap: 11px; }
 .hero-meta .track {
   flex: 1; height: 4px; border-radius: 3px; position: relative; overflow: hidden;
@@ -1252,7 +1267,9 @@ input[type="search"]::-webkit-search-decoration {
 
 /* Looking at one branch means letting go of the other nine. */
 .map-body { transition: opacity var(--dur) var(--ease); }
-.map-tree.has-focus > .map-body:not(.is-path) { opacity: .22; }
+/* While a family is focused the rest recedes but must stay clearly THERE -
+   .22 on an OLED read as "my other goals are gone" (owner report). */
+.map-tree.has-focus > .map-body:not(.is-path) { opacity: .45; }
 
 /* A connector belongs to the family it ties together, not to the sky. */
 .map-link {

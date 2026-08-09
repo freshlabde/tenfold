@@ -256,3 +256,14 @@ export function track(ratio, cls = "track") {
     el("i", {}),
   ]);
 }
+
+/**
+ * The brand eyebrow: the mark next to the wordmark, used at the top of every
+ * main screen so the identity is present inside the app, not only on the icon.
+ */
+export function brandMark() {
+  const wrap = el("div", { class: "eyebrow brand" });
+  wrap.appendChild(icon("mark", 13));
+  wrap.appendChild(text("tenfold"));
+  return wrap;
+}

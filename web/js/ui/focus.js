@@ -74,7 +74,23 @@ function hero(ctx, node) {
 
   const showDepth = (ctx.doc.settings || {}).storyDepth !== false;
 
-  const card = el("div", { class: "hero-card" }, [
+  // The hero shows a PREVIEW of the story/note (CSS-clamped) - a long story
+  // must never push the children and the action bar off the screen (real bug:
+  // "nothing clickable on the deepest level"). The full text lives one tap
+  // away: the card itself opens the details.
+  const card = el("div", {
+    class: "hero-card is-tappable",
+    attrs: { role: "button", tabindex: "0", "aria-label": t("focus.openLeaf") },
+    on: {
+      click: () => ctx.go("leaf", node.id),
+      keydown: (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          ctx.go("leaf", node.id);
+        }
+      },
+    },
+  }, [
     el("div", { class: "hero-head" }, [
       el("div", { class: "hero-rank" }, [
         text(t("focus.rank", { rank: rank + 1, total: siblings.length })),

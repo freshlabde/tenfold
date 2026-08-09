@@ -540,7 +540,7 @@ test("the reader borrows the encoder's field instead of copying it", async () =>
 
 test("both new modules are in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v16"');
+  expect(sw).toContain('const VERSION = "tenfold-v17"');
   expect(sw).toContain('"./js/qrread.js"');
   expect(sw).toContain('"./js/ui/photoscan.js"');
 });

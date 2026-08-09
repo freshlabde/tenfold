@@ -12,7 +12,7 @@
 // only appears with sync on, is off until switched on, and says out loud what
 // it cannot do on iOS outside the installed app.
 
-import { el, text, icon } from "./dom.js";
+import { el, text, icon, brandMark } from "./dom.js";
 import { t, LOCALES, getLocale } from "../i18n.js";
 import { exportEncrypted, importEncrypted, exportPlaintextMarkdown, suggestedVaultFileName } from "../portability.js";
 import { openSheet, closeSheet } from "./sheet.js";
@@ -681,7 +681,7 @@ export function render(ctx) {
   const head = el("div", { class: "head" }, [
     el("div", { class: "head-row" }, [
       el("div", {}, [
-        el("div", { class: "eyebrow" }, [text(t("app.name"))]),
+        brandMark(),
         el("h1", { class: "h-title" }, [text(t("settings.title"))]),
       ]),
       el("div", { class: "head-actions" }, [

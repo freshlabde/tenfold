@@ -167,7 +167,9 @@ test("the browser back button walks back through the app", async ({ page }) => {
   const first = await page.locator(".row-title").first().textContent();
   await page.locator(".row").first().click();
   await expect(page.locator(".hero-title")).toHaveText(String(first));
-  await page.getByRole("button", { name: "Details" }).click();
+  // Two "Details" affordances exist since the hero card became tappable;
+  // target the explicit button.
+  await page.locator("button.btn", { hasText: "Details" }).click();
   await expect(page.locator(".leaf-title")).toHaveText(String(first));
 
   // Two browser backs return through focus to the outline, and the app lives.

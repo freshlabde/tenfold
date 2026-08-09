@@ -114,7 +114,7 @@ export function render(ctx) {
 
   return el("section", { class: "screen" }, [
     el("div", { class: "lock" }, [
-      el("div", { class: "lock-mark" }, [icon("lock", 30)]),
+      el("div", { class: "lock-mark" }, [icon("mark", 34)]),
       el("h1", { class: "lock-title" }, [text(t("lock.title"))]),
       el("p", { class: "lock-sub" }, [
         text(ctx.autoLocked ? t("lock.autoLocked", { minutes: ctx.idleMinutes }) : t("lock.sub")),

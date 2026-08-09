@@ -10,7 +10,7 @@
 // adds, indents or deletes; this screen is for doing, not for editing. The
 // question is asked once a day and can be put away with one press.
 
-import { el, text, icon } from "./dom.js";
+import { el, text, icon, brandMark } from "./dom.js";
 import { nodeRow } from "./rows.js";
 import { todayList } from "../model.js";
 import { dailyQuestion } from "../questions.js";
@@ -100,7 +100,7 @@ export function render(ctx) {
   const head = el("div", { class: "head" }, [
     el("div", { class: "head-row" }, [
       el("div", {}, [
-        el("div", { class: "eyebrow" }, [text(t("app.name"))]),
+        brandMark(),
         el("h1", { class: "h-title" }, [text(t("today.title"))]),
       ]),
       el("div", { class: "head-actions" }, [

@@ -8,7 +8,7 @@
 // The order on screen is the order in the document, and only the duel changes
 // it. The empty state is part of this screen, not a separate tour.
 
-import { el, text, icon } from "./dom.js";
+import { el, text, icon, brandMark } from "./dom.js";
 import { nodeList, composer } from "./rows.js";
 import { t } from "../i18n.js";
 import { relativeTime } from "./format.js";
@@ -86,7 +86,7 @@ export function render(ctx) {
   const head = el("div", { class: "head" }, [
     el("div", { class: "head-row" }, [
       el("div", {}, [
-        el("div", { class: "eyebrow" }, [text(t("app.name"))]),
+        brandMark(),
         el("h1", { class: "h-title" }, [text(t("outline.title"))]),
       ]),
       actions,

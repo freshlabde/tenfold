@@ -13,7 +13,7 @@
 // screen must render with the vault sealed, so it reads nothing but the i18n
 // catalogue (the intro flag lives in doc.settings and is handled by app.js).
 
-import { el, text, icon } from "./dom.js";
+import { el, text, icon, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
 
 const INTRO = ["about.intro.p1", "about.intro.p2", "about.intro.p3"];
@@ -55,7 +55,7 @@ export function render(ctx) {
   const head = el("div", { class: "head" }, [
     el("div", { class: "head-row" }, [
       el("div", {}, [
-        el("div", { class: "eyebrow" }, [text(t("app.name"))]),
+        brandMark(),
         el("h1", { class: "h-title" }, [text(t("about.title"))]),
       ]),
       el("div", { class: "head-actions" }, [
