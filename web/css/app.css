@@ -1521,10 +1521,11 @@ button.h-sub {
 
 /* A card is a DIFFERENT SPECIES on this screen, and every value below exists to
    say so without a second colour system. It is hollow where a goal is filled,
-   it is one fixed size where a goal carries a ladder, and it is drawn in the
-   one neutral the map owns - silver at night, graphite on paper - because a
-   card belongs to no family and must not be read as an eleventh one. What is
-   worth looking at is not the ring anyway: it is the threads leaving it. */
+   it is one fixed size where a goal carries a ladder, it is ONE shape - a
+   diamond - whatever kind of thing it holds, and it is drawn in the one neutral
+   the map owns - silver at night, graphite on paper - because a card belongs to
+   no family and must not be read as an eleventh one. What is worth looking at
+   is not the diamond anyway: it is the threads leaving it. */
 
 .map-cards { pointer-events: auto; }
 /* The card layer breathes with the families it is tied into, so it is composited
@@ -1560,6 +1561,34 @@ button.h-sub {
    the rest step back with the other nine. */
 .map-cards.has-focus > .map-card:not(.is-path) { opacity: .28; }
 .map-cards.has-focus > .map-card.is-loose { opacity: .2; }
+
+/* THE SELECTED CARD. One tap and this is the thing the sky is about: the
+   diamond and every thread leaving it come up to full strength while the other
+   nine families and every other card recede. The accent is deliberately NOT
+   used - a card belongs to no family and takes no hue, so "selected" is said
+   with the card's own neutral at full opacity, a little more stroke, and the
+   contrast of everything around it having stepped back. Last in the file so it
+   wins over the dimming rules above, including the loose one: a card nobody has
+   linked can be selected too. */
+.map-cards > .map-card.is-selected,
+.map-cards.has-focus > .map-card.is-selected,
+.map-cards.has-focus > .map-card.is-selected.is-loose { opacity: 1; }
+/* Brightened, not recoloured: the card's own neutral carried a little way
+   towards the text colour, which is as far as this screen may go without
+   handing a card something that looks like a family hue. */
+.map-card.is-selected .map-card-mark {
+  opacity: 1;
+  stroke: color-mix(in srgb, var(--map-card) 62%, var(--text));
+  stroke-width: 1.9;
+}
+.map-card.is-selected .map-card-link {
+  opacity: 1;
+  stroke: color-mix(in srgb, var(--map-card) 62%, var(--text));
+  stroke-width: 1.2;
+}
+.map-card-mark, .map-card-link {
+  transition: opacity var(--dur) var(--ease), stroke-width var(--dur) var(--ease);
+}
 
 /* The cards arrive after the families - the threads only mean something once
    there is something for them to join. The delay is a fraction of the same

@@ -536,7 +536,7 @@ test("a part inherits its family's tint and its family's light", async ({ page }
 
 test("the map is in the service worker shell", async () => {
   const sw = await readFile(join(ROOT, "web/sw.js"), "utf8");
-  expect(sw).toContain('const VERSION = "tenfold-v34"');
+  expect(sw).toContain('const VERSION = "tenfold-v35"');
   expect(sw).toContain('"./js/ui/map.js"');
   expect(sw).toContain('"./js/ui/mindmap.js"');
 });
@@ -1052,10 +1052,12 @@ test("a two-goal tree in the mind map is not wrapped into stumps", async ({ page
 // The context cards in the sky. A card is an n:m link - one person, many steps,
 // across families - which is the one thing the mind map structurally cannot
 // draw, so it lives here and nowhere else. What is checked below: the toggle
-// and that it is remembered, one ring per living card and one thread per link,
-// that a name is text and never markup, that a tap opens the card sheet, that a
-// sensitive card puts NOTHING but its name on the screen, and that the cards
-// buy no animation frame when motion is not wanted.
+// and that it is remembered, one diamond per living card and one thread per
+// link, that a name is text and never markup, that every card carries its name
+// however crowded the sky, the two-step gesture (the first tap selects the card
+// and lights its threads, the second opens the card sheet), that a sensitive
+// card puts NOTHING but its name on the screen, and that the cards buy no
+// animation frame when motion is not wanted.
 
 /**
  * A vault in the shape the question was asked about: two families with parts,
@@ -1108,7 +1110,7 @@ async function cardTree(page, opts = {}) {
   await page.waitForTimeout(200);
 }
 
-test("the sky draws one ring per living card and one thread per link", async ({ page }) => {
+test("the sky draws one diamond per living card and one thread per link", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);
   await cardTree(page, { deleted: true });
@@ -1120,9 +1122,14 @@ test("the sky draws one ring per living card and one thread per link", async ({ 
   // card has none and says so by floating loose.
   await expect(page.locator(".map-card-link")).toHaveCount(4);
   await expect(page.locator(".map-card.is-loose")).toHaveCount(1);
-  // The kinds are four different outlines, not four colours.
-  await expect(page.locator(".map-card.is-person circle.map-card-mark")).toHaveCount(1);
-  await expect(page.locator(".map-card.is-org rect.map-card-mark")).toHaveCount(1);
+  // ONE shape for every kind: a hollow diamond, a path, nothing else. The
+  // per-kind outlines are gone - the kind is on the card, not in the geometry.
+  await expect(page.locator(".map-card path.map-card-mark")).toHaveCount(3);
+  await expect(page.locator(".map-card circle.map-card-mark, .map-card rect.map-card-mark")).toHaveCount(0);
+  const shapes = await page
+    .locator(".map-card-mark")
+    .evaluateAll((list) => list.map((n) => n.getAttribute("d")));
+  expect(new Set(shapes).size).toBe(1);
 
   // The default is the question the cards answer: one card is linked twice, so
   // the sky opens with them - without anybody having chosen anything.
@@ -1197,12 +1204,13 @@ test("a card is a different species: no family hue, no colour from the script", 
   await cardTree(page);
   await openMap(page);
 
-  // The rings are all one size, and that size is smaller than the smallest
+  // The diamonds are all one size, and that size is smaller than the smallest
   // goal on the screen - a card carries no rank, so it may not read as one.
   const rings = await page
-    .locator(".map-card circle.map-card-mark, .map-card rect.map-card-mark")
-    .evaluateAll((list) => list.map((n) => Number(n.getAttribute("r") || n.getAttribute("width"))));
-  expect(new Set(rings.map((r) => Math.round(r * 10))).size).toBeLessThanOrEqual(2);
+    .locator(".map-card path.map-card-mark")
+    .evaluateAll((list) => list.map((n) => n.getBBox().width));
+  expect(new Set(rings.map((r) => Math.round(r * 10))).size).toBe(1);
+  expect(Math.max(...rings)).toBeLessThan(24);
   const goals = await page
     .locator(`${roots} > .map-disc`)
     .evaluateAll((list) => list.map((c) => Number(c.getAttribute("r"))));
@@ -1246,30 +1254,128 @@ test("XSS canary: a card name is text inside the SVG label, never markup", async
   expect(await page.evaluate(() => window.XSS)).toBeUndefined();
 });
 
-test("tapping a card opens its card sheet - one tap, no zoom in between", async ({ page }) => {
+test("a card answers the same two-step as a goal: select, then open", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);
   await cardTree(page);
   await openMap(page);
 
-  // The ring itself. It opens the same door the index and the chips under a
-  // step open: the card sheet, on the context index, in one tap - a card is
-  // not a branch, so there is nothing to come closer to first.
-  await tap(page, page.locator('.map-card[data-card] > .map-hit').first());
+  // Nothing is being looked at yet, so nothing is dimmed and no card is lit.
+  await expect(page.locator(".map-cards.has-focus")).toHaveCount(0);
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(0);
+
+  // FIRST tap on the diamond: it is selected. No sheet, no zoom - a card is not
+  // a branch to come closer to, so the first half of the gesture is spent on
+  // light: the card and its threads come up, the rest of the sky steps back.
+  const anna = page.locator('.map-card[data-card]').first();
+  await tap(page, anna.locator("> .map-hit"));
+  await expect(page.locator(".sheet-title")).toHaveCount(0);
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(1);
+  await expect(page.locator(".map-cards.has-focus")).toHaveCount(1);
+  await expect(page.locator(".map-tree.has-focus")).toHaveCount(1);
+  // Its threads are at full strength, the other card's are not. The light
+  // fades in over one duration token, so this is read once it has arrived.
+  await page.waitForTimeout(400);
+  const opacity = await page.locator(".map-card-link").evaluateAll((list) =>
+    list.map((n) => ({
+      selected: !!n.parentNode.classList.contains("is-selected"),
+      value: Number(getComputedStyle(n).opacity),
+    })),
+  );
+  expect(opacity.filter((o) => o.selected).length).toBe(3);
+  for (const o of opacity) {
+    if (o.selected) expect(o.value).toBe(1);
+    else expect(o.value).toBeLessThan(1);
+  }
+  // And the families it reaches into keep their light while the others recede.
+  const litRoots = await page
+    .locator(`${roots}`)
+    .evaluateAll((list) => list.filter((g) => g.classList.contains("is-path")).length);
+  expect(litRoots).toBe(2);
+
+  // SECOND tap on the SAME card: the door. The card sheet, on the context
+  // index - the same one the index and the chips under a step open.
+  await tap(page, anna.locator("> .map-hit"));
   await expect(page.locator(".sheet-title")).toHaveText("Card");
   await expect(page.locator(".sheet .input").first()).toHaveValue("Anna");
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.locator(".h-title")).toHaveText("Context");
 
-  // And its name, which is the same door. Closing the index goes back to the
-  // map it was opened from - the Close of the SCREEN, not the one the sheet
-  // leaves behind for a moment while it slides out.
+  // And its name, which is the same two-step on the same hook. Closing the
+  // index goes back to the map it was opened from - the Close of the SCREEN,
+  // not the one the sheet leaves behind for a moment while it slides out.
   await page.locator("#app").getByRole("button", { name: "Close" }).click();
   await expect(page.locator(".h-title")).toHaveText("Map");
   await expect(page.locator(".map-scene.is-ready")).toHaveCount(1);
   await settled(page);
-  await tap(page, page.locator(".map-label.is-card .map-labelhit").first());
+  const name = page.locator(".map-label.is-card").first();
+  await tap(page, name.locator(".map-labelhit"));
+  await expect(page.locator(".sheet-title")).toHaveCount(0);
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(1);
+  await tap(page, page.locator(".map-label.is-card").first().locator(".map-labelhit"));
   await expect(page.locator(".sheet-title")).toHaveText("Card");
+});
+
+test("a selection moves, and lets go on empty sky", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await cardTree(page);
+  await openMap(page);
+
+  const ids = await page
+    .locator(".map-card[data-card]")
+    .evaluateAll((list) => list.map((g) => g.getAttribute("data-card")));
+  expect(ids.length).toBe(3);
+
+  await tap(page, page.locator(`.map-card[data-card="${ids[0]}"] > .map-hit`));
+  await expect(page.locator(`.map-card[data-card="${ids[0]}"]`)).toHaveClass(/is-selected/);
+  // Another card takes the selection over rather than adding a second one.
+  await tap(page, page.locator(`.map-card[data-card="${ids[1]}"] > .map-hit`));
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(1);
+  await expect(page.locator(`.map-card[data-card="${ids[1]}"]`)).toHaveClass(/is-selected/);
+
+  // Coming closer to a family replaces the selection: one focus at a time.
+  await tap(page, page.locator(roots).first().locator("> .map-hit"));
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(0);
+  await expect(page.locator(".map-tree.has-focus")).toHaveCount(1);
+
+  // And a selection is let go the way a focus is: on empty sky, and by the
+  // recentre button.
+  await tap(page, page.locator(`.map-card[data-card="${ids[0]}"] > .map-hit`));
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(1);
+  await page.getByRole("button", { name: "Show everything" }).click();
+  await expect(page.locator(".map-card.is-selected")).toHaveCount(0);
+  await expect(page.locator(".map-cards.has-focus")).toHaveCount(0);
+});
+
+test("every card carries its name, however crowded the sky", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    const goals = ctx.childrenOf(null);
+    // Ten goals and eight cards: eighteen names, well past the twelve the old
+    // heuristic used to hide them at.
+    for (let i = 0; i < 8; i += 1) {
+      const card = ctx.addEntity({ name: `Someone ${i}`, kind: "person" });
+      ctx.linkEntity(goals[i % goals.length].id, card);
+    }
+    ctx.setSettings({ mapMode: "sky", mapCards: true });
+    ctx.go("outline", null, { replace: true });
+  });
+  await page.waitForTimeout(200);
+  await openMap(page);
+
+  await expect(page.locator(".map-card")).toHaveCount(8);
+  // Nothing is focused, and all eight names are on the screen anyway.
+  await expect(page.locator(".map-cards.has-focus")).toHaveCount(0);
+  await expect(page.locator(".map-label.is-card")).toHaveCount(8);
+  await expect(page.locator(".map-label")).toHaveCount(18);
+  const names = await page
+    .locator(".map-label.is-card .map-labeltext")
+    .evaluateAll((list) => list.map((n) => n.textContent));
+  expect(new Set(names).size).toBe(8);
 });
 
 test("a sensitive card puts its name on the map and nothing else", async ({ page }) => {

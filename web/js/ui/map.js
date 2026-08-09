@@ -28,11 +28,14 @@
 // linked to any number of steps, and those steps sit in different families.
 // The tree can only ever draw a step under one parent, so a card that ties
 // three branches together is invisible there. Here it is a body of its own: a
-// hollow ring in a neutral silver (no family, no hue), joined by a thin dashed
-// thread to every step it is linked to, and pulled by a soft spring towards
-// each of them - so it settles BETWEEN its steps and drags the branches that
-// share it a little closer together. That pull is the picture the owner asked
-// for. Cards are behind a toggle in the header, because the sky must still be
+// hollow DIAMOND in a neutral silver (no family, no hue, one shape for every
+// kind), joined by a thin dashed thread to every step it is linked to, and
+// pulled by a soft spring towards each of them - so it settles BETWEEN its
+// steps and drags the branches that share it a little closer together. That
+// pull is the picture the owner asked for. A card always carries its name, and
+// a tap selects it: the diamond and every thread leaving it come up to full
+// light while the rest of the sky steps back, and a second tap opens the card.
+// Cards are behind a toggle in the header, because the sky must still be
 // readable as ten goals when nobody is asking that question.
 // A circle would have been the obvious arrangement and
 // is the wrong one: a phone is tall, and two ranks at the same height put two
@@ -137,13 +140,15 @@ const CARD_RING_PAD_X = 64;
  * on screen before this was written down.
  */
 const CARD_RING_ARC = Math.PI * (50 / 180);
-/**
- * Up to this many names on screen the cards carry theirs unconditionally. A
- * card without its name is a silver ring nobody can read, so the threshold is
- * generous; above it a card name appears when its family is focused, exactly
- * like a part name.
+/*
+ * A card ALWAYS carries its name. There used to be a threshold - up to twelve
+ * names on screen every card was labelled, above it only the focused family
+ * brought its own in - and it was the wrong economy: a nameless diamond is a
+ * riddle, and which card is which is the only question this layer answers. The
+ * cost is paid where it belongs, in the collision walk (placeLabels), which
+ * pushes a name clear of every disc and every other name; a crowded sky ends up
+ * with a few names pushed further from their diamond, never with none.
  */
-const LABEL_FEW = 12;
 
 /**
  * Ten families, ten hues out of the data palette. This module never names a
@@ -867,36 +872,26 @@ function drawBody(body) {
 }
 
 /**
- * The glyph of a card. Four outlines for the four kinds, all hollow, all the
- * same size and the same weight - the difference is a hint for whoever notices
- * it and nothing depends on it: the name is on the label and in the a11y name.
+ * The glyph of a card. ONE outline for every kind: a hollow diamond.
+ *
+ * There used to be four - a ring, two squares, a diamond - one per kind. They
+ * were never read as meaning, because nothing about a card depends on its kind
+ * and the name is right there under it; four outlines at the same size and the
+ * same weight only made the layer look noisy (owner report). What a card IS
+ * stays where it was legible in the first place: on the label and in the a11y
+ * name. So the species has one silhouette, and the eye is free to follow the
+ * threads, which are the thing worth looking at.
  */
-function cardGlyph(kind) {
-  const r = R_CARD;
-  if (kind === "place" || kind === "org") {
-    return sel("rect", {
-      class: "map-card-mark",
-      attrs: {
-        x: (-r).toFixed(1),
-        y: (-r).toFixed(1),
-        width: (r * 2).toFixed(1),
-        height: (r * 2).toFixed(1),
-        rx: kind === "place" ? "2.6" : "0.8",
-      },
-    });
-  }
-  if (kind === "topic") {
-    const d = r * 1.16;
-    return sel("path", {
-      class: "map-card-mark",
-      attrs: { d: `M0 ${-d.toFixed(2)}L${d.toFixed(2)} 0L0 ${d.toFixed(2)}L${(-d).toFixed(2)} 0Z` },
-    });
-  }
-  return sel("circle", { class: "map-card-mark", attrs: { r: r.toFixed(1) } });
+function cardGlyph() {
+  const d = R_CARD * 1.16;
+  return sel("path", {
+    class: "map-card-mark",
+    attrs: { d: `M0 ${-d.toFixed(2)}L${d.toFixed(2)} 0L0 ${d.toFixed(2)}L${(-d).toFixed(2)} 0Z` },
+  });
 }
 
 /**
- * One card: a thread to every step it is linked to, then the ring itself.
+ * One card: a thread to every step it is linked to, then the diamond itself.
  *
  * The threads are drawn from REST position to REST position and are trimmed at
  * both ends - they reach towards a body rather than touching it. That is what
@@ -934,8 +929,8 @@ function drawCard(card) {
     );
   }
 
-  g.appendChild(cardGlyph(card.entity.kind));
-  // The tap target, and the reason a card needs a generous one: the ring is
+  g.appendChild(cardGlyph());
+  // The tap target, and the reason a card needs a generous one: the diamond is
   // six units across in a sky that opens at less than full scale.
   g.appendChild(sel("circle", { class: "map-hit", attrs: { r: "15" } }));
   return g;
@@ -1064,6 +1059,13 @@ export function render(ctx) {
   const cam = { x: 0, y: 0, k: 1 };
   let base = { x: 0, y: 0, k: 1 };
   let focusId = null;
+  /**
+   * The selected card, if any. One focus at a time on this screen: selecting a
+   * card drops a family focus and coming closer to a family drops the
+   * selection, because two things "being looked at" at once is two dimming
+   * rules fighting over the same sky.
+   */
+  let selectedId = null;
   let ready = false;
 
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -1169,6 +1171,7 @@ export function render(ctx) {
    * The labelling rule, and it is the whole rule:
    *   - a root always carries its title;
    *   - a focused body and its direct parts carry theirs while it is focused;
+   *   - every card always carries its name;
    *   - nothing else, ever.
    * Labels that do not apply are REMOVED, not faded - an invisible label is
    * still an element the browser has to lay out and hit-test.
@@ -1181,17 +1184,12 @@ export function render(ctx) {
       set.set(f.id, f);
       for (const k of f.kids) set.set(k.id, k);
     }
-    // A card name follows the same economy, one step later: while the screen
-    // still holds few names they are all there, because an unnamed silver ring
-    // is a riddle rather than a link. Past that they behave like part names -
-    // the focused family brings its cards in with it.
-    if (cards.length) {
-      const family = f ? f.chain[f.chain.length - 1] : null;
-      const few = bodies.reduce((c, b) => (b.depth === 0 ? c + 1 : c), 0) + cards.length <= LABEL_FEW;
-      for (const c of cards) {
-        if (few || (family && linkedInto(c, family))) set.set(c.id, c);
-      }
-    }
+    // A card is the one exception, and it is not an economy: its name is always
+    // there. A diamond with no name says only "something is shared here", which
+    // is the question and not the answer. Which family is being looked at, or
+    // which card is selected, decides how BRIGHT a card name is (below), never
+    // whether it exists.
+    for (const c of cards) set.set(c.id, c);
     return [...set.values()];
   }
 
@@ -1199,6 +1197,21 @@ export function render(ctx) {
   function linkedInto(card, family) {
     for (const b of card.links) if (rootOf(b) === family) return true;
     return false;
+  }
+
+  /**
+   * The families that keep their light, or null while nothing is being looked
+   * at. A focus lights the one family it is in; a selected card lights every
+   * family it reaches into - the whole point of selecting it is seeing which
+   * branches it ties together, and dimming them would hide exactly that.
+   * Dimming is per ROOT, so this is a set of roots and one class carries a
+   * whole branch.
+   */
+  function litFamilies() {
+    const picked = selectedId ? cardById.get(selectedId) : null;
+    if (picked) return new Set(picked.links.map((b) => rootOf(b)));
+    const f = focusId ? byId.get(focusId) : null;
+    return f ? new Set([f.chain[f.chain.length - 1]]) : null;
   }
 
   let labelled = [];
@@ -1212,11 +1225,17 @@ export function render(ctx) {
     labelled = labelSet();
     const f = focusId ? byId.get(focusId) : null;
     const family = f ? f.chain[f.chain.length - 1] : null;
+    // The selected card takes over the dimming: its own name stays bright,
+    // every other card name steps back with the families it is not in.
+    const picked = selectedId ? cardById.get(selectedId) : null;
+    const lit = litFamilies();
     for (const b of labelled) {
       const card = !!b.isCard;
       const dim = card
-        ? !!family && !linkedInto(b, family)
-        : f && !f.chain.includes(b.chain[b.chain.length - 1]);
+        ? picked
+          ? b.id !== picked.id
+          : !!family && !linkedInto(b, family)
+        : !!lit && !lit.has(b.chain[b.chain.length - 1]);
       const g = sel("g", {
         class: card
           ? `map-label is-card${dim ? " is-dim" : ""}`
@@ -1517,6 +1536,7 @@ export function render(ctx) {
 
   function recentre(animated = true) {
     focusId = null;
+    selectedId = null;
     markFocus();
     buildLabels();
     const target = limitPan(fitFor(bounds), false);
@@ -1530,26 +1550,62 @@ export function render(ctx) {
     }
   }
 
-  /** The other nine step back; the branch being looked at keeps its light. */
+  /**
+   * The other nine step back; what is being looked at keeps its light. Two
+   * things can be looked at, never at once: a branch, or a card. A selected
+   * card lights itself, every thread leaving it, and the families it reaches
+   * into - which is the same dimming the family focus uses, aimed at a
+   * different question.
+   */
   function markFocus() {
     const f = focusId ? byId.get(focusId) : null;
-    tree.setAttribute("class", f ? "map-tree has-focus" : "map-tree");
+    const picked = selectedId ? cardById.get(selectedId) : null;
+    const lit = litFamilies();
+    tree.setAttribute("class", lit ? "map-tree has-focus" : "map-tree");
     for (const b of bodies) {
       b.g.classList.toggle("is-focus", !!f && b.id === f.id);
       // Dimming happens per root, so one class per root carries the whole
       // branch - a subtree never has to be walked to keep its light.
-      if (b.depth === 0) b.g.classList.toggle("is-path", !!f && f.chain.includes(b));
+      if (b.depth === 0) b.g.classList.toggle("is-path", !!lit && lit.has(b));
     }
     // A card that reaches into the family being looked at keeps its light - it
     // is part of what that branch is made of, even though it belongs to no
-    // family at all. The rest recede with the other nine.
-    cardLayer.setAttribute("class", f ? "map-cards has-focus" : "map-cards");
+    // family at all. The rest recede with the other nine. With a card selected
+    // that card is the only lit one: the sky is answering "where does THIS one
+    // go", and a second bright card would be a second answer.
+    cardLayer.setAttribute("class", lit ? "map-cards has-focus" : "map-cards");
     const family = f ? f.chain[f.chain.length - 1] : null;
-    for (const c of cards) c.g.classList.toggle("is-path", !!family && linkedInto(c, family));
+    for (const c of cards) {
+      c.g.classList.toggle("is-path", picked ? c === picked : !!family && linkedInto(c, family));
+      c.g.classList.toggle("is-selected", picked === c);
+    }
+  }
+
+  /**
+   * Tapping a card the first time: come closer without moving. A card is not a
+   * branch - there is nothing under it to zoom into - so "closer" here means
+   * light, not camera: it and its threads come up, everything else steps back,
+   * and the second tap (handleTap) opens the card sheet. The same two-step the
+   * goals have, with the zoom left out.
+   */
+  function selectCard(card) {
+    // Whether the selection came from the keyboard, asked BEFORE the label
+    // layer is rebuilt under it.
+    const typed = labels.contains(document.activeElement);
+    selectedId = card.id;
+    focusId = null;
+    markFocus();
+    buildLabels();
+    // buildLabels() replaces every label, so the element Enter was pressed on
+    // is gone by now. Without putting the focus back on the new one the second
+    // Enter would have nothing to land on, and the keyboard would stop one step
+    // short of the door the finger reaches.
+    if (typed && card.label) card.label.focus();
   }
 
   function focusOn(body) {
     focusId = body.id;
+    selectedId = null;
     markFocus();
     buildLabels();
     // The branch, plus every card that reaches into it: coming closer to a
@@ -1671,8 +1727,14 @@ export function render(ctx) {
       refitMind();
       base = fitFor(bounds);
       const f = sky && focusId ? byId.get(focusId) : null;
+      const picked = sky && selectedId ? cardById.get(selectedId) : null;
       if (f) focusOn(f);
-      else recentre(false);
+      else if (picked) {
+        // A resize refits the camera; the selection is a way of looking at the
+        // sky, not a camera state, so it is put back on top of the new fit.
+        recentre(false);
+        selectCard(picked);
+      } else recentre(false);
     });
     ro.observe(svg);
   }
@@ -1817,16 +1879,21 @@ export function render(ctx) {
    * The two gestures that mean something:
    *   - a body: come closer. Tapping the body that is already close opens it.
    *   - its name: open it straight away.
+   *   - a card, or its name: select it, and the tap after that opens it.
    * Anything else on the canvas lets go and shows the whole sky again.
    */
   function handleTap(target) {
-    // A card first, because a card body and a card name carry the same hook and
-    // neither of them zooms: a context is not a branch to come closer to, it is
-    // a thing to open. One tap, the card sheet, done.
+    // A card first, because a card diamond and a card name carry the same hook
+    // and answer the same two-step: the first tap lights the card and every
+    // thread leaving it, the second one opens the card sheet. A card never
+    // zooms - it is not a branch to come closer to - so the "closer" half of
+    // the gesture is spent on light instead.
     const ctxHit = target && target.closest ? target.closest("[data-card]") : null;
     if (ctxHit) {
       const card = cardById.get(ctxHit.getAttribute("data-card"));
-      if (card) openCard(card);
+      if (!card) return;
+      if (selectedId === card.id) openCard(card);
+      else selectCard(card);
       return;
     }
     const hit = target && target.closest ? target.closest("[data-hit]") : null;
@@ -1850,7 +1917,7 @@ export function render(ctx) {
       if (body) openBody(body);
       return;
     }
-    if (focusId) recentre();
+    if (focusId || selectedId) recentre();
   }
 
   function openBody(body) {
@@ -1874,8 +1941,13 @@ export function render(ctx) {
     ev.preventDefault();
     const id = node.getAttribute("data-card");
     if (id) {
+      // The same two-step the finger gets, on the same element: Enter selects,
+      // Enter again opens. A keyboard must not reach a door the touch gesture
+      // keeps one step away.
       const card = cardById.get(id);
-      if (card) openCard(card);
+      if (!card) return;
+      if (selectedId === card.id) openCard(card);
+      else selectCard(card);
       return;
     }
     const body = byId.get(node.getAttribute("data-label"));

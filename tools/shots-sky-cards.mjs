@@ -3,10 +3,11 @@
 //   node tools/serve.js &
 //   node tools/shots-sky-cards.mjs
 //
-// Writes design/screens/44-sky-cards-{dark,light,focus}.png at the reference
-// iPhone size. The vault it builds is the shape the question was asked about:
-// one card linked into TWO different families (the thing the mind map cannot
-// draw), one card with a single link, and one card nobody has linked yet.
+// Writes design/screens/44-sky-cards-{dark,light,focus}.png plus
+// 46-cards-diamond.png and 47-cards-selected.png at the reference iPhone size.
+// The vault it builds is the shape the question was asked about: one card
+// linked into TWO different families (the thing the mind map cannot draw), one
+// card with a single link, and one card nobody has linked yet.
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE || "http://127.0.0.1:7710";
@@ -112,6 +113,24 @@ await shot("44-sky-cards-dark");
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(1200);
   await shot("44-sky-cards-focus");
+}
+
+// The card species itself: one diamond for every kind, every name on screen
+// without anything being focused - and then one card selected, which lights it
+// and its threads and lets the rest of the sky step back.
+{
+  await page.getByRole("button", { name: "Show everything" }).click();
+  await page.waitForTimeout(900);
+  await shot("46-cards-diamond");
+
+  const card = page.locator(".map-card[data-card]").first().locator("> .map-hit");
+  const box = await card.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(1000);
+  console.log("selected:", await page.locator(".map-card.is-selected").count());
+  await shot("47-cards-selected");
+  await page.getByRole("button", { name: "Show everything" }).click();
+  await page.waitForTimeout(600);
 }
 
 await page.getByRole("button", { name: "Close", exact: true }).click();
