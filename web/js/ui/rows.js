@@ -115,6 +115,9 @@ export function nodeList(ctx, parentId, opts = {}) {
   // the today list are ordered, but their order is not the point of them.
   const ul = el("ul", {
     class: opts.kids ? "list is-kids" : opts.showRank ? "list is-ranked" : "list",
+    // The quiet end of the ramp is the last row THIS list has, not a fixed
+    // rank ten - an eight-goal list must run the same loud-to-quiet arc.
+    vars: opts.showRank ? { "--rank-last": String(Math.max(1, kids.length - 1)) } : undefined,
   });
   if (opts.kids) ul.appendChild(el("div", { class: "rail", attrs: { "aria-hidden": "true" } }));
   kids.forEach((n, i) => {

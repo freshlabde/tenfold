@@ -386,7 +386,11 @@ button.h-sub {
    is now told twice, and at the old rate the foot of the list would be dimmed
    by both signals at once and stop being comfortably readable. */
 .list.is-ranked .row {
-  --ramp: max(0, calc(var(--ramp-top) - (var(--ramp-top) - var(--ramp-floor)) * (var(--rank, 0) - 1) / 8));
+  /* Normalised to the list that is actually there: the LAST row is the quiet
+     end, whether the owner keeps six goals or ten. With the divisor fixed at
+     8 (ranks 2..10), an eight-goal list never reached the floor and the whole
+     arc read flatter than the ten-row design shots (owner report). */
+  --ramp: max(0, calc(var(--ramp-top) - (var(--ramp-top) - var(--ramp-floor)) * (var(--rank, 0) - 1) / max(1, var(--rank-last, 9) - 1)));
   background: var(--plate-bg-ramp);
   box-shadow: var(--plate-shadow-ramp);
   opacity: max(var(--rank-floor), calc(1 - var(--rank, 0) * var(--rank-fade)));

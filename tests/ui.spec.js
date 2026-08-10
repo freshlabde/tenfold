@@ -672,6 +672,27 @@ test("the ranked ten steps from a loud plate down to a quiet background", async 
   }
 });
 
+test("a shorter list runs the same loud-to-quiet arc as ten", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  // Eight goals - the owner's real count when he reported the app looking
+  // flatter than the ten-row design shots: with the divisor fixed at rank
+  // ten, an eight-goal list never reached the floor.
+  await addRoots(page, TITLES.slice(0, 8));
+  await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(8);
+
+  const rows = await rowSignals(page, ".list.is-ranked > .row-shell > .row");
+  const floor = await page.evaluate(() =>
+    parseFloat(
+      getComputedStyle(document.querySelector(".list.is-ranked .row")).getPropertyValue("--ramp-floor"),
+    ),
+  );
+  // The LAST row of the list that is actually there is the quiet end.
+  expect(rows[0].ramp).toBe(1);
+  expect(rows[7].ramp).toBeCloseTo(floor, 2);
+  for (let i = 2; i < 8; i += 1) expect(rows[i].ramp).toBeLessThan(rows[i - 1].ramp);
+});
+
 test("a kids list carries no rank ramp", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);
