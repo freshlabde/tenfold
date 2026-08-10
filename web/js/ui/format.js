@@ -46,14 +46,23 @@ export function daysUntil(due, now) {
   return Math.round((startOfDay(due) - startOfDay(now)) / DAY);
 }
 
-/** "3 days ago", "just now". Coarse on purpose - this is not a log. */
+/** "3 days ago", "just now". Coarse on purpose - this is not a log. Each unit
+ *  has a singular key of its own - German declines the noun ("vor 1 Tag" /
+ *  "vor 2 Tagen"), so a {n}-template alone cannot be grammatical at n=1. */
 export function relativeTime(ts, now) {
   if (typeof ts !== "number") return t("time.never");
   const d = Math.max(0, now - ts);
   if (d < 2 * MIN) return t("time.justNow");
-  if (d < HOUR) return t("time.minutes", { n: Math.round(d / MIN) });
-  if (d < DAY) return t("time.hours", { n: Math.round(d / HOUR) });
-  return t("time.days", { n: Math.round(d / DAY) });
+  if (d < HOUR) {
+    const n = Math.round(d / MIN);
+    return n === 1 ? t("time.minuteOne") : t("time.minutes", { n });
+  }
+  if (d < DAY) {
+    const n = Math.round(d / HOUR);
+    return n === 1 ? t("time.hourOne") : t("time.hours", { n });
+  }
+  const n = Math.round(d / DAY);
+  return n === 1 ? t("time.dayOne") : t("time.days", { n });
 }
 
 /** Locale-aware short date. Intl is built in - no data is fetched. */

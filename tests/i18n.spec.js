@@ -105,3 +105,33 @@ test("detectLocale only ever returns a supported locale", async ({ page }) => {
   });
   expect(r.locales).toContain(r.picked);
 });
+
+test("relative time speaks proper singulars in every locale", async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const i18n = await import("/web/js/i18n.js");
+    const { relativeTime } = await import("/web/js/ui/format.js");
+    const MIN = 60 * 1000;
+    const HOUR = 60 * MIN;
+    const DAY = 24 * HOUR;
+    const now = 1780000000000;
+    const out = {};
+    for (const loc of ["en", "de", "es"]) {
+      i18n.setLocale(loc);
+      out[loc] = {
+        // Below two minutes "just now" answers, so the smallest minute figure
+        // the template ever shows is 2 - the singular matters for hour and day.
+        minute: relativeTime(now - 2.4 * MIN, now),
+        hour: relativeTime(now - HOUR, now),
+        day: relativeTime(now - DAY, now),
+        days: relativeTime(now - 2 * DAY, now),
+      };
+    }
+    i18n.setLocale("en");
+    return out;
+  });
+  // German declines the noun - the case the {n} template got wrong ("vor 1
+  // Tage"): singular units have keys of their own.
+  expect(r.de).toEqual({ minute: "vor 2 Minuten", hour: "vor 1 Stunde", day: "vor 1 Tag", days: "vor 2 Tagen" });
+  expect(r.en).toEqual({ minute: "2 minutes ago", hour: "1 hour ago", day: "1 day ago", days: "2 days ago" });
+  expect(r.es).toEqual({ minute: "hace 2 minutos", hour: "hace 1 hora", day: "hace 1 día", days: "hace 2 días" });
+});

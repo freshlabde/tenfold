@@ -684,6 +684,9 @@ export const en = {
 
   // -------------------------------------------------------------------- time
   "time.justNow": "just now",
+  "time.minuteOne": "1 minute ago",
+  "time.hourOne": "1 hour ago",
+  "time.dayOne": "1 day ago",
   "time.minutes": "{n} minutes ago",
   "time.hours": "{n} hours ago",
   "time.days": "{n} days ago",
