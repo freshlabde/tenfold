@@ -94,6 +94,48 @@ input[type="search"]::-webkit-search-decoration {
   }
 }
 
+/* ----------------------------------------------------------- the wide tier */
+
+/* A desktop is not a big phone. From here the frame is a tablet canvas and
+   keeps its device edge; what does NOT happen is that everything inside it
+   grows with it - a row twice as long is not twice as readable. The width
+   discipline is the point of this block, and it has exactly two exceptions:
+   the map, which is a picture and takes every pixel, and the duel, which is an
+   object you tilt.
+
+   Gated on the same min-height as the tier above: a short, wide window is a
+   phone-shaped hole, not a tablet, and the 560 tier still describes it. */
+@media (min-width: 900px) and (min-height: 640px) {
+  :root { --frame-max: min(94vw, 800px); }
+  .frame { height: min(1100px, calc(100dvh - 48px)); }
+
+  /* One mechanism for every reading and form surface: each direct child of a
+     screen becomes the same centred column, so head, scroll and action bar
+     stay in one measure without a single per-screen rule. The map screen is
+     excluded and keeps the full frame.
+
+     width:100% is not redundant beside max-width: a flex item with auto
+     cross-axis margins is not stretched, so without it every child would
+     shrink to its own content instead of filling the column. */
+  .screen:not(.is-map) > * {
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+  }
+
+  /* Two cards on a beam read as a balance only while they stay roughly as wide
+     as they are tall; stretched to a column they read as two banners. So the
+     duel keeps the phone canvas whatever the frame does. */
+  .screen > .duel { max-width: var(--frame-phone); }
+
+  /* Both are absolutely positioned with their two horizontal edges pinned, so
+     once max-width takes them below the available width the auto margins
+     centre them - no left/right/transform change that would fight the
+     open/close animation. */
+  .sheet { max-width: 560px; margin-inline: auto; }
+  .toast { max-width: var(--content-max); margin-inline: auto; }
+}
+
 .grain {
   position: absolute; inset: 0; z-index: 40; pointer-events: none;
   opacity: var(--grain); mix-blend-mode: overlay;

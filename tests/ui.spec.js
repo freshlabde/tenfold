@@ -589,7 +589,10 @@ test("the app centres itself on a desktop viewport without overflowing", async (
   await page.setViewportSize({ width: 1280, height: 900 });
 
   const box = await page.locator(".frame").boundingBox();
-  expect(box.width).toBeLessThanOrEqual(430);
+  // Past 900px the frame is a tablet canvas, not the phone column it used to
+  // be here; the width discipline moved inside it (tests/desktop.spec.js).
+  expect(box.width).toBeGreaterThanOrEqual(768);
+  expect(box.width).toBeLessThanOrEqual(820);
   // Centred within one pixel of rounding.
   expect(Math.abs(box.x + box.width / 2 - 640)).toBeLessThan(2);
   const overflow = await page.evaluate(() => document.body.scrollWidth - document.body.clientWidth);
