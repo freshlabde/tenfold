@@ -418,3 +418,23 @@ test("the leaf breadcrumb offers the way out to the ten, like every other screen
   await page.locator(".crumb-pill").first().click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 });
+
+test("the browser's well-known icon probes get tenfold's own icon, with and without the path prefix", async ({ request }) => {
+  // Safari asks for these before it reads any <link> tag; a 404 sends it up
+  // to the domain root, which under the kairatools path rule is another
+  // product's icon - the owner's app carried the chat's dog as its favicon.
+  for (const path of [
+    "/favicon.ico",
+    "/apple-touch-icon.png",
+    "/apple-touch-icon-precomposed.png",
+    "/tenfold/favicon.ico",
+    "/tenfold/apple-touch-icon.png",
+  ]) {
+    const res = await request.get(path);
+    expect(res.status(), path).toBe(200);
+    expect(res.headers()["content-type"], path).toBe("image/png");
+    const body = await res.body();
+    // PNG magic - the bytes are a real image, not an error page.
+    expect(body.subarray(0, 4).toString("latin1"), path).toBe("\x89PNG");
+  }
+});

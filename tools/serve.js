@@ -1084,6 +1084,16 @@ const server = createServer(async (req, res) => {
   }
   if (rel.startsWith("/tenfold/")) rel = rel.slice("/tenfold".length);
 
+  // Safari probes these two well-known paths before reading any <link> tag,
+  // and on a 404 it walks up to the DOMAIN root - which under the path rule
+  // is another product's icon, not ours (owner report: the app carried the
+  // chat's dog as its favicon). Answer them with the real files; modern
+  // browsers accept PNG bytes on /favicon.ico regardless of the name.
+  if (rel === "/favicon.ico") rel = "/icons/favicon-32.png";
+  else if (rel === "/apple-touch-icon.png" || rel === "/apple-touch-icon-precomposed.png") {
+    rel = "/icons/icon-192.png";
+  }
+
   // The mailbox comes before the static files: /api/... is never a file.
   try {
     if (await handleApi(req, res, rel)) return;
