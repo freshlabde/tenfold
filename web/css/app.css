@@ -2087,6 +2087,11 @@ button.h-sub {
 
   html, body {
     height: auto;
+    /* The screen rule pins the body to at least one full viewport - in print
+       that is one full PAGE, and inside an 11mm-margined page box it spills
+       two margins' worth onto a second, entirely blank sheet (owner report:
+       "Backup Blatt immer noch 2 seitig"). Resetting height alone missed it. */
+    min-height: 0;
     overflow: visible;
     background: white;
     color: var(--paper-ink);

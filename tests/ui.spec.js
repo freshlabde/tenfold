@@ -163,6 +163,41 @@ test("the recovery key is shown once and is gated by an acknowledgement", async 
   expect(await page.locator("body").textContent()).not.toContain(grouped);
 });
 
+test("the emergency sheet prints as ONE page, on A4 and on Letter", async ({ page }) => {
+  await freshApp(page);
+  // The longest catalogues are the honest case - the owner's two-page print
+  // was the Spanish sheet. The second page was BLANK: body{min-height:100dvh}
+  // survived into print, and on iOS a body pinned to one full viewport inside
+  // an 11mm-margined page box spills onto a second, empty sheet. Chromium
+  // resolves dvh differently in its print engine and paginates ONE page either
+  // way, so the page count below cannot catch that regression - the invariant
+  // is asserted directly: under print media no viewport unit may survive on
+  // the body's min-height.
+  await page.emulateMedia({ media: "print" });
+  const minHeight = await page.evaluate(() => getComputedStyle(document.body).minHeight);
+  expect(["0px", "auto"]).toContain(minHeight);
+  await page.emulateMedia({ media: null });
+  for (const locale of ["es", "de"]) {
+    await page.evaluate(async (loc) => {
+      const i18n = await import("/web/js/i18n.js");
+      i18n.setLocale(loc);
+      const { emergencySheet, removeEmergencySheet } = await import("/web/js/ui/emergency.js");
+      removeEmergencySheet();
+      document.body.appendChild(
+        emergencySheet("QRST-UVWX-YZ23-4567-ABCD-EFGH-JKLM"),
+      );
+    }, locale);
+    for (const format of ["A4", "Letter"]) {
+      const pdf = await page.pdf({
+        format,
+        margin: { top: "11mm", bottom: "11mm", left: "11mm", right: "11mm" },
+      });
+      const pages = (pdf.toString("latin1").match(/\/Type\s*\/Page(?!s)/g) || []).length;
+      expect(pages, `${locale} on ${format}`).toBe(1);
+    }
+  }
+});
+
 test("a passphrase shorter than ten characters is refused", async ({ page }) => {
   await freshApp(page);
   await page.getByRole("button", { name: "Set up the vault" }).click();
