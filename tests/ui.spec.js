@@ -604,6 +604,98 @@ test("search finds a node and jumps to it", async ({ page }) => {
   await expect(page.locator(".hero-title")).toHaveText("Sort things out with Anna");
 });
 
+/**
+ * The loudness of every row in a list: where it sits on the ramp, how opaque
+ * it is, and what its background actually resolves to. Read in ONE pass over
+ * the live DOM, because a skin switch rebuilds the screen and a locator handle
+ * taken before that rebuild reports the empty style of a detached node. The
+ * background is compared as a string on purpose - the point is that the ranks
+ * differ, not what colour any of them is, so a token tweak cannot break this.
+ */
+async function rowSignals(page, selector) {
+  return page.evaluate(
+    (sel) =>
+      [...document.querySelectorAll(sel)].map((row) => {
+        const cs = getComputedStyle(row);
+        return {
+          ramp: parseFloat(cs.getPropertyValue("--ramp")),
+          opacity: parseFloat(cs.opacity),
+          bg: cs.backgroundImage === "none" ? cs.backgroundColor : cs.backgroundImage,
+        };
+      }),
+    selector,
+  );
+}
+
+test("the ranked ten steps from a loud plate down to a quiet background", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(10);
+
+  const ROWS = ".list.is-ranked > .row-shell > .row";
+  for (const skin of ["slate", "register", "breath"]) {
+    for (const theme of ["dark", "light"]) {
+      await page.evaluate(
+        async (prefs) => (await import("/web/js/app.js")).ctx.setSettings(prefs),
+        { skin, theme },
+      );
+      await expect(page.locator("html")).toHaveAttribute("data-skin", skin);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      const where = `${skin}/${theme}`;
+
+      const rows = await rowSignals(page, ROWS);
+      expect(rows.length, where).toBe(10);
+      const [lead, second, third] = rows;
+      const last = rows[9];
+
+      // Monotonic, and with a real gap under the lead: rank two must not be so
+      // close to rank one that the eye cannot say which of the two is first.
+      expect(lead.ramp, where).toBe(1);
+      expect(second.ramp, where).toBeLessThan(0.85);
+      expect(third.ramp, where).toBeLessThan(second.ramp);
+      expect(last.ramp, where).toBeLessThan(third.ramp);
+      expect(last.ramp, where).toBeGreaterThanOrEqual(0);
+
+      // The background is where the ranking is told, so the three ranks must
+      // resolve to three different backgrounds - not merely to three opacities.
+      expect(new Set([lead.bg, second.bg, third.bg, last.bg]).size, where).toBe(4);
+
+      // The old fade still runs underneath, in the same direction, and the
+      // bottom of the list stays comfortably readable rather than being dimmed
+      // twice into a whisper.
+      expect(second.opacity, where).toBeLessThan(lead.opacity);
+      expect(third.opacity, where).toBeLessThan(second.opacity);
+      expect(last.opacity, where).toBeLessThan(third.opacity);
+      expect(last.opacity, where).toBeGreaterThan(0.7);
+    }
+  }
+});
+
+test("a kids list carries no rank ramp", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES.slice(0, 3));
+  await page.locator(".row-shell").first().locator(".row").click();
+
+  await page.getByRole("button", { name: /Add the first part/ }).click();
+  for (const part of ["Renegotiate the rate", "Cancel the subscriptions", "One extra payment"]) {
+    await page.locator(".composer input").fill(part);
+    await page.locator(".composer input").press("Enter");
+  }
+  await page.locator(".composer input").press("Escape");
+  await expect(page.locator(".list.is-kids .row-shell")).toHaveCount(3);
+  expect(await page.locator(".list.is-kids.is-ranked").count()).toBe(0);
+
+  // Every row carries a --rank in every list; only the ranked ten reads it as
+  // loudness. Here all three rows sit at the top of the ramp and share one
+  // background - the sublist is ordered, but its order is not its subject.
+  const rows = await rowSignals(page, ".list.is-kids > .row-shell > .row");
+  expect(rows.length).toBe(3);
+  expect(rows.map((r) => r.ramp)).toEqual([1, 1, 1]);
+  expect(new Set(rows.map((r) => r.bg)).size).toBe(1);
+});
+
 test("skins and themes switch without losing the list", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);

@@ -368,6 +368,44 @@ button.h-sub {
 }
 .row.is-parked .row-title { color: var(--text-2); }
 
+/* ------------------------------------------------------- the rank ramp
+   On the ranked ten the background itself carries the order: rank one is the
+   loudest, every rank below it a measurable step quieter, the last one nearly
+   the page. Only that one list gets it - rows.js sets .is-ranked where it also
+   sets the rank figures, so sublists and the today list are untouched.
+
+   --ramp is the position on the ladder: 1 at the lead, --ramp-top for rank two
+   and from there down to --ramp-floor at rank ten (the ten IS the list, hence
+   the fixed span of eight steps below the first). The gap between 1 and
+   --ramp-top is what keeps rank two from competing with rank one - without it
+   the second row arrives at nine tenths of the loudness and the eye stops
+   being able to say which of the two is first. What loud and quiet look like
+   is a per-skin decision and lives in tokens.css.
+
+   The per-rank opacity fade stays, at roughly half its old rate: the ranking
+   is now told twice, and at the old rate the foot of the list would be dimmed
+   by both signals at once and stop being comfortably readable. */
+.list.is-ranked .row {
+  --ramp: max(0, calc(var(--ramp-top) - (var(--ramp-top) - var(--ramp-floor)) * (var(--rank, 0) - 1) / 8));
+  background: var(--plate-bg-ramp);
+  box-shadow: var(--plate-shadow-ramp);
+  opacity: max(var(--rank-floor), calc(1 - var(--rank, 0) * var(--rank-fade)));
+}
+/* The lead is the top of the same ladder, not a second one - it keeps the
+   plate, the accent chip and the big title it always had. */
+.list.is-ranked .row.is-lead {
+  --ramp: 1;
+  background: var(--plate-bg-ramp-lead);
+  box-shadow: var(--plate-shadow-ramp-lead);
+  opacity: 1;
+}
+/* Done and parked keep their own treatment on top of the ramp: a finished
+   goal is dimmed by what it is, not by where it stands. A lifted row keeps
+   the lift the gesture gives it - both of these lose to the ramp on
+   specificity otherwise, which is the whole reason they are repeated here. */
+.list.is-ranked .row.is-done { opacity: .55; }
+.list.is-ranked .row.is-dragging { box-shadow: var(--shadow); }
+
 .row.is-dragging { transition: none; z-index: 3; box-shadow: var(--shadow); }
 .row-shell.is-lifted { z-index: 3; }
 

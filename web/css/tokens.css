@@ -27,6 +27,9 @@
      plates     --plate-bg --plate-bg-lead --plate-shadow --plate-shadow-lead
                 --plate-pad-y --plate-pad-x --plate-radius --plate-rule
                 --depth-step --depth-into --rank-floor
+     rank ramp  --plate-bg-ramp --plate-shadow-ramp
+                --plate-bg-ramp-lead --plate-shadow-ramp-lead
+                --ramp-top --ramp-floor --rank-fade
      chips      --chip-bg --chip-shadow --chip-color --chip-radius
                 --chip-lead-bg --chip-lead-color --chip-lead-shadow
      rows       --row-title-size --row-title-step --row-title-lead
@@ -36,7 +39,27 @@
    Anything else is a bug. Adding a value means adding it to all three skins -
    except the data palette, which is defined per THEME and shared by all three
    skins on purpose (see the block at the bottom of this file).
+
+   THE RANK RAMP. On the ranked ten - and nowhere else - the row background
+   itself carries the order: rank one is the loudest, every rank below it a
+   measurable step quieter, the last one nearly the page. The four --*-ramp
+   values are the per-skin voice of that ladder, because "louder" is not the
+   same thing in a skin with plates as in a skin without one: slate ramps the
+   plate it already has, register and breath ramp a flat wash and keep their
+   shadow at none. app.css only sets the position on the ladder (--ramp) and
+   reads these four; it never names a colour.
    ============================================================================= */
+
+/* --ramp is registered so it computes to a real number rather than to the
+   token stream that produced it: the browser can interpolate it, and a test
+   can read the loudness of a row directly. An engine without @property keeps
+   it as an ordinary custom property - the calc still resolves where it is
+   used, so nothing here depends on the registration. */
+@property --ramp {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
 
 :root {
   /* Rhythm and interaction sizing are shared by all skins: the thumb does not
@@ -90,6 +113,12 @@
   --plate-rule: 0;
   --depth-step: 3.4%;
   --rank-floor: .66;
+  /* Where the ramp starts under the lead and where it ends: a twelfth of a
+     plate is still a plate, so the last of the ten keeps a trace of the slab
+     the first one is made of. */
+  --ramp-top: .70;
+  --ramp-floor: .12;
+  --rank-fade: .018;
 
   --chip-radius: 7px;
   --grain: .055;
@@ -217,6 +246,12 @@
   --plate-rule: 1px;
   --depth-step: 0%;
   --rank-floor: .60;
+  /* A ruled book has no plates to dim, so the ramp is a wash that runs out
+     entirely: the last entry stands on the bare page. The type fades a little
+     faster here than in slate to make up for the plate that is not there. */
+  --ramp-top: .76;
+  --ramp-floor: .05;
+  --rank-fade: .022;
 
   --chip-radius: 0px;
   --grain: .05;
@@ -349,6 +384,12 @@
   --plate-rule: 0;
   --depth-step: 0%;
   --rank-floor: .58;
+  /* Breath has no plane at all, so its ramp is the faintest of the three and
+     runs out completely: at the foot of the list there is text on the ground
+     the skin is named after, and nothing else. */
+  --ramp-top: .76;
+  --ramp-floor: .04;
+  --rank-fade: .026;
 
   --chip-radius: 0px;
   --grain: 0;
@@ -445,6 +486,93 @@
   background: none; box-shadow: inset 0 -1px 0 var(--line); padding-left: 0; padding-right: 14px;
 }
 :root[data-skin="breath"] .duel-card { background: none; }
+
+/* =============================================================================
+   THE RANK RAMP - what loud and quiet look like, six times.
+
+   These four values are declared ON THE ROW and nowhere else, and that is not
+   a style: a custom property is substituted where it is DECLARED, so a ramp
+   written at :root would be mixed against the --ramp of the root (always 1)
+   and every row in the list would come out equally loud. They belong where
+   --ramp itself is set - app.css, .list.is-ranked .row.
+
+   The ladder runs from the lead down to --ramp-floor at rank ten. What steps
+   down differs per skin, because "louder" is not the same thing in a skin with
+   plates as in a skin without one; what all six share is the direction and the
+   fact that no step below the lead is allowed to compete with it.
+   ============================================================================= */
+
+/* Slate ramps the slab it already has: the plate is mixed towards the page and
+   the light under it goes out with it, so the foot of the list is a plate that
+   has almost lain down. The lead keeps the plate it always had - the ladder
+   ends in it, it does not start a second one. */
+:root[data-skin="slate"] .list.is-ranked .row {
+  --plate-bg-ramp: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface) calc(var(--ramp) * 100%), var(--bg)),
+    color-mix(in srgb, var(--surface-2) calc(var(--ramp) * 100%), var(--bg)));
+  --plate-bg-ramp-lead: var(--plate-bg-lead);
+  --plate-shadow-ramp-lead: var(--plate-shadow-lead);
+}
+:root[data-skin="slate"][data-theme="dark"] .list.is-ranked .row {
+  --plate-shadow-ramp:
+    inset 0 1px 0 color-mix(in srgb, var(--edge-soft) calc(var(--ramp) * 100%), transparent),
+    0 2px 7px -3px color-mix(in srgb, rgba(0, 0, 0, .70) calc(var(--ramp) * 100%), transparent);
+}
+/* By day loud is not lighter, it is lifted: the top of the ramp is a white
+   card standing off the page, and what fades with rank is the shadow under it
+   as much as the card. At the foot the card has settled into the page. */
+:root[data-skin="slate"][data-theme="light"] .list.is-ranked .row {
+  --plate-shadow-ramp:
+    inset 0 1px 0 color-mix(in srgb, var(--edge-soft) calc(var(--ramp) * 100%), transparent),
+    0 3px 9px -3px color-mix(in srgb, rgba(18, 22, 30, .34) calc(var(--ramp) * 100%), transparent);
+}
+
+/* Register and breath have no plate to dim, so they ramp a wash instead - and
+   the wash is a soft ellipse, not a band. A rectangle of even tint is a plate
+   whatever it is called: ten of them under ten entries turned both skins into
+   a striped table, which is the one thing neither of them does. Anchored to
+   the left where the figure and the title are, running out well before the
+   right edge and before the rule, it has no edge to read as a box. Both keep
+   their shadow at none. */
+:root[data-skin="register"] .list.is-ranked .row,
+:root[data-skin="breath"] .list.is-ranked .row {
+  --plate-shadow-ramp: none;
+  --plate-shadow-ramp-lead: none;
+}
+/* The first entry takes the ink of the accent it already wears in its figure -
+   in these two skins that wash IS the plate the lead does not otherwise have. */
+:root[data-skin="register"][data-theme="dark"] .list.is-ranked .row {
+  --plate-bg-ramp: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, rgba(237, 230, 217, .155) calc(var(--ramp) * 100%), transparent) 0%,
+    transparent 80%);
+  --plate-bg-ramp-lead: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, var(--accent) 20%, transparent) 0%, transparent 80%);
+}
+/* On paper the wash is ink, not light: the entries at the top of a register
+   are the ones somebody shaded in, and the shading thins out downwards. */
+:root[data-skin="register"][data-theme="light"] .list.is-ranked .row {
+  --plate-bg-ramp: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, rgba(23, 20, 15, .10) calc(var(--ramp) * 100%), transparent) 0%,
+    transparent 80%);
+  --plate-bg-ramp-lead: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, var(--accent) 17%, transparent) 0%, transparent 80%);
+}
+/* Breath is the faintest of the three and runs out completely: at the foot of
+   the list there is text on the ground the skin is named after, nothing else. */
+:root[data-skin="breath"][data-theme="dark"] .list.is-ranked .row {
+  --plate-bg-ramp: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, rgba(242, 242, 239, .115) calc(var(--ramp) * 100%), transparent) 0%,
+    transparent 80%);
+  --plate-bg-ramp-lead: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, var(--accent) 19%, transparent) 0%, transparent 80%);
+}
+:root[data-skin="breath"][data-theme="light"] .list.is-ranked .row {
+  --plate-bg-ramp: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, rgba(16, 16, 18, .085) calc(var(--ramp) * 100%), transparent) 0%,
+    transparent 80%);
+  --plate-bg-ramp-lead: radial-gradient(108% 108% at 30% 50%,
+    color-mix(in srgb, var(--accent) 15%, transparent) 0%, transparent 80%);
+}
 
 /* =============================================================================
    THE DATA PALETTE - ten family hues for the map, and nothing else.

@@ -109,7 +109,13 @@ export function nodeRow(ctx, node, opts = {}) {
 /** A list of the living children of `parentId`. */
 export function nodeList(ctx, parentId, opts = {}) {
   const kids = childrenOf(ctx.doc.nodes, parentId);
-  const ul = el("ul", { class: opts.kids ? "list is-kids" : "list" });
+  // Every row carries its --rank, in every list. The loudness ramp that reads
+  // that rank belongs to the ranked ten alone, so it hangs off the class that
+  // marks exactly the list which also shows the rank figures - a sublist and
+  // the today list are ordered, but their order is not the point of them.
+  const ul = el("ul", {
+    class: opts.kids ? "list is-kids" : opts.showRank ? "list is-ranked" : "list",
+  });
   if (opts.kids) ul.appendChild(el("div", { class: "rail", attrs: { "aria-hidden": "true" } }));
   kids.forEach((n, i) => {
     ul.appendChild(
