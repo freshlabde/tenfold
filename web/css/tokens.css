@@ -46,6 +46,11 @@
   --dur-fast: 140ms;
   --dur: 260ms;
   --dur-slow: 460ms;
+  /* The one looping duration in the app: an idle hint that repeats forever
+     cannot collapse to 1ms like the transitions do, so it is switched off by
+     its own play state below instead. */
+  --drift: 4200ms;
+  --drift-play: running;
   --ease: cubic-bezier(.22, .61, .36, 1);
   --ease-out: cubic-bezier(.16, 1, .3, 1);
   --sa-top: env(safe-area-inset-top, 0px);
@@ -531,6 +536,9 @@
     --dur-fast: 1ms;
     --dur: 1ms;
     --dur-slow: 1ms;
+    /* A loop cannot be shortened into nothing, so it is stopped at frame one:
+       the duel arrows are then simply static. */
+    --drift-play: paused;
   }
 }
 

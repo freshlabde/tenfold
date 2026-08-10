@@ -108,7 +108,7 @@ await shot("09-duel");
   await page.mouse.up();
 }
 for (let i = 0; i < 40; i += 1) {
-  const b = page.getByRole("button", { name: "Choose B" });
+  const b = page.locator(".duel-card.is-b");
   if (!(await b.count())) break;
   await b.click();
 }

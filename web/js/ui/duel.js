@@ -2,9 +2,11 @@
 //
 // What it does: drives prioritize.js with a physical gesture. The pair hangs
 // on a beam; dragging tilts it, the side that rises catches the light and the
-// other sinks and dims. Past the commit angle the decision is taken. Every
-// decision is also a button, because a scale is no use to somebody on a
-// keyboard.
+// other sinks and dims. Past the commit angle the decision is taken. The card
+// IS the button: a plain tap on it is the same decision as the swipe towards
+// it, so nothing on this screen needs to be aimed at. Each card carries a
+// thick arrow on the edge it travels towards - the direction is on the thing
+// that moves, not in a legend between the two.
 //
 // What it deliberately does NOT do: it does not write to the document while
 // the duel runs. The new order is applied in one reorder call at the end, and
@@ -13,11 +15,17 @@
 import { el, text, icon } from "./dom.js";
 import { t } from "../i18n.js";
 import { startDuel, currentPair, choose, result, progress } from "../prioritize.js";
-import { spring, rubberBand } from "../motion.js";
+import { spring, rubberBand, prefersReducedMotion } from "../motion.js";
 import { pad2 } from "./format.js";
 
 const COMMIT = 88;
 const MAX_TILT = 3.4;
+// A pointer that travelled this far was a gesture and must not also count as
+// a tap - the click event arrives after pointerup, when dx is back at zero.
+const TAP_SLOP = 9;
+// One beat for the chosen card to be seen before the next pair paints. Short
+// enough that a run of ten decisions does not feel metered.
+const ACK_MS = 190;
 
 let duel = null;
 let parentId;
@@ -36,16 +44,39 @@ export function reset() {
   history = [];
 }
 
-function cardFor(ctx, item, label) {
+/**
+ * One side of the scale. `side` is "a" (swiped left) or "b" (swiped right);
+ * the arrow is drawn from the shared icon table at three times its stroke
+ * weight and placed on the edge the card is pushed towards.
+ */
+function cardFor(ctx, item, label, side) {
   const siblings = ctx.childrenOf(parentId);
   const rank = siblings.findIndex((n) => n.id === item.id);
-  return el("div", { class: "duel-card", dataset: { id: item.id } }, [
-    el("div", { class: "duel-card-label" }, [text(label)]),
-    el("h2", { class: "duel-card-title" }, [text(item.title)]),
-    rank >= 0
-      ? el("div", { class: "duel-card-sub" }, [text(t("duel.currentRank", { rank: rank + 1 }))])
-      : null,
-  ]);
+  const glyph = icon(side === "a" ? "arrowLeft" : "arrowRight", 34);
+  glyph.setAttribute("class", "duel-arrow-glyph");
+  return el(
+    "div",
+    {
+      class: `duel-card is-tappable is-${side}`,
+      dataset: { id: item.id, side },
+      // The whole card is the control, so it carries the role and the name.
+      // The letter stays as a label only - "currently place n" is read next
+      // to it and the A/B wording is what the rest of the screen refers to.
+      attrs: {
+        role: "button",
+        tabindex: "0",
+        "aria-label": t("duel.chooseCard", { title: item.title }),
+      },
+    },
+    [
+      el("span", { class: "duel-arrow", attrs: { "aria-hidden": "true" } }, [glyph]),
+      el("div", { class: "duel-card-label" }, [text(label)]),
+      el("h2", { class: "duel-card-title" }, [text(item.title)]),
+      rank >= 0
+        ? el("div", { class: "duel-card-sub" }, [text(t("duel.currentRank", { rank: rank + 1 }))])
+        : null,
+    ],
+  );
 }
 
 function finished(ctx) {
@@ -121,8 +152,8 @@ export function render(ctx, id) {
   if (!pair) return finished(ctx);
 
   const p = progress(duel);
-  const cardA = cardFor(ctx, pair.a, t("duel.labelA"));
-  const cardB = cardFor(ctx, pair.b, t("duel.labelB"));
+  const cardA = cardFor(ctx, pair.a, t("duel.labelA"), "a");
+  const cardB = cardFor(ctx, pair.b, t("duel.labelB"), "b");
 
   const scale = el("div", { class: "scale" });
   const glow = el("div", { class: "beam-glow", attrs: { "aria-hidden": "true" } });
@@ -131,6 +162,9 @@ export function render(ctx, id) {
   // an element that a re-render already replaced must do nothing, or one
   // decision would count twice.
   const commit = (winnerId) => {
+    // The acknowledgement runs on a timer, so the screen may have been left
+    // in the meantime - a finished or discarded duel is no longer decidable.
+    if (!duel) return;
     const live = currentPair(duel);
     if (!live || live.a.id !== pair.a.id || live.b.id !== pair.b.id) return;
     history.push(duel);
@@ -142,29 +176,23 @@ export function render(ctx, id) {
     ctx.live(t("duel.progress", { done: after.done + 1, total: after.estimatedTotal }));
   };
 
-  const dirs = el("div", { class: "duel-dirs" }, [
-    el(
-      "button",
-      {
-        class: "btn-ghost",
-        attrs: { type: "button", "aria-label": t("duel.chooseA") },
-        on: { click: () => commit(pair.a.id) },
-      },
-      [icon("arrowLeft", 14), text(t("duel.labelA"))],
-    ),
-    el(
-      "button",
-      {
-        class: "btn-ghost",
-        attrs: { type: "button", "aria-label": t("duel.chooseB") },
-        on: { click: () => commit(pair.b.id) },
-      },
-      [text(t("duel.labelB")), icon("arrowRight", 14)],
-    ),
-  ]);
+  // A tap is the swipe without the travel: the chosen card plays the lift the
+  // gesture would have shown, then the next pair paints. One decision per
+  // render - a second tap during the beat would land on the same pair.
+  let picking = false;
+  const pick = (winnerId, card) => {
+    if (picking) return;
+    picking = true;
+    if (prefersReducedMotion()) {
+      commit(winnerId);
+      return;
+    }
+    card.classList.add("is-up", "is-chosen");
+    (card === cardA ? cardB : cardA).classList.add("is-down");
+    setTimeout(() => commit(winnerId), ACK_MS);
+  };
 
   scale.appendChild(cardA);
-  scale.appendChild(dirs);
   scale.appendChild(cardB);
   scale.appendChild(el("div", { class: "scale-pivot", attrs: { "aria-hidden": "true" } }));
 
@@ -178,6 +206,7 @@ export function render(ctx, id) {
   let velocity = 0;
   let lastX = 0;
   let lastT = 0;
+  let gestured = false;
 
   const paint = (v) => {
     dx = v;
@@ -191,29 +220,50 @@ export function render(ctx, id) {
     cardA.classList.toggle("is-down", lean && v > 0);
     cardB.classList.toggle("is-up", lean && v > 0);
     cardB.classList.toggle("is-down", lean && v < 0);
-    dirs.children[0].classList.toggle("is-accent", lean && v < 0);
-    dirs.children[1].classList.toggle("is-accent", lean && v > 0);
+    // The arrow answers the drag proportionally, and only on the side the
+    // finger is actually going - both of them brightening would say nothing.
+    const reach = Math.min(1, Math.abs(v) / COMMIT);
+    cardA.style.setProperty("--arm", String(v < 0 ? reach : 0));
+    cardB.style.setProperty("--arm", String(v > 0 ? reach : 0));
+    cardA.classList.toggle("is-armed", lean && v < 0);
+    cardB.classList.toggle("is-armed", lean && v > 0);
   };
+
+  const setDragging = (on) => scale.classList.toggle("is-dragging", on);
 
   beam.addEventListener("pointerdown", (ev) => {
     if (ev.target.closest("button")) return;
     active = true;
+    gestured = false;
     startX = ev.clientX;
     startY = ev.clientY;
     lastX = startX;
     lastT = ev.timeStamp;
-    beam.setPointerCapture(ev.pointerId);
+    // The capture is deliberately NOT taken here. While a pointer is captured
+    // the click event is dispatched at the capturing element, so a card that
+    // was merely tapped would never see its own click - and the card is the
+    // button now. The capture is taken below, the moment a drag is real.
   });
   beam.addEventListener("pointermove", (ev) => {
     if (!active) return;
     const mx = ev.clientX - startX;
     const my = ev.clientY - startY;
     if (Math.abs(my) > Math.abs(mx) && Math.abs(my) > 24) {
+      // A scroll away from the beam is not a decision, and the click that
+      // follows it must not become one either.
       active = false;
+      gestured = true;
+      setDragging(false);
       paint(0);
       return;
     }
     ev.preventDefault();
+    if (Math.abs(mx) > TAP_SLOP && !gestured) {
+      gestured = true;
+      setDragging(true);
+      // From here the finger owns the beam, wherever it travels.
+      beam.setPointerCapture(ev.pointerId);
+    }
     const dt = Math.max(1, ev.timeStamp - lastT);
     velocity = ((ev.clientX - lastX) / dt) * 1000;
     lastX = ev.clientX;
@@ -224,7 +274,10 @@ export function render(ctx, id) {
   const release = () => {
     if (!active) return;
     active = false;
+    setDragging(false);
     if (Math.abs(dx) >= COMMIT) {
+      // A committed swipe answers with the tilt it already has; the tap
+      // acknowledgement would only delay the next pair.
       commit(dx > 0 ? pair.b.id : pair.a.id);
       return;
     }
@@ -232,6 +285,37 @@ export function render(ctx, id) {
   };
   beam.addEventListener("pointerup", release);
   beam.addEventListener("pointercancel", release);
+
+  // The card as a control. Click covers mouse, pen and the synthetic tap after
+  // a touch; the keys are here because the two cards are the only focusable
+  // things on this screen, so a left/right key can mean what a swipe means.
+  const wire = (card, winnerId) => {
+    card.addEventListener("click", () => {
+      if (gestured) {
+        gestured = false;
+        return;
+      }
+      pick(winnerId, card);
+    });
+    card.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        pick(winnerId, card);
+        return;
+      }
+      if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        pick(pair.a.id, cardA);
+        return;
+      }
+      if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        pick(pair.b.id, cardB);
+      }
+    });
+  };
+  wire(cardA, pair.a.id);
+  wire(cardB, pair.b.id);
 
   // --- head and foot -------------------------------------------------------
   // The counter is stated once, in the mono rail, and drawn once as a bar -

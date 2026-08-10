@@ -272,9 +272,14 @@ test("a duel runs to the end and reorders the list", async ({ page }) => {
   // Always choosing the newcomer reverses the list - deterministic by
   // construction, prioritize.js uses no randomness.
   for (let i = 0; i < 30; i += 1) {
-    const b = page.getByRole("button", { name: "Choose B" });
+    const b = page.locator(".duel-card.is-b");
     if (!(await b.count())) break;
+    // The pick is acknowledged for a beat before the next pair paints, so the
+    // clicked card outlives the click. Waiting on the NODE, not on its id: the
+    // item being placed stays card B across a whole binary search.
+    const node = await b.elementHandle();
     await b.click();
+    await page.waitForFunction((el) => !el.isConnected, node);
   }
 
   await expect(page.getByRole("button", { name: "Take this order" })).toBeVisible();
@@ -283,6 +288,170 @@ test("a duel runs to the end and reorders the list", async ({ page }) => {
   await expect(page.locator(".h-title")).toHaveText("The Ten");
   await expect(page.locator(".row-title")).toHaveText(["Gamma", "Beta", "Alpha"]);
   await expect(page.locator(".h-sub")).toContainText("ordered");
+});
+
+// The duel screen after the owner's report from the phone: the A/B letters in
+// the middle row were "very hard to see and to hit". The card itself is the
+// button now, and the direction is drawn on the card that moves.
+
+/**
+ * A screen change is a View Transition, and while its snapshot overlay is up a
+ * raw pointer press hit-tests against the overlay instead of the page - the
+ * beam then never sees the drag. Locator clicks retry until they land; the
+ * mouse API does not, so a hand-driven gesture waits for the real beam to be
+ * the thing under the middle of the beam again.
+ */
+async function beamBox(page) {
+  await page.waitForFunction(() => {
+    const b = document.querySelector(".beam");
+    if (!b) return false;
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return !!(hit && hit.closest(".beam"));
+  });
+  return page.locator(".beam").boundingBox();
+}
+
+test("a tap on the upper card ranks it above the lower one", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta"]);
+
+  await page.getByRole("button", { name: "Put in order" }).click();
+  const a = page.locator(".duel-card.is-a");
+  const b = page.locator(".duel-card.is-b");
+  const titleA = await a.locator(".duel-card-title").textContent();
+  const titleB = await b.locator(".duel-card-title").textContent();
+
+  // The whole card is one control, and its name is the goal it carries.
+  await expect(a).toHaveAttribute("role", "button");
+  await expect(a).toHaveAttribute("aria-label", `Choose: ${titleA}`);
+
+  // A plain tap, nowhere near a letter: the middle of the card.
+  await a.click();
+  await page.getByRole("button", { name: "Take this order" }).click();
+  await expect(page.locator(".row-title")).toHaveText([titleA, titleB]);
+});
+
+test("a tap on the lower card ranks it above the upper one", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta"]);
+
+  await page.getByRole("button", { name: "Put in order" }).click();
+  const titleA = await page.locator(".duel-card.is-a .duel-card-title").textContent();
+  const titleB = await page.locator(".duel-card.is-b .duel-card-title").textContent();
+
+  await page.locator(".duel-card.is-b").click();
+  await page.getByRole("button", { name: "Take this order" }).click();
+  await expect(page.locator(".row-title")).toHaveText([titleB, titleA]);
+});
+
+test("the cards take the keyboard: Enter picks, the arrow keys pick a side", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta"]);
+  await page.getByRole("button", { name: "Put in order" }).click();
+  const titleA = await page.locator(".duel-card.is-a .duel-card-title").textContent();
+  const titleB = await page.locator(".duel-card.is-b .duel-card-title").textContent();
+
+  // Focus the upper card and press the key that means the LOWER one.
+  await page.locator(".duel-card.is-a").focus();
+  await page.keyboard.press("ArrowRight");
+  await page.getByRole("button", { name: "Take this order" }).click();
+  await expect(page.locator(".row-title")).toHaveText([titleB, titleA]);
+
+  // And Enter takes the card that has focus.
+  await page.getByRole("button", { name: "Put in order" }).click();
+  const upper = await page.locator(".duel-card.is-a .duel-card-title").textContent();
+  const lower = await page.locator(".duel-card.is-b .duel-card-title").textContent();
+  await page.locator(".duel-card.is-a").focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Take this order" }).click();
+  await expect(page.locator(".row-title")).toHaveText([upper, lower]);
+});
+
+test("the faint middle hints are gone and each card carries its own arrow", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta"]);
+  await page.getByRole("button", { name: "Put in order" }).click();
+
+  // The old row of "left-A" / "B-right" ghost buttons between the cards.
+  await expect(page.locator(".duel-dirs")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Choose A", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Choose B", exact: true })).toHaveCount(0);
+
+  // One thick arrow per card, on the edge that card is swiped towards, and
+  // drawn rather than typed - no arrow character in any text node.
+  await expect(page.locator(".duel-card .duel-arrow-glyph")).toHaveCount(2);
+  const geometry = await page.evaluate(() => {
+    const read = (sel) => {
+      const card = document.querySelector(sel);
+      const glyph = card.querySelector(".duel-arrow-glyph");
+      const c = card.getBoundingClientRect();
+      const g = glyph.getBoundingClientRect();
+      return {
+        width: Math.round(g.width),
+        stroke: getComputedStyle(glyph).strokeWidth,
+        // How far the arrow sits from the card's left edge, as a fraction.
+        offset: (g.left + g.width / 2 - c.left) / c.width,
+      };
+    };
+    return { a: read(".duel-card.is-a"), b: read(".duel-card.is-b"), text: document.body.innerText };
+  });
+  expect(geometry.a.width).toBeGreaterThanOrEqual(28);
+  expect(parseFloat(geometry.a.stroke)).toBeGreaterThan(2);
+  expect(geometry.a.offset).toBeLessThan(0.25);
+  expect(geometry.b.offset).toBeGreaterThan(0.75);
+  expect(geometry.text).not.toMatch(/[←→⟵⟶]/);
+});
+
+test("swiping still maps left to the upper card and right to the lower one", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta"]);
+  await page.getByRole("button", { name: "Put in order" }).click();
+
+  const titleA = await page.locator(".duel-card.is-a .duel-card-title").textContent();
+  const titleB = await page.locator(".duel-card.is-b .duel-card-title").textContent();
+
+  const box = await beamBox(page);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 60, cy, { steps: 6 });
+  // Past the commit distance: right is the lower card.
+  await page.mouse.move(cx + 120, cy, { steps: 6 });
+  await page.mouse.up();
+
+  await page.getByRole("button", { name: "Take this order" }).click();
+  await expect(page.locator(".row-title")).toHaveText([titleB, titleA]);
+});
+
+test("a swipe that falls short of the commit distance decides nothing", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta", "Gamma"]);
+  await page.getByRole("button", { name: "Put in order" }).click();
+  const before = await page.locator(".duel-head .h-sub").textContent();
+
+  const box = await beamBox(page);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 40, cy, { steps: 6 });
+  await page.mouse.move(cx + 62, cy, { steps: 6 });
+  // The beam has to have felt the drag, or this proves nothing.
+  await expect(page.locator(".scale")).toHaveClass(/is-dragging/);
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+
+  // The pull-back must not arrive as a tap on the card it was released over.
+  await expect(page.locator(".duel-head .h-sub")).toHaveText(before);
+  await expect(page.locator(".duel-card")).toHaveCount(2);
 });
 
 test("a step can be finished from the detail screen and reopened", async ({ page }) => {

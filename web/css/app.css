@@ -647,6 +647,9 @@ button.h-sub {
 .scale {
   position: relative; width: 100%;
   display: flex; flex-direction: column; gap: 14px;
+  /* The beam is a gesture surface. Without this a drag across a card paints a
+     text selection over the title it is deciding about. */
+  -webkit-user-select: none; user-select: none;
   transform: translateX(calc(var(--dx, 0) * 1px)) rotate(calc(var(--tilt, 0) * 1deg));
   transform-origin: 50% 50%;
   will-change: transform;
@@ -659,6 +662,7 @@ button.h-sub {
 }
 
 .duel-card {
+  position: relative;
   border-radius: var(--radius);
   padding: 22px 18px;
   min-height: 136px;
@@ -691,15 +695,75 @@ button.h-sub {
   box-shadow: inset 0 1px 0 var(--edge), 0 0 0 1px var(--accent), var(--shadow);
 }
 .duel-card.is-up .duel-card-label { color: var(--accent); }
+.duel-card.is-tappable { cursor: pointer; }
 
-.duel-dirs { display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
-.duel-dirs span {
-  display: flex; align-items: center; gap: 7px;
-  font-family: var(--font-mono);
-  font-size: 9.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
-  color: var(--text-4);
+/* The pick, played back once. The card the finger chose lifts a little further
+   than the tilt takes it and holds for a beat before the next pair paints -
+   the same transition the tilt already uses, not a second vocabulary. */
+.duel-card.is-chosen {
+  transform: scale(1.055) translateY(-6px);
+  background: var(--plate-bg-lead);
+  box-shadow: inset 0 1px 0 var(--edge), 0 0 0 1.5px var(--accent), var(--shadow);
 }
-.duel-dirs span.is-on { color: var(--accent); }
+
+/* The direction lives on the card that moves, not in a legend between the two.
+   The glyph comes from the shared icon table and is drawn at roughly twice its
+   weight - at arm's length a 1.7 stroke is a hairline, and a hairline was the
+   whole complaint. The zone is a full tap target wide, so the arrow is also
+   the easiest part of the card to hit. */
+/* Pinned against the drag. The beam carries both cards sideways, so an arrow
+   that simply rode along would leave the screen exactly on the side the finger
+   is heading for - the one moment it has something to say. It holds its place
+   while the card slides under it, and gives way only past the commit distance,
+   where the decision is already made. */
+.duel-arrow {
+  position: absolute; top: 50%;
+  width: var(--tap); height: var(--tap); margin-top: calc(var(--tap) / -2);
+  display: flex; align-items: center; justify-content: center;
+  transform: translateX(clamp(-25px, calc(var(--dx, 0) * -1px), 25px));
+}
+/* The text yields the arrow's side rather than the arrow floating over it.
+   The two paddings mirror each other, so the pair still reads as a balance. */
+.duel-card.is-a { padding-left: 78px; }
+.duel-card.is-b { padding-right: 78px; }
+.duel-card.is-a .duel-arrow { left: 9px; }
+.duel-card.is-b .duel-arrow { right: 9px; }
+/* Fills with the gesture: how far the swipe has got, which the letters never
+   said. Behind the glyph, so the stroke stays readable at full fill. */
+.duel-arrow::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: var(--accent-glow);
+  opacity: var(--arm, 0);
+  transform: scale(calc(.72 + var(--arm, 0) * .28));
+}
+.duel-arrow-glyph {
+  position: relative;
+  color: var(--muted);
+  stroke-width: 3.1;
+  opacity: calc(.78 + var(--arm, 0) * .22);
+  transition: color var(--dur) var(--ease);
+  animation: duel-drift-r var(--drift) var(--ease) infinite;
+  animation-play-state: var(--drift-play, running);
+}
+.duel-card.is-a .duel-arrow-glyph { animation-name: duel-drift-l; }
+.duel-card.is-armed .duel-arrow-glyph { color: var(--accent); }
+/* Two movements on one glyph would fight, so the idle hint stands still for as
+   long as the drag is answering. Paused rather than cleared: it freezes where
+   it is instead of snapping back under the finger. */
+.scale.is-dragging .duel-arrow-glyph { animation-play-state: paused; }
+
+/* "Leicht": three pixels outward, once every few seconds, most of the cycle
+   spent at rest. Enough to say the card can be pushed, quiet enough for a
+   screen somebody sits in front of and thinks. */
+@keyframes duel-drift-l {
+  0%, 58%, 100% { transform: translateX(0); }
+  79% { transform: translateX(-3px); }
+}
+@keyframes duel-drift-r {
+  0%, 58%, 100% { transform: translateX(0); }
+  79% { transform: translateX(3px); }
+}
+
 .duel-foot { flex: none; margin: 0 var(--gutter); padding-top: 10px; display: flex; justify-content: space-between; }
 
 /* ------------------------------------------------------------------- the leaf
