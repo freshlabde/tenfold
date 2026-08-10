@@ -97,3 +97,40 @@ export function keysOf(locale) {
   const cat = CATALOGUES[locale];
   return cat ? Object.keys(cat).sort() : [];
 }
+
+/** The labels the story guide stamps into the story text. */
+const GUIDE_LABEL_KEYS = [
+  "guide.label.why",
+  "guide.label.tried",
+  "guide.label.blocks",
+  "guide.label.done",
+];
+
+const RE_ESCAPE = /[.*+?^${}()|[\]\\]/g;
+
+/**
+ * Re-label guide answers in a story for DISPLAY.
+ *
+ * The story guide appends each answer as "<label>: <answer>", and the label is
+ * stamped in whatever language was active at that moment - so a vault answered
+ * in English shows "Why now:" inside an otherwise German screen forever (owner
+ * report: "En text in deutsch"). The stored text is user data and stays
+ * exactly as written; this maps a KNOWN guide label at a line start from any
+ * supported locale to the current one, and touches nothing else.
+ * @param {string} story
+ * @returns {string}
+ */
+export function localizeStoryLabels(story) {
+  const s = String(story || "");
+  if (!s) return s;
+  let out = s;
+  for (const key of GUIDE_LABEL_KEYS) {
+    const target = t(key);
+    for (const locale of LOCALES) {
+      const label = CATALOGUES[locale][key];
+      if (!label || label === target) continue;
+      out = out.replace(new RegExp(`^${label.replace(RE_ESCAPE, "\\$&")}:`, "gm"), `${target}:`);
+    }
+  }
+  return out;
+}

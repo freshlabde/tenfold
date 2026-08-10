@@ -355,16 +355,25 @@ button.h-sub {
   overflow-wrap: anywhere;
 }
 .hero-note { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
-/* Story and note are previews here - clamped so a well-told story can never
-   crowd the children and the action bar off a phone screen. */
-.hero-story,
+/* The note stays a clamped preview; the story scrolls in place. The original
+   guard - a well-told story must never crowd the children and the action bar
+   off a phone screen - holds via the height cap, but inside that cap the whole
+   story is readable here, where the review happens (owner: "Story hier in der
+   review scroll bar machen"), instead of cut off after three lines. */
+.hero-story {
+  max-height: min(11.7em, 24dvh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-right: 6px;
+}
 .hero-note {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  -webkit-line-clamp: 2;
 }
-.hero-story { -webkit-line-clamp: 3; }
-.hero-note { -webkit-line-clamp: 2; }
 .hero-card.is-tappable { cursor: pointer; }
 .hero-meta { margin-top: 13px; display: flex; align-items: center; gap: 11px; }
 .hero-meta .track {

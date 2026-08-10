@@ -173,6 +173,66 @@ test("the story guide appends labelled answers and fills the definition of done"
   await expect(page.locator(".facts")).toContainText("We have met twice.");
 });
 
+test("a guide label answered in one language reads in the current one", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await openStep(page, "Spanish up to B2", "Find a tandem partner");
+
+  // Answer the first question in English - the label is stamped into the
+  // story text in the language of that moment.
+  await page.getByRole("button", { name: "Tell the story" }).click();
+  await page.locator(".sheet textarea").fill("Because the move is in September.");
+  await page.getByRole("button", { name: "Next" }).click();
+  for (let i = 0; i < 3; i += 1) await page.getByRole("button", { name: "Skip" }).click();
+  await expect(page.locator(".leaf-story")).toContainText("Why now: Because the move is in September.");
+
+  // Switch the app to German: the SCREEN re-labels the answer, the sealed
+  // document keeps exactly what was written (owner report: "En text in
+  // deutsch" - an English "Why now:" inside an otherwise German screen).
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    ctx.setSettings({ lang: "de" });
+  });
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  await expect(page.locator(".leaf-story")).toContainText("Warum jetzt: Because the move is in September.");
+  await expect(page.locator(".leaf-story")).not.toContainText("Why now:");
+  const raw = await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    return ctx.doc.nodes.map((n) => n.story || "").join("\n");
+  });
+  expect(raw).toContain("Why now: Because the move is in September.");
+  expect(raw).not.toContain("Warum jetzt");
+});
+
+test("the review card scrolls a long story instead of cutting it off", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await openStep(page, "Spanish up to B2", "Find a tandem partner");
+
+  // A story far past the old three-line clamp, on the GOAL - the node whose
+  // review card the Back below lands on.
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    const goal = ctx.childrenOf(null)[0];
+    const line = "The classes stalled twice and the podcast alone does not stick. ";
+    ctx.updateNode(goal.id, { story: line.repeat(12) });
+  });
+
+  // Back on the parent: the review card shows the story in a box that scrolls.
+  await page.locator("#app").getByRole("button", { name: "Back" }).click();
+  const story = page.locator(".hero-story");
+  await expect(story).toBeVisible();
+  const box = await story.evaluate((n) => ({
+    overflowY: getComputedStyle(n).overflowY,
+    scrollable: n.scrollHeight > n.clientHeight + 4,
+    capped: n.clientHeight < window.innerHeight * 0.35,
+  }));
+  expect(box.overflowY).toBe("auto");
+  expect(box.scrollable).toBe(true);
+  // The cap still holds: a long story may scroll, never take over the screen.
+  expect(box.capped).toBe(true);
+});
+
 test("the guide leaves an existing definition of done alone", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);

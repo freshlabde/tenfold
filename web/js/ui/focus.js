@@ -12,7 +12,7 @@
 
 import { el, text, icon, depthMark } from "./dom.js";
 import { nodeList, composer } from "./rows.js";
-import { t } from "../i18n.js";
+import { t, localizeStoryLabels } from "../i18n.js";
 import { storyDepth } from "../model.js";
 import { progressOf, relativeTime } from "./format.js";
 import { nameTransition, clearTransition } from "../motion.js";
@@ -98,7 +98,7 @@ function hero(ctx, node) {
       showDepth ? depthMark(storyDepth(node)) : null,
     ]),
     el("h1", { class: "hero-title" }, [text(node.title)]),
-    node.story ? el("p", { class: "hero-story" }, [text(node.story)]) : null,
+    node.story ? el("p", { class: "hero-story" }, [text(localizeStoryLabels(node.story))]) : null,
     node.note ? el("p", { class: "hero-note" }, [text(node.note)]) : null,
     el("div", { class: "hero-meta" }, [
       el("span", { class: "m is-mid" }, [text(t("focus.progress", { done: p.done, total: p.total }))]),

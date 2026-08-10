@@ -16,7 +16,7 @@
 // field is an offer, and an offer is a chip.
 
 import { el, text, icon, depthMark } from "./dom.js";
-import { t, getLocale } from "../i18n.js";
+import { t, getLocale, localizeStoryLabels } from "../i18n.js";
 import { formatDate, dueLabel, relativeTime } from "./format.js";
 import { storyDepth } from "../model.js";
 import { detectNames, foldName } from "../entities.js";
@@ -285,7 +285,7 @@ export function render(ctx, id) {
             ? depthMark(storyDepth(node))
             : null,
       ]),
-      told ? el("div", { class: "leaf-story" }, [text(node.story)]) : null,
+      told ? el("div", { class: "leaf-story" }, [text(localizeStoryLabels(node.story))]) : null,
       el(
         "button",
         {
