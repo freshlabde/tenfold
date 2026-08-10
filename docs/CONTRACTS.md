@@ -147,6 +147,47 @@ Anyone who wants to change an interface changes this file first.
   - Client: `web/js/push.js` (see rule 7), settings row "Daily reminder" inside the sync
     group, honest about iOS needing the installed home-screen app.
 
+## The ranked ten: three tiers, and the height budget
+
+Importance on the ten is shown as **three bands, not as a gradient**. A per-rank slope of
+about four percent a step shipped and was reported invisible on a phone at arm's length; the
+answer is a step the eye can name.
+
+- **Tier 1** = rank one: the lead, tallest row, display weight, accent chip, the loudest
+  plate. **Tier 2** = ranks two and three: mid height, mid title, the rank figure at full
+  contrast. **Tier 3** = rank four and below: compact, smaller title, a pale and smaller
+  figure. `rows.js` writes the class (`is-tier1|2|3`) from the rank index in `nodeList`, and
+  **only where it also sets the rank figures** — a sublist, Today and the search results have
+  no bands. Each band moves height, title size and figure size together, so the edge survives
+  in `register` and `breath`, which have no plate to draw one with. The per-skin values are
+  the nine `--tier*` tokens in `tokens.css`; `app.css` names no size of its own.
+- The **background ramp stays underneath as the quiet echo** — still loud-to-quiet rank by
+  rank, still normalised to the length of the list actually present (`--rank-last`, set on
+  the `ul`). The old per-rank title shrink (`--row-title-step`) and the per-rank opacity fade
+  (`--rank-fade`) are **gone**: opacity is now one value per band, and a title no longer gets
+  smaller merely for standing further down in a list that is not the ten.
+- **The height budget is part of the design.** Ten one-line goals must stand on a 390x844
+  phone with rank one and rank ten both fully visible and nothing to scroll: about
+  58 + 2x46 + 7x36 plus gaps, ~456 px, inside the ~570 px the header, the photo link and the
+  bar leave over. That budget is what holds tier 3 at nine pixels of padding. **A title that
+  wraps to two lines may push past it, and that is the only thing allowed to** — nothing here
+  truncates a goal to make the sums work.
+- **Fewer goals use the space.** `--tier-scale` (padding and gap) and `--tier-type` (type and
+  figure) are derived from `--rank-last` on `.list.is-ranked`, so a five-goal list relaxes
+  proportionally instead of huddling at the top. Ten is the tight end of that scale, not the
+  norm.
+- **Done and parked keep their treatments layered on top of the band**: a done row in tier 2
+  sits at tier-2 size with done styling. They are written after the tier rules because they
+  tie with them on specificity — that order is a rule, not a coincidence.
+
+**The cap at the button.** With **ten living top-level goals** (living = not tombstoned; done
+and parked still hold their place until the next paper ritual) the outline's "New entry"
+button carries the real `disabled` attribute and the ordinary `.btn[disabled]` styling.
+Anything that brings the count back under ten enables it on the next repaint. This is the
+**only** gate: a photo import, a shared note filed from another app and a merge from another
+device can each still land an eleventh entry. A list longer than ten renders correctly — it
+scrolls, which is exactly what the fit budget stops being able to promise beyond ten.
+
 ## Row gestures (`web/js/ui/rows.js`)
 
 One row owns three direct manipulations, told apart before anything moves: past `SWIPE_START`

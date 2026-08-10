@@ -29,10 +29,14 @@
                 --depth-step --depth-into --rank-floor
      rank ramp  --plate-bg-ramp --plate-shadow-ramp
                 --plate-bg-ramp-lead --plate-shadow-ramp-lead
-                --ramp-top --ramp-floor --rank-fade
+                --ramp-top --ramp-floor
+     tiers      --tier1-pad-y --tier2-pad-y --tier3-pad-y
+                --tier1-title --tier2-title --tier3-title
+                --tier1-chip --tier2-chip --tier3-chip
+                --tier1-chip-font --tier2-chip-font --tier3-chip-font
      chips      --chip-bg --chip-shadow --chip-color --chip-radius
                 --chip-lead-bg --chip-lead-color --chip-lead-shadow
-     rows       --row-title-size --row-title-step --row-title-lead
+     rows       --row-title-size --row-title-lead
      data       --data-1 .. --data-10 --map-halo-in --map-halo-mid --map-core
                 --map-card
 
@@ -40,14 +44,25 @@
    except the data palette, which is defined per THEME and shared by all three
    skins on purpose (see the block at the bottom of this file).
 
-   THE RANK RAMP. On the ranked ten - and nowhere else - the row background
-   itself carries the order: rank one is the loudest, every rank below it a
-   measurable step quieter, the last one nearly the page. The four --*-ramp
-   values are the per-skin voice of that ladder, because "louder" is not the
-   same thing in a skin with plates as in a skin without one: slate ramps the
-   plate it already has, register and breath ramp a flat wash and keep their
-   shadow at none. app.css only sets the position on the ladder (--ramp) and
-   reads these four; it never names a colour.
+   THE THREE TIERS. On the ranked ten - and nowhere else - importance is told
+   as three bands, not as a continuous slope: tier 1 is rank one, tier 2 is
+   ranks two and three, tier 3 is everything from four down. Each band has its
+   own row padding, title size and rank-figure size, and the two EDGES between
+   them are what the eye actually reads. A per-rank slope of four percent a
+   step was measured, shipped and reported invisible on a phone at arm's
+   length (owner, 2026-08-09); three bands with a real step between them is
+   the answer to that report. The nine --tier* values below are the per-skin
+   voice of those bands - a serif register and a bare breath carry the edge
+   with type where slate carries it with a plate.
+
+   THE RANK RAMP survives underneath as the quiet echo: the row background
+   still runs loud-to-quiet rank by rank, normalised to the length of the list
+   that is actually there. The four --*-ramp values are the per-skin voice of
+   that ladder, because "louder" is not the same thing in a skin with plates
+   as in a skin without one: slate ramps the plate it already has, register
+   and breath ramp a flat wash and keep their shadow at none. app.css only
+   sets the position on the ladder (--ramp) and reads these four; it never
+   names a colour.
    ============================================================================= */
 
 /* --ramp is registered so it computes to a real number rather than to the
@@ -118,13 +133,29 @@
      the first one is made of. */
   --ramp-top: .70;
   --ramp-floor: .12;
-  --rank-fade: .018;
+
+  /* The three bands. Slate has a plate to make them out of, so the step is
+     carried by height and by how much slab a row is allowed to occupy. The
+     numbers are budgeted: ten one-line goals must stand on a 390x844 phone
+     without a scroll (58 + 2x46 + 7x36 + gaps = 456px), which is what fixes
+     tier 3 at nine pixels of padding rather than at a comfortable twelve. */
+  --tier1-pad-y: 16px;
+  --tier2-pad-y: 12px;
+  --tier3-pad-y: 9px;
+  --tier1-title: 19px;
+  --tier2-title: 15.5px;
+  --tier3-title: 13.5px;
+  --tier1-chip: 26px;
+  --tier2-chip: 22px;
+  --tier3-chip: 18px;
+  --tier1-chip-font: 12.5px;
+  --tier2-chip-font: 11px;
+  --tier3-chip-font: 9.5px;
 
   --chip-radius: 7px;
   --grain: .055;
 
   --row-title-size: 15px;
-  --row-title-step: .22px;
   --row-title-lead: 17px;
 }
 
@@ -251,7 +282,22 @@
      faster here than in slate to make up for the plate that is not there. */
   --ramp-top: .76;
   --ramp-floor: .05;
-  --rank-fade: .022;
+
+  /* A register has no plate, so the band edge is set in type: the tier-one
+     entry is a head, tier two is body copy, tier three is the list at the
+     foot of the page. The marginal figure steps with it. */
+  --tier1-pad-y: 16px;
+  --tier2-pad-y: 12px;
+  --tier3-pad-y: 9px;
+  --tier1-title: 20px;
+  --tier2-title: 16.5px;
+  --tier3-title: 14px;
+  --tier1-chip: 26px;
+  --tier2-chip: 22px;
+  --tier3-chip: 18px;
+  --tier1-chip-font: 20px;
+  --tier2-chip-font: 16.5px;
+  --tier3-chip-font: 13px;
 
   --chip-radius: 0px;
   --grain: .05;
@@ -271,7 +317,6 @@
   --chip-lead-shadow: none;
 
   --row-title-size: 16px;
-  --row-title-step: 0px;
   --row-title-lead: 18px;
 }
 
@@ -389,7 +434,22 @@
      the skin is named after, and nothing else. */
   --ramp-top: .76;
   --ramp-floor: .04;
-  --rank-fade: .026;
+
+  /* Breath has neither plate nor rule, so size IS the hierarchy here and the
+     bands are the widest of the three skins in type. The mono figure shrinks
+     with them until, at the foot of the list, it is barely a marker. */
+  --tier1-pad-y: 15px;
+  --tier2-pad-y: 11.5px;
+  --tier3-pad-y: 9px;
+  --tier1-title: 21px;
+  --tier2-title: 17.5px;
+  --tier3-title: 14.5px;
+  --tier1-chip: 24px;
+  --tier2-chip: 20px;
+  --tier3-chip: 16px;
+  --tier1-chip-font: 11.5px;
+  --tier2-chip-font: 10px;
+  --tier3-chip-font: 8.5px;
 
   --chip-radius: 0px;
   --grain: 0;
@@ -409,7 +469,6 @@
   --chip-lead-shadow: none;
 
   --row-title-size: 19px;
-  --row-title-step: .62px;
   --row-title-lead: 21px;
 }
 

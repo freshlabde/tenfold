@@ -153,10 +153,26 @@ export function render(ctx) {
         ])
       : emptyState(ctx);
 
+  // The cap of the method, enforced where an entry is actually made: ten
+  // living goals ARE the list, and an eleventh is a decision to drop one
+  // first. Living means not tombstoned - a finished or parked goal still
+  // holds its place, because what clears the list is the next paper ritual
+  // and not the act of finishing something. The button takes the ordinary
+  // disabled styling (.btn[disabled]) the ordering button already uses.
+  //
+  // Honestly scoped: this is the only gate. A photo import, a shared note
+  // filed from another app or a merge from another device can still land an
+  // eleventh entry, and a list longer than ten renders correctly - it simply
+  // scrolls, which is what the fit budget stops being able to promise there.
+  const full = roots.length >= 10;
   const addLabel = roots.length ? t("outline.add") : t("outline.empty.cta");
   const add = el(
     "button",
-    { class: `btn${roots.length ? "" : " is-primary"}`, attrs: { type: "button" }, on: { click: () => ctx.startCompose(null) } },
+    {
+      class: `btn${roots.length ? "" : " is-primary"}`,
+      attrs: { type: "button", disabled: full ? "disabled" : false },
+      on: { click: () => ctx.startCompose(null) },
+    },
     [icon("plus", 16), text(addLabel)],
   );
 

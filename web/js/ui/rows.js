@@ -56,7 +56,8 @@ function subLine(ctx, node, opts = {}) {
  * One row.
  * @param {Object} ctx app context
  * @param {Object} node
- * @param {{rank:number,total:number,lead:boolean,showRank:boolean,path:string}} opts
+ * @param {{rank:number,total:number,lead:boolean,showRank:boolean,path:string,
+ *          tier:0|1|2|3}} opts
  */
 export function nodeRow(ctx, node, opts = {}) {
   const nodes = ctx.doc.nodes;
@@ -104,10 +105,14 @@ export function nodeRow(ctx, node, opts = {}) {
     el("span", { class: "m" }, [text(metricFor(nodes, node))]),
   ]);
 
+  // The importance band. Pure CSS could derive it from --rank, but only as a
+  // chain of comparisons written three times over; a class says outright which
+  // of the three a row is in, and it is the same thing the design calls it.
+  // Zero means "no bands here" - every list that is not the ranked ten.
   const row = el("div", {
-    class: `row${opts.lead ? " is-lead" : ""}${node.status === "done" ? " is-done" : ""}${
-      node.status === "parked" ? " is-parked" : ""
-    }`,
+    class: `row${opts.tier ? ` is-tier${opts.tier}` : ""}${opts.lead ? " is-lead" : ""}${
+      node.status === "done" ? " is-done" : ""
+    }${node.status === "parked" ? " is-parked" : ""}`,
     attrs: {
       role: "button",
       tabindex: "0",
@@ -153,6 +158,9 @@ export function nodeList(ctx, parentId, opts = {}) {
         total: kids.length,
         lead: !!opts.lead && i === 0,
         showRank: !!opts.showRank,
+        // The three bands of the ranked ten: the lead, the two behind it, and
+        // the rest. Only the list that shows rank figures has them at all.
+        tier: opts.showRank ? (i === 0 ? 1 : i <= 2 ? 2 : 3) : 0,
         parentId,
       }),
     );

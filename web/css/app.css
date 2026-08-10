@@ -358,9 +358,14 @@ button.h-sub {
 }
 
 .row-body { min-width: 0; }
+/* One size for every ordinary row. The per-rank shrink that used to sit here
+   (--row-title-step, a fifth of a pixel a step) was the invisible staircase
+   the tier system replaces: on the ranked ten the size now steps in three
+   visible bands, and everywhere else - Today, a sublist, a search result -
+   a title had no business getting smaller for standing further down. */
 .row-title {
   font-family: var(--font-body);
-  font-size: calc(var(--row-title-size) - var(--rank, 0) * var(--row-title-step));
+  font-size: var(--row-title-size);
   font-weight: var(--weight-title);
   letter-spacing: -.017em;
   line-height: 1.26;
@@ -418,45 +423,131 @@ button.h-sub {
 }
 .row.is-parked .row-title { color: var(--text-2); }
 
-/* ------------------------------------------------------- the rank ramp
-   On the ranked ten the background itself carries the order: rank one is the
-   loudest, every rank below it a measurable step quieter, the last one nearly
-   the page. Only that one list gets it - rows.js sets .is-ranked where it also
-   sets the rank figures, so sublists and the today list are untouched.
+/* --------------------------------------------- the ranked ten: three tiers
+   Importance on the ten is told as THREE BANDS, not as a slope. Tier 1 is
+   rank one, tier 2 is ranks two and three, tier 3 is rank four and everything
+   below it; rows.js writes the class, because a band is a decision about a
+   row and not an arithmetic on --rank. The two EDGES between the bands do the
+   work: a four-percent-a-step slope was shipped and reported invisible on a
+   phone at arm's length, and no number of smaller steps fixes that - a step
+   the eye can name is what fixes it. Each band moves three things at once,
+   row height, title size and rank figure, so an edge survives even where a
+   skin has no plate to draw it with.
 
-   --ramp is the position on the ladder: 1 at the lead, --ramp-top for rank two
-   and from there down to --ramp-floor at rank ten (the ten IS the list, hence
-   the fixed span of eight steps below the first). The gap between 1 and
-   --ramp-top is what keeps rank two from competing with rank one - without it
-   the second row arrives at nine tenths of the loudness and the eye stops
-   being able to say which of the two is first. What loud and quiet look like
-   is a per-skin decision and lives in tokens.css.
+   Only this one list gets any of it: rows.js sets .is-ranked where it also
+   sets the rank figures, so a sublist, the Today list and the search results
+   keep the one plain row they always had.
 
-   The per-rank opacity fade stays, at roughly half its old rate: the ranking
-   is now told twice, and at the old rate the foot of the list would be dimmed
-   by both signals at once and stop being comfortably readable. */
+   THE HEIGHT BUDGET is part of the design, not a consequence of it. Ten
+   one-line goals must stand on a 390x844 phone with rank one and rank ten
+   both fully visible - the owner had to scroll in both directions to see the
+   ends of his own list. Ten rows cost 58 + 2x46 + 7x36 plus nine gaps, about
+   456px, inside the ~570px the header, the photo link and the bar leave over.
+   That budget is what holds tier 3 at nine pixels of padding. A title that
+   wraps to two lines pushes past it, and that is the one thing allowed to:
+   nothing here truncates a goal to make the sums work. */
+.list.is-ranked {
+  /* Use the space. Ten is the ceiling, not the norm, and a list of five on
+     the same screen must look inhabited rather than huddled at the top. The
+     length of the list is already on the element (--rank-last, the ramp's
+     divisor), so the same number decides how much air every band gets.
+     Padding and gap breathe hard, type only a little: five goals should read
+     as a relaxed list, not as five cards. */
+  --tier-scale: clamp(1, calc(1 + (9 - var(--rank-last, 9)) * .11), 1.75);
+  --tier-type: clamp(1, calc(1 + (9 - var(--rank-last, 9)) * .04), 1.25);
+  /* And the same argument for the OTHER kind of spare room: a taller screen.
+     The budget above is written for the tightest phone that has to work, so
+     on anything roomier the ten would sit huddled under the header with a
+     third of the screen empty below it. Every row takes an equal share of
+     the surplus above 700px - equal, so the two band edges keep their exact
+     size - and only half of the surplus is ever spent (two sides x ten rows
+     / 40), which is why this can relax the list without being able to break
+     the fit it was budgeted for. The same formula runs the other way on a
+     screen SHORTER than the budget - two pixels at most, taken equally from
+     every row, which is what keeps the ten whole on a 640px-tall phone the
+     budget was not written for. Equal in both directions: the band edges
+     never change size, only the air around them. */
+  --tier-air: clamp(-2px, calc((100dvh - 700px) / 40), 8px);
+  gap: calc(6px * var(--tier-scale));
+}
+
+/* The background ramp stays underneath as the quiet echo of the bands: still
+   loud-to-quiet rank by rank, still normalised to the list that is actually
+   there, so the LAST row is the quiet end whether the owner keeps six goals
+   or ten. With the divisor fixed at 8 an eight-goal list never reached the
+   floor and read flatter than the design shots (owner report). It no longer
+   carries the hierarchy on its own - it agrees with it. */
 .list.is-ranked .row {
-  /* Normalised to the list that is actually there: the LAST row is the quiet
-     end, whether the owner keeps six goals or ten. With the divisor fixed at
-     8 (ranks 2..10), an eight-goal list never reached the floor and the whole
-     arc read flatter than the ten-row design shots (owner report). */
   --ramp: max(0, calc(var(--ramp-top) - (var(--ramp-top) - var(--ramp-floor)) * (var(--rank, 0) - 1) / max(1, var(--rank-last, 9) - 1)));
   background: var(--plate-bg-ramp);
   box-shadow: var(--plate-shadow-ramp);
-  opacity: max(var(--rank-floor), calc(1 - var(--rank, 0) * var(--rank-fade)));
 }
+
+/* Tier 1 - the lead. The anchor it always was, a notch taller now so the
+   middle band cannot crowd it. */
+.list.is-ranked .row.is-tier1 {
+  grid-template-columns: calc(var(--tier1-chip) * var(--tier-type)) 1fr auto;
+  padding-top: calc(var(--tier1-pad-y) * var(--tier-scale) + var(--tier-air));
+  padding-bottom: calc(var(--tier1-pad-y) * var(--tier-scale) + var(--tier-air));
+  opacity: 1;
+}
+.list.is-ranked .row.is-tier1 .row-title {
+  font-size: calc(var(--tier1-title) * var(--tier-type));
+  font-weight: var(--weight-display);
+  letter-spacing: -.028em;
+}
+.list.is-ranked .row.is-tier1 .row-chip {
+  width: calc(var(--tier1-chip) * var(--tier-type));
+  height: calc(var(--tier1-chip) * var(--tier-type));
+  font-size: calc(var(--tier1-chip-font) * var(--tier-type));
+}
+
+/* Tier 2 - ranks two and three. Clearly under the lead, clearly over the
+   rest. The figure is at full contrast here, which is the one thing tier 3
+   does not get: these two are still candidates for the top. */
+.list.is-ranked .row.is-tier2 {
+  grid-template-columns: calc(var(--tier2-chip) * var(--tier-type)) 1fr auto;
+  padding-top: calc(var(--tier2-pad-y) * var(--tier-scale) + var(--tier-air));
+  padding-bottom: calc(var(--tier2-pad-y) * var(--tier-scale) + var(--tier-air));
+  opacity: .95;
+}
+.list.is-ranked .row.is-tier2 .row-title { font-size: calc(var(--tier2-title) * var(--tier-type)); }
+.list.is-ranked .row.is-tier2 .row-chip {
+  width: calc(var(--tier2-chip) * var(--tier-type));
+  height: calc(var(--tier2-chip) * var(--tier-type));
+  font-size: calc(var(--tier2-chip-font) * var(--tier-type));
+  color: var(--text);
+}
+
+/* Tier 3 - rank four down. Compact and quiet: these are on the list, and the
+   list says where they stand. */
+.list.is-ranked .row.is-tier3 {
+  grid-template-columns: calc(var(--tier3-chip) * var(--tier-type)) 1fr auto;
+  padding-top: calc(var(--tier3-pad-y) * var(--tier-scale) + var(--tier-air));
+  padding-bottom: calc(var(--tier3-pad-y) * var(--tier-scale) + var(--tier-air));
+  opacity: .84;
+}
+.list.is-ranked .row.is-tier3 .row-title { font-size: calc(var(--tier3-title) * var(--tier-type)); }
+.list.is-ranked .row.is-tier3 .row-chip {
+  width: calc(var(--tier3-chip) * var(--tier-type));
+  height: calc(var(--tier3-chip) * var(--tier-type));
+  font-size: calc(var(--tier3-chip-font) * var(--tier-type));
+  color: var(--text-4);
+}
+
 /* The lead is the top of the same ladder, not a second one - it keeps the
-   plate, the accent chip and the big title it always had. */
+   plate, the accent chip and the display weight it always had. */
 .list.is-ranked .row.is-lead {
   --ramp: 1;
   background: var(--plate-bg-ramp-lead);
   box-shadow: var(--plate-shadow-ramp-lead);
   opacity: 1;
 }
-/* Done and parked keep their own treatment on top of the ramp: a finished
-   goal is dimmed by what it is, not by where it stands. A lifted row keeps
-   the lift the gesture gives it - both of these lose to the ramp on
-   specificity otherwise, which is the whole reason they are repeated here. */
+/* Done and parked keep their own treatment layered on top of the band: a
+   finished goal is dimmed by what it is, not by where it stands, and it
+   stays at the size of its tier. A lifted row keeps the lift the gesture
+   gives it. Both of these tie with the tier rules on specificity, so they
+   are written after them - that order is the rule, not a coincidence. */
 .list.is-ranked .row.is-done { opacity: .55; }
 .list.is-ranked .row.is-dragging { box-shadow: var(--shadow); }
 

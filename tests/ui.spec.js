@@ -214,7 +214,7 @@ test("the frame template seeds eight editable areas", async ({ page }) => {
   await expect(page.locator(".row-title").first()).toHaveText("Health and body");
 });
 
-test("ten nodes can be added and the eleventh is refused", async ({ page }) => {
+test("ten nodes can be added and the eleventh is refused at the button", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);
   await addRoots(page, TITLES);
@@ -225,9 +225,21 @@ test("ten nodes can be added and the eleventh is refused", async ({ page }) => {
   // Rank one is the only row that carries the accent.
   await expect(page.locator(".row.is-lead")).toHaveCount(1);
 
-  await page.getByRole("button", { name: /New entry/ }).click();
-  await expect(page.locator("#toast")).toContainText("Ten is the limit");
+  // The cap is enforced where the entry is made: at ten living goals the
+  // button is disabled, and a tap on it does nothing at all - no composer,
+  // no toast, because the browser does not deliver a click to a disabled
+  // button. Refusing afterwards with a message was the weaker answer.
+  const add = page.getByRole("button", { name: /New entry/ });
+  await expect(add).toBeDisabled();
+  await add.click({ force: true });
   expect(await page.locator(".composer").count()).toBe(0);
+
+  // Anything that brings the list back under ten opens it again on the next
+  // repaint - here the row menu's Delete on the last goal.
+  await page.locator(".row-shell").last().locator(".row").click({ button: "right" });
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator(".row-shell")).toHaveCount(9);
+  await expect(page.getByRole("button", { name: /New entry/ })).toBeEnabled();
 });
 
 test("focus navigation zooms into a node, adds parts and comes back", async ({ page }) => {
@@ -617,59 +629,187 @@ async function rowSignals(page, selector) {
     (sel) =>
       [...document.querySelectorAll(sel)].map((row) => {
         const cs = getComputedStyle(row);
+        const box = row.getBoundingClientRect();
+        const chip = row.querySelector(".row-chip");
+        const title = row.querySelector(".row-title");
         return {
           ramp: parseFloat(cs.getPropertyValue("--ramp")),
           opacity: parseFloat(cs.opacity),
           bg: cs.backgroundImage === "none" ? cs.backgroundColor : cs.backgroundImage,
+          // Real geometry, not declared values: a band that does not change
+          // the height of the row on screen is exactly the failure this whole
+          // wave exists to fix.
+          h: box.height,
+          top: box.top,
+          bottom: box.bottom,
+          title: parseFloat(getComputedStyle(title).fontSize),
+          chipW: chip ? chip.getBoundingClientRect().width : 0,
+          chipColor: chip ? getComputedStyle(chip).color : "",
         };
       }),
     selector,
   );
 }
 
-test("the ranked ten steps from a loud plate down to a quiet background", async ({ page }) => {
+const ROWS = ".list.is-ranked > .row-shell > .row";
+const COMBOS = [];
+for (const skin of ["slate", "register", "breath"]) {
+  for (const theme of ["dark", "light"]) COMBOS.push([skin, theme]);
+}
+
+async function applySkin(page, skin, theme) {
+  await page.evaluate(async (prefs) => (await import("/web/js/app.js")).ctx.setSettings(prefs), {
+    skin,
+    theme,
+  });
+  await expect(page.locator("html")).toHaveAttribute("data-skin", skin);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+}
+
+test("the ranked ten reads as three tiers, not as a gradient", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);
   await addRoots(page, TITLES);
   await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(10);
 
-  const ROWS = ".list.is-ranked > .row-shell > .row";
-  for (const skin of ["slate", "register", "breath"]) {
-    for (const theme of ["dark", "light"]) {
-      await page.evaluate(
-        async (prefs) => (await import("/web/js/app.js")).ctx.setSettings(prefs),
-        { skin, theme },
-      );
-      await expect(page.locator("html")).toHaveAttribute("data-skin", skin);
-      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-      const where = `${skin}/${theme}`;
+  // The classes exist before any measurement: 1 lead, 2 in the middle band,
+  // 7 in the quiet one. Anything else and the rest of this test measures the
+  // wrong rows.
+  await expect(page.locator(`${ROWS}.is-tier1`)).toHaveCount(1);
+  await expect(page.locator(`${ROWS}.is-tier2`)).toHaveCount(2);
+  await expect(page.locator(`${ROWS}.is-tier3`)).toHaveCount(7);
 
-      const rows = await rowSignals(page, ROWS);
-      expect(rows.length, where).toBe(10);
-      const [lead, second, third] = rows;
-      const last = rows[9];
+  for (const [skin, theme] of COMBOS) {
+    await applySkin(page, skin, theme);
+    const where = `${skin}/${theme}`;
+    const rows = await rowSignals(page, ROWS);
+    expect(rows.length, where).toBe(10);
+    const [t1, t2a, t2b, t3a] = rows;
+    const t3z = rows[9];
 
-      // Monotonic, and with a real gap under the lead: rank two must not be so
-      // close to rank one that the eye cannot say which of the two is first.
-      expect(lead.ramp, where).toBe(1);
-      expect(second.ramp, where).toBeLessThan(0.85);
-      expect(third.ramp, where).toBeLessThan(second.ramp);
-      expect(last.ramp, where).toBeLessThan(third.ramp);
-      expect(last.ramp, where).toBeGreaterThanOrEqual(0);
+    // The two EDGES. Six pixels is the smallest step that survives a phone at
+    // arm's length; the per-rank ramp that preceded this moved a row by none
+    // at all, which is what the owner reported.
+    expect(t1.h - t2a.h, `${where} edge 1|2`).toBeGreaterThanOrEqual(6);
+    expect(t2a.h - t3a.h, `${where} edge 2|3`).toBeGreaterThanOrEqual(6);
 
-      // The background is where the ranking is told, so the three ranks must
-      // resolve to three different backgrounds - not merely to three opacities.
-      expect(new Set([lead.bg, second.bg, third.bg, last.bg]).size, where).toBe(4);
+    // And inside a band there is no step at all: rank two and rank three are
+    // the same size, rank four and rank ten are the same size. A tier that
+    // drifts is a gradient wearing three names.
+    expect(Math.abs(t2a.h - t2b.h), `${where} inside tier 2`).toBeLessThanOrEqual(2);
+    expect(Math.abs(t3a.h - t3z.h), `${where} inside tier 3`).toBeLessThanOrEqual(2);
 
-      // The old fade still runs underneath, in the same direction, and the
-      // bottom of the list stays comfortably readable rather than being dimmed
-      // twice into a whisper.
-      expect(second.opacity, where).toBeLessThan(lead.opacity);
-      expect(third.opacity, where).toBeLessThan(second.opacity);
-      expect(last.opacity, where).toBeLessThan(third.opacity);
-      expect(last.opacity, where).toBeGreaterThan(0.7);
-    }
+    // Type steps with the height, in every skin - it is the whole edge in the
+    // two that have no plate to draw one with.
+    expect(t1.title, `${where} title 1`).toBeGreaterThan(t2a.title);
+    expect(t2a.title, `${where} title 2`).toBeGreaterThan(t3a.title);
+    expect(t2a.title, where).toBe(t2b.title);
+    expect(t3a.title, where).toBe(t3z.title);
+
+    // The rank figure carries the band too: tier 3 is smaller AND paler than
+    // tier 2, which keeps the full-contrast figure of a candidate for the top.
+    expect(t2a.chipW, `${where} chip size`).toBeGreaterThan(t3a.chipW);
+    expect(t3a.chipColor, `${where} chip colour`).not.toBe(t2a.chipColor);
+
+    // Opacity is a band value now, not a per-rank fade: flat inside a tier,
+    // stepped between them, and the foot of the list stays readable.
+    expect(t1.opacity, where).toBe(1);
+    expect(t2a.opacity, where).toBe(t2b.opacity);
+    expect(t2a.opacity, where).toBeLessThan(t1.opacity);
+    expect(t3a.opacity, where).toBeLessThan(t2a.opacity);
+    expect(t3a.opacity, where).toBe(t3z.opacity);
+    expect(t3z.opacity, where).toBeGreaterThan(0.7);
   }
+});
+
+test("the background ramp still runs loud to quiet under the tiers", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(10);
+
+  for (const [skin, theme] of COMBOS) {
+    await applySkin(page, skin, theme);
+    const where = `${skin}/${theme}`;
+    const rows = await rowSignals(page, ROWS);
+    const [lead, second, third] = rows;
+    const last = rows[9];
+
+    // Monotonic, and with a real gap under the lead: the echo must never
+    // disagree with the bands about which way the list runs.
+    expect(lead.ramp, where).toBe(1);
+    expect(second.ramp, where).toBeLessThan(0.85);
+    expect(third.ramp, where).toBeLessThan(second.ramp);
+    expect(last.ramp, where).toBeLessThan(third.ramp);
+    expect(last.ramp, where).toBeGreaterThanOrEqual(0);
+
+    // The background is genuinely different per rank - the ramp is still a
+    // ramp underneath, not four rows sharing one wash.
+    expect(new Set([lead.bg, second.bg, third.bg, last.bg]).size, where).toBe(4);
+  }
+});
+
+test("ten one-line goals stand on the phone with nothing cut off", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES);
+  await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(10);
+
+  // The owner's own screen: 390x844, ten goals, rank one clipped at the top
+  // and rank ten clipped at the bottom, scrolling needed in both directions.
+  // Every skin has to hold the budget, not just the default one.
+  for (const [skin, theme] of COMBOS) {
+    await applySkin(page, skin, theme);
+    const where = `${skin}/${theme}`;
+    const rows = await rowSignals(page, ROWS);
+    const frame = await page.evaluate(() => {
+      const scroll = document.querySelector(".scroll");
+      const head = document.querySelector(".head").getBoundingClientRect();
+      return {
+        vh: window.innerHeight,
+        headBottom: head.bottom,
+        scrollBottom: scroll.getBoundingClientRect().bottom,
+        overflow: scroll.scrollHeight - scroll.clientHeight,
+      };
+    });
+
+    // Nothing to scroll: the whole ten fits in the space between the header
+    // and the bar, and the list is not merely visible after a scroll.
+    expect(frame.overflow, `${where} overflow`).toBeLessThanOrEqual(1);
+    expect(rows[0].top, `${where} rank one under the header`).toBeGreaterThanOrEqual(
+      frame.headBottom,
+    );
+    expect(rows[9].bottom, `${where} rank ten above the bar`).toBeLessThanOrEqual(
+      frame.scrollBottom,
+    );
+    expect(rows[9].bottom, `${where} rank ten on screen`).toBeLessThanOrEqual(frame.vh);
+  }
+});
+
+test("a shorter list uses the space the missing goals leave", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, TITLES.slice(0, 5));
+  await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(5);
+  const five = await rowSignals(page, ROWS);
+  // Relaxed, and still not a scroll.
+  const fiveOverflow = await page.evaluate(() => {
+    const s = document.querySelector(".scroll");
+    return s.scrollHeight - s.clientHeight;
+  });
+  expect(fiveOverflow).toBeLessThanOrEqual(1);
+
+  await addRoots(page, TITLES.slice(5));
+  await expect(page.locator(".list.is-ranked .row-shell")).toHaveCount(10);
+  const ten = await rowSignals(page, ROWS);
+
+  // "If there are fewer, show them all bigger" - every band, not only the
+  // lead, and the bands stay bands while they grow.
+  expect(five[0].h).toBeGreaterThan(ten[0].h);
+  expect(five[1].h).toBeGreaterThan(ten[1].h);
+  expect(five[4].h).toBeGreaterThan(ten[4].h);
+  expect(five[0].h - five[1].h).toBeGreaterThanOrEqual(6);
+  expect(five[1].h - five[4].h).toBeGreaterThanOrEqual(6);
 });
 
 test("a shorter list runs the same loud-to-quiet arc as ten", async ({ page }) => {
@@ -691,6 +831,15 @@ test("a shorter list runs the same loud-to-quiet arc as ten", async ({ page }) =
   expect(rows[0].ramp).toBe(1);
   expect(rows[7].ramp).toBeCloseTo(floor, 2);
   for (let i = 2; i < 8; i += 1) expect(rows[i].ramp).toBeLessThan(rows[i - 1].ramp);
+
+  // The bands do not renumber themselves for a shorter list: eight goals are
+  // still one lead, two behind it and five below. The echo is normalised, the
+  // hierarchy is not - "second of eight" means what "second of ten" means.
+  await expect(page.locator(`${ROWS}.is-tier1`)).toHaveCount(1);
+  await expect(page.locator(`${ROWS}.is-tier2`)).toHaveCount(2);
+  await expect(page.locator(`${ROWS}.is-tier3`)).toHaveCount(5);
+  expect(rows[0].h - rows[1].h).toBeGreaterThanOrEqual(6);
+  expect(rows[1].h - rows[3].h).toBeGreaterThanOrEqual(6);
 });
 
 test("a kids list carries no rank ramp", async ({ page }) => {
@@ -715,6 +864,13 @@ test("a kids list carries no rank ramp", async ({ page }) => {
   expect(rows.length).toBe(3);
   expect(rows.map((r) => r.ramp)).toEqual([1, 1, 1]);
   expect(new Set(rows.map((r) => r.bg)).size).toBe(1);
+
+  // And no bands either: the three tiers belong to the ranked ten alone. A
+  // sublist is ordered, but its order is not the subject of it, so its rows
+  // are one height and one type size.
+  expect(await page.locator(".list.is-kids .row[class*='is-tier']").count()).toBe(0);
+  expect(new Set(rows.map((r) => r.h)).size).toBe(1);
+  expect(new Set(rows.map((r) => r.title)).size).toBe(1);
 });
 
 test("skins and themes switch without losing the list", async ({ page }) => {
