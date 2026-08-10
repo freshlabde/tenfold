@@ -10,6 +10,7 @@
 
 import { el, text, icon, brandMark } from "./dom.js";
 import { nodeList, composer } from "./rows.js";
+import { dueCounts } from "../model.js";
 import { t } from "../i18n.js";
 import { relativeTime } from "./format.js";
 import { importEntry } from "./imageimport.js";
@@ -46,6 +47,35 @@ function headerSub(ctx) {
       on: { click: () => ctx.go("settings") },
     },
     parts,
+  );
+}
+
+/**
+ * What is overdue or due today, as one line above the list, in the accent -
+ * this screen is where the app is opened, and the count on the icon is the one
+ * thing that says so from outside. A hint, not a banner: one mono line, no
+ * icon, no plate, and the way into the same short list the header button opens.
+ *
+ * The numbers come from model.dueCounts, the same primitive the badge and the
+ * Today rule already share. When nothing is due this returns null and there is
+ * nothing in the DOM at all.
+ */
+function dueHint(ctx) {
+  const { overdue, today } = dueCounts(ctx.doc.nodes, { now: ctx.now() });
+  const parts = [];
+  if (overdue) parts.push(overdue === 1 ? t("outline.due.overdueOne") : t("outline.due.overdue", { n: overdue }));
+  if (today) parts.push(today === 1 ? t("outline.due.todayOne") : t("outline.due.today", { n: today }));
+  if (!parts.length) return null;
+
+  const line = parts.join(" · ");
+  return el(
+    "button",
+    {
+      class: "duehint",
+      attrs: { type: "button", "aria-label": t("a11y.dueHint", { what: line }) },
+      on: { click: () => ctx.go("today") },
+    },
+    [text(line)],
   );
 }
 
@@ -117,6 +147,7 @@ export function render(ctx) {
   const body =
     roots.length || composing
       ? el("div", { class: "scroll" }, [
+          dueHint(ctx),
           nodeList(ctx, null, { showRank: true, lead: true }),
           composing ? composer(ctx, null, { placeholder: t("outline.composerPlaceholder") }) : null,
         ])

@@ -137,6 +137,10 @@ export const de = {
   "outline.empty.cta": "Den ersten schreiben",
   "outline.full": "Zehn ist die Grenze, die das Ganze trägt. Für einen weiteren muss etwas weichen.",
   "outline.composerPlaceholder": "Was willst du?",
+  "outline.due.overdue": "{n} Schritte überfällig",
+  "outline.due.overdueOne": "1 Schritt überfällig",
+  "outline.due.today": "{n} heute fällig",
+  "outline.due.todayOne": "1 heute fällig",
 
   // ------------------------------------------------------------------- focus
   "focus.rank": "Platz {rank} von {total}",
@@ -161,6 +165,7 @@ export const de = {
   "leaf.markDone": "Als erledigt markieren",
   "leaf.markOpen": "Wieder öffnen",
   "leaf.overdue": "{days} Tage überfällig",
+  "leaf.overdueOne": "1 Tag überfällig",
   "leaf.dueInDays": "in {days} Tagen",
   "leaf.dueToday": "heute",
   "leaf.dueTomorrow": "morgen",
@@ -675,6 +680,7 @@ export const de = {
   "a11y.mapOpen": "Karte öffnen",
   "a11y.onlyHere": "Diese Liste liegt nur in diesem Browser. Sicherung einrichten.",
   "a11y.back": "Eine Ebene zurück",
+  "a11y.dueHint": "{what}. Heute öffnen.",
 
   // -------------------------------------------------------------------- time
   "time.justNow": "gerade eben",

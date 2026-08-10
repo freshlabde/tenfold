@@ -11,7 +11,7 @@
 // document itself and never touches storage.
 
 import { el, text, icon, depthMark } from "./dom.js";
-import { childrenOf, isLeaf, storyDepth } from "../model.js";
+import { childrenOf, isLeaf, storyDepth, dueGroupOf } from "../model.js";
 import { metricFor, progressOf, dueLabel } from "./format.js";
 import { t } from "../i18n.js";
 import { spring, rubberBand, collapse, prefersReducedMotion } from "../motion.js";
@@ -21,18 +21,34 @@ const SWIPE_COMMIT = 92;
 const LONG_PRESS_MS = 420;
 
 /**
- * The small line under a title. `opts.path` is the chain a step hangs in - the
- * today list needs it, because there a row is torn out of its context and
+ * The small line under a title. `opts.path` is the whole chain a step hangs in
+ * - the today list needs it, because there a row is torn out of its context and
  * "call the physio" alone says nothing about which goal it serves.
+ *
+ * Built from spans rather than one string for a single reason: an overdue step
+ * that says so in the same grey as everything else is not read. The due phrase
+ * - and only that phrase, never the whole row - carries the accent, and which
+ * of the two due groups it is in comes from model.dueGroupOf, so the colour
+ * cannot disagree with the badge or with the Today list.
+ * @returns {HTMLElement|null} the line, or null when there is nothing to say
  */
 function subLine(ctx, node, opts = {}) {
   const parts = [];
-  if (opts.path) parts.push(opts.path);
-  if (node.status === "doing") parts.push(t("status.doing"));
+  if (opts.path) parts.push(el("span", { class: "row-path" }, [text(opts.path)]));
+  if (node.status === "doing") parts.push(el("span", {}, [text(t("status.doing"))]));
   if (typeof node.due === "number" && node.status !== "done") {
-    parts.push(dueLabel(node.due, ctx.now()));
+    const group = dueGroupOf(node, ctx.now());
+    const tone = group === 0 ? " is-overdue" : group === 1 ? " is-today" : "";
+    parts.push(el("span", { class: `row-due${tone}` }, [text(dueLabel(node.due, ctx.now()))]));
   }
-  return parts.join(" · ");
+  if (!parts.length) return null;
+
+  const line = el("div", { class: "row-sub" });
+  parts.forEach((part, i) => {
+    if (i) line.appendChild(text(" · "));
+    line.appendChild(part);
+  });
+  return line;
 }
 
 /**
@@ -67,7 +83,7 @@ export function nodeRow(ctx, node, opts = {}) {
     el("div", { class: "row-title" }, [text(node.title || t("editor.newTitle"))]),
   ]);
   const sub = subLine(ctx, node, opts);
-  if (sub) body.appendChild(el("div", { class: "row-sub" }, [text(sub)]));
+  if (sub) body.appendChild(sub);
 
   // The mono rail on the right: the machine figure, and - unless it is
   // switched off - the story-depth ring in front of it.

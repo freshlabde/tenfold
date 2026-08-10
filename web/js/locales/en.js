@@ -137,6 +137,10 @@ export const en = {
   "outline.empty.cta": "Write the first one",
   "outline.full": "Ten is the limit that makes this work. To add another, something has to go.",
   "outline.composerPlaceholder": "What do you want?",
+  "outline.due.overdue": "{n} steps overdue",
+  "outline.due.overdueOne": "1 step overdue",
+  "outline.due.today": "{n} due today",
+  "outline.due.todayOne": "1 due today",
 
   // ------------------------------------------------------------------- focus
   "focus.rank": "Place {rank} of {total}",
@@ -161,6 +165,7 @@ export const en = {
   "leaf.markDone": "Mark as done",
   "leaf.markOpen": "Reopen",
   "leaf.overdue": "{days} days overdue",
+  "leaf.overdueOne": "1 day overdue",
   "leaf.dueInDays": "in {days} days",
   "leaf.dueToday": "today",
   "leaf.dueTomorrow": "tomorrow",
@@ -675,6 +680,7 @@ export const en = {
   "a11y.mapOpen": "Open the map",
   "a11y.onlyHere": "This list is only in this browser. Set up a backup.",
   "a11y.back": "Back one level",
+  "a11y.dueHint": "{what}. Open Today.",
 
   // -------------------------------------------------------------------- time
   "time.justNow": "just now",

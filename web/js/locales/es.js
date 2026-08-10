@@ -137,6 +137,10 @@ export const es = {
   "outline.empty.cta": "Escribir la primera",
   "outline.full": "Diez es el límite que hace que esto funcione. Para añadir otra, algo tiene que salir.",
   "outline.composerPlaceholder": "¿Qué quieres?",
+  "outline.due.overdue": "{n} pasos con retraso",
+  "outline.due.overdueOne": "1 paso con retraso",
+  "outline.due.today": "{n} vencen hoy",
+  "outline.due.todayOne": "1 vence hoy",
 
   // ------------------------------------------------------------------- focus
   "focus.rank": "Puesto {rank} de {total}",
@@ -161,6 +165,7 @@ export const es = {
   "leaf.markDone": "Marcar como hecho",
   "leaf.markOpen": "Reabrir",
   "leaf.overdue": "{days} días de retraso",
+  "leaf.overdueOne": "1 día de retraso",
   "leaf.dueInDays": "en {days} días",
   "leaf.dueToday": "hoy",
   "leaf.dueTomorrow": "mañana",
@@ -675,6 +680,7 @@ export const es = {
   "a11y.mapOpen": "Abrir el mapa",
   "a11y.onlyHere": "Esta lista solo está en este navegador. Configura una copia de seguridad.",
   "a11y.back": "Un nivel atrás",
+  "a11y.dueHint": "{what}. Abrir Hoy.",
 
   // -------------------------------------------------------------------- time
   "time.justNow": "ahora mismo",

@@ -14,6 +14,26 @@ const MIN = 60000;
 const HOUR = 3600000;
 const DAY = 86400000;
 
+/**
+ * The breadcrumb voice written out as text: the caret the crumb pills are set
+ * apart by on the focus screen, and the one a search result already uses.
+ */
+export const PATH_SEPARATOR = " › ";
+
+/**
+ * The chain a node hangs in, as one line, root goal first: "Health > Knee".
+ * Deliberately NOT shortened in the middle - the middle is exactly the part
+ * that says which goal a step like "M&V" belongs to. The caller lets it wrap.
+ * @param {Array} ancestors root first, the way model.ancestorsOf returns it
+ * @returns {string} "" for a root goal, which has no path
+ */
+export function pathLine(ancestors) {
+  return (ancestors || [])
+    .map((a) => (a && a.title ? a.title : ""))
+    .filter(Boolean)
+    .join(PATH_SEPARATOR);
+}
+
 /** Midnight of the day a timestamp falls into. */
 export function startOfDay(ts) {
   const d = new Date(ts);
@@ -65,10 +85,16 @@ export function dateInputToTs(value) {
   return new Date(y, m - 1, d, 12, 0, 0, 0).getTime();
 }
 
-/** "in 6 days", "today", "4 days overdue". */
+/**
+ * "in 6 days", "today", "4 days overdue" - and "1 day overdue", not "1 days":
+ * a single day late is the most common case there is, and it was the one the
+ * phrase got wrong in all three languages (DE Tag/Tage, EN day/days, ES
+ * día/días). One day early needs no such key: that is "tomorrow".
+ */
 export function dueLabel(due, now) {
   if (typeof due !== "number") return "";
   const days = daysUntil(due, now);
+  if (days === -1) return t("leaf.overdueOne");
   if (days < 0) return t("leaf.overdue", { days: Math.abs(days) });
   if (days === 0) return t("leaf.dueToday");
   if (days === 1) return t("leaf.dueTomorrow");

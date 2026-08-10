@@ -241,6 +241,34 @@ button.h-sub {
 }
 .scroll::-webkit-scrollbar { width: 0; height: 0; }
 
+/* The due hint above the ten: the mono register of the header sub, in the
+   accent, and tappable into Today. It has no plate and no icon on purpose -
+   rank one has to stay the loudest thing on this screen - and it exists only
+   while something is actually due, so it never becomes furniture. */
+.duehint {
+  display: block;
+  width: 100%;
+  /* Sits closer to the list than to the header: the header sub speaks in the
+     same mono accent, and without the gap being lopsided this line reads as a
+     fourth clause of it instead of as the way into Today. The padding is the
+     tap target, not decoration - the text itself is 10px. */
+  margin: 2px 0;
+  padding: 8px 0 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.duehint:active { opacity: .65; }
+
 /* ----------------------------------------------------------------- the list */
 
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -327,7 +355,16 @@ button.h-sub {
   overflow-wrap: anywhere;
 }
 .row.is-lead .row-title { font-size: var(--row-title-lead); font-weight: var(--weight-display); letter-spacing: -.028em; }
-.row-sub { margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.3; }
+.row-sub { margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
+
+/* The due phrase, and nothing else on the row, speaks in the accent - the one
+   warning register this app has. Overdue takes it whole and a little heavier,
+   due today is the same hue pulled back, so the two are told apart without a
+   second colour. Where color-mix is missing, today simply reads as the accent
+   too: quieter is optional, visible is not. */
+.row-sub .row-due { color: var(--accent); }
+.row-sub .row-due.is-today { color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+.row-sub .row-due.is-overdue { font-weight: 600; }
 
 /* A gauge, not a rule. Full width and sunken it read as an underline beneath
    the title - and since only a goal WITH parts carries one, one row in ten
@@ -1022,6 +1059,15 @@ button.h-sub {
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
   color: var(--accent);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The path under the name. It wraps rather than shortening: the whole chain is
+   the point, and a truncated middle is exactly the part that would be missed. */
+.qcard-path {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .qcard-q {
   margin: 8px 0 0;

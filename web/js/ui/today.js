@@ -15,15 +15,15 @@ import { nodeRow } from "./rows.js";
 import { todayList } from "../model.js";
 import { dailyQuestion } from "../questions.js";
 import { appendAnswer } from "./storyguide.js";
+import { pathLine } from "./format.js";
 import { t } from "../i18n.js";
 
-/** The chain a step hangs in, as one quiet line: "Health · Knee · Physio". */
+/**
+ * The chain a step hangs in, as one quiet line: "Health > Knee". Whole, never
+ * shortened - a step four levels down is only recognisable by its path.
+ */
 function pathOf(ctx, node) {
-  return ctx
-    .ancestors(node.id)
-    .map((a) => a.title)
-    .filter(Boolean)
-    .join(" · ");
+  return pathLine(ctx.ancestors(node.id));
 }
 
 /**
@@ -52,6 +52,12 @@ function questionCard(ctx, daily) {
     ctx.toast(t("question.saved"));
   };
 
+  // The path under the name, whole. The card names one node out of the entire
+  // tree, and a step called "M&V" three levels down says nothing on its own -
+  // the owner could not tell what the question was even about. A root goal has
+  // no path and gets no line.
+  const path = pathOf(ctx, daily.node);
+
   return el("section", { class: "qcard" }, [
     el("div", { class: "qcard-key" }, [text(t("question.heading"))]),
     el(
@@ -63,6 +69,7 @@ function questionCard(ctx, daily) {
       },
       [text(daily.node.title || t("editor.newTitle"))],
     ),
+    path ? el("p", { class: "qcard-path" }, [text(path)]) : null,
     el("p", { class: "qcard-q" }, [text(t(daily.key))]),
     input,
     el("div", { class: "qcard-foot" }, [

@@ -391,8 +391,10 @@ function openLeaves(nodes) {
 /**
  * How urgent a due date is on the day `now` falls in: 0 overdue, 1 due today,
  * 2 later or not dated at all. The single definition of "calls for today".
+ * Exported because the rows colour the due phrase by exactly this group - a
+ * screen deciding "overdue" for itself would be a second rule.
  */
-function dueGroupOf(node, now) {
+export function dueGroupOf(node, now) {
   const dayStart = startOfDay(now);
   if (node.due === null || node.due === undefined) return 2;
   if (node.due < dayStart) return 0;
@@ -408,10 +410,25 @@ function dueGroupOf(node, now) {
  * `opts.now` is injectable, as everywhere else in this module.
  */
 export function dueNowCount(nodes, opts = {}) {
+  return dueCounts(nodes, opts).total;
+}
+
+/**
+ * The same two groups, but told apart: `{ overdue, today, total }`. The outline
+ * hint needs the split to say "1 step overdue, 2 due today"; the badge needs
+ * only the sum, and takes it from here rather than counting a second time.
+ * `opts.now` is injectable, as everywhere else in this module.
+ */
+export function dueCounts(nodes, opts = {}) {
   const now = nowOf(opts);
-  let count = 0;
-  for (const node of openLeaves(nodes)) if (dueGroupOf(node, now) <= 1) count += 1;
-  return count;
+  let overdue = 0;
+  let today = 0;
+  for (const node of openLeaves(nodes)) {
+    const group = dueGroupOf(node, now);
+    if (group === 0) overdue += 1;
+    else if (group === 1) today += 1;
+  }
+  return { overdue, today, total: overdue + today };
 }
 
 /**

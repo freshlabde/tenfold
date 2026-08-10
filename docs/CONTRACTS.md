@@ -101,6 +101,25 @@ Anyone who wants to change an interface changes this file first.
   above), reachable from a "Today" button in the outline header and via Cmd/Ctrl+T; a quiet
   list, max 7, nothing else. Rows are the ordinary `rows.js` rows with `opts.path` set, so
   swipe-right-done works here too.
+- **The path rule.** A step torn out of its tree is named by its WHOLE chain, root goal
+  first, joined by `ui/format.PATH_SEPARATOR` (` › `, the breadcrumb voice the focus crumb
+  and the search results already speak) via `ui/format.pathLine(ancestors)`. Never shortened
+  in the middle - that is exactly the part that says which goal a step called "M&V" serves -
+  and it wraps rather than ellipsing. It is carried by the Today row sub-line (`.row-path`)
+  and by the question card (`.qcard-path`, under the node name); a root goal has no path and
+  gets no line. All of it is user plaintext and goes through text nodes only.
+- **The due phrase carries the colour.** In a row sub-line the due part - and only that part,
+  never the whole row - is a `.row-due` span in the accent: `is-overdue` (whole accent, a
+  notch heavier) or `is-today` (the same hue pulled back), chosen by `model.dueGroupOf`, so
+  the colour can never disagree with the badge or the list. Plural forms are separate keys
+  (`leaf.overdueOne` beside `leaf.overdue`) - "1 Tage überfällig" was wrong in all three
+  languages.
+- **The outline due hint** (`ui/outline.js` `dueHint`, key prefix `outline.due.`): when
+  `model.dueCounts` reports anything overdue or due today, one mono line in the accent sits
+  between the header and the ten - "1 step overdue · 2 due today", each group omitted at
+  zero, singular keys of their own - and opens the Today screen. A hint, not a banner: no
+  icon, no plate, nothing that outshouts rank one. With nothing due it is **absent from the
+  DOM**, not hidden.
 - **`web/js/questions.js`**: a catalogue of 16 calm coaching questions (i18n keys, all three
   locales; each question carries a short label its answer is filed under). The daily question
   picks deterministically (`dayKey` YYYYMMDD + the open node with the thinnest `storyDepth`,
@@ -142,7 +161,9 @@ so both are specified here down to what they are allowed to know.
   `model.dueNowCount(nodes, opts)` and `todayList` share the same `openLeaves`
   filter and the same `dueGroupOf` step, so the icon can never claim something
   the Today screen denies. `web/js/badge.js` owns no rule of its own; it asks
-  model.js and hands the number on.
+  model.js and hands the number on. `dueNowCount` is the sum of
+  `model.dueCounts(nodes, opts)` -> `{overdue, today, total}`, the same
+  primitive the outline hint splits its line by: one count, two readings.
 - **Content-free by design.** A count, never a title, never a date. It is the
   one thing this app says while the vault is locked, so it says a number.
 - **Update points** (`web/js/app.js`): `scheduleSave()` — the funnel every
@@ -340,7 +361,9 @@ export function softDelete(nodes, id): Node[]                // tombstones the w
 export function isOptedOut(nodes, id): boolean               // own flag or inherited
 export function score(node): number|null                     // impact*confidence/effort
 export function todayList(nodes, opts): Node[]               // rule: see plan; max 7; opts.now injectable
-export function dueNowCount(nodes, opts): number             // open leaves overdue or due today, uncapped (the app badge)
+export function dueGroupOf(node, now): 0|1|2                 // 0 overdue, 1 due today, 2 later/undated
+export function dueCounts(nodes, opts): {overdue, today, total}  // the same two groups, told apart
+export function dueNowCount(nodes, opts): number             // = dueCounts(...).total (the app badge)
 export function mergeDocs(a, b): Doc                         // per item, younger updatedAt wins
 // stage 2
 export const SCHEMA = 2
