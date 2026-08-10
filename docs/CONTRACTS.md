@@ -147,6 +147,20 @@ Anyone who wants to change an interface changes this file first.
   - Client: `web/js/push.js` (see rule 7), settings row "Daily reminder" inside the sync
     group, honest about iOS needing the installed home-screen app.
 
+## Row gestures (`web/js/ui/rows.js`)
+
+One row owns three direct manipulations, told apart before anything moves: past `SWIPE_START`
+horizontally it is a swipe, past it vertically the list scrolls, and a press held for
+`LONG_PRESS_MS` without either lifts the row for reordering. A swipe right past `SWIPE_COMMIT`
+finishes a step (leaves only); **a swipe left past the same distance deletes the node through
+`ctx.deleteNode` — the identical call the row menu's Delete makes, so it tombstones the whole
+subtree, asks for no confirmation on any node kind, and the undo toast is the only safety net
+on both paths alike.** The layer behind the row carries both affordances — the check on the
+left edge, the trash on the right in the danger register — and lights the one the finger pulls
+towards. Every list built from `nodeRow`/`nodeList` (the ten, a focus screen's parts, Today)
+gets both swipes; the duel screen has gestures of its own and none of this. Under
+`prefers-reduced-motion` a commit lands without the spring and without the collapse.
+
 ## The two outside surfaces: app badge and share target
 
 Everything else in this app only exists while it is open. These two are visible

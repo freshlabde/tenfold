@@ -287,12 +287,25 @@ button.h-sub {
 
 .row-behind {
   position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: flex-start;
-  padding-left: 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px;
   color: var(--accent);
   opacity: 0;
 }
 .row-behind svg { display: block; }
+
+/* Both affordances are built once and only the side the finger pulls towards
+   is lit: the check on the left finishes, the trash on the right deletes. The
+   delete side speaks the register the row menu's Delete already speaks
+   (.setrow.is-danger) - this app has one accent and no second red - and adds
+   a wash rising from the right edge, so a destructive pull cannot be mistaken
+   for the other one at a glance. The .row-shell clips it to the plate radius. */
+.row-behind .behind-del { opacity: 0; }
+.row-behind.is-delete .behind-ok { opacity: 0; }
+.row-behind.is-delete .behind-del { opacity: 1; }
+.row-behind.is-delete {
+  background: linear-gradient(270deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%);
+}
 
 .row {
   --s-hi: color-mix(in srgb, var(--surface) calc(100% - var(--rank, 0) * var(--depth-step)), var(--depth-into));

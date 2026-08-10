@@ -1,10 +1,11 @@
-// ui/rows.js - the row, and the two gestures that live on it.
+// ui/rows.js - the row, and the gestures that live on it.
 //
 // What it does: builds one node row (rank chip, title, sub line, mono metric,
-// progress track) and wires the two direct manipulations from the design:
-// swipe right on a step to finish it, long press to lift and reorder siblings.
-// Both gestures run on real spring physics with rubber-band resistance past
-// their limits, and both have a visible button equivalent in the row menu.
+// progress track) and wires the direct manipulations from the design: swipe
+// right on a step to finish it, swipe left on any row to delete it, long press
+// to lift and reorder siblings. All of them run on real spring physics with
+// rubber-band resistance past their limits, and all of them have a visible
+// button equivalent in the row menu.
 //
 // What it deliberately does NOT do: no innerHTML, no business rules. It asks
 // the context to mutate the document and re-render; it never writes to the
@@ -69,7 +70,16 @@ export function nodeRow(ctx, node, opts = {}) {
     dataset: { id: node.id },
   });
 
-  const behind = el("div", { class: "row-behind", attrs: { "aria-hidden": "true" } }, [icon("check", 22)]);
+  // One layer, two roles, one extra glyph: the check sits on the left edge and
+  // the trash on the right, and the swipe lights whichever the finger is
+  // pulling towards. A second .row-behind element would double the absolutely
+  // positioned layers in every list for nothing, and swapping the paths of a
+  // single icon would rebuild SVG nodes in the middle of a drag.
+  const okMark = icon("check", 22);
+  okMark.setAttribute("class", "behind-ok");
+  const delMark = icon("trash", 22);
+  delMark.setAttribute("class", "behind-del");
+  const behind = el("div", { class: "row-behind", attrs: { "aria-hidden": "true" } }, [okMark, delMark]);
 
   // A finished node carries the check instead of its figure - the one green
   // in the app, consistent across all skins.
@@ -171,7 +181,10 @@ function attachGestures(ctx, refs) {
 
   const setX = (v) => {
     row.style.transform = v ? `translate3d(${v}px,0,0)` : "";
-    const ratio = Math.max(0, Math.min(1, v / SWIPE_COMMIT));
+    // The distance is read as a magnitude and the direction as a class, so the
+    // affordance rises out of the same ratio on both sides.
+    const ratio = Math.max(0, Math.min(1, Math.abs(v) / SWIPE_COMMIT));
+    behind.classList.toggle("is-delete", v < 0);
     behind.style.opacity = String(ratio);
     behind.style.transform = `scale(${0.85 + ratio * 0.15})`;
   };
@@ -233,8 +246,10 @@ function attachGestures(ctx, refs) {
       velocity = ((ev.clientX - lastX) / dt) * 1000;
       lastX = ev.clientX;
       lastT = ev.timeStamp;
-      // Left has no meaning here, so it is pure resistance.
-      dx = mx >= 0 ? (leaf ? mx : rubberBand(mx, 90)) : rubberBand(mx, 70);
+      // Both directions mean something now, so both travel one to one. The
+      // exception is unchanged: a goal cannot be finished by a swipe, so for
+      // one of those the right side stays pure resistance.
+      dx = mx >= 0 ? (leaf ? mx : rubberBand(mx, 90)) : mx;
       setX(dx);
     } else if (mode === "drag" && drag) {
       ev.preventDefault();
@@ -257,6 +272,8 @@ function attachGestures(ctx, refs) {
     if (mode === "swipe") {
       if (leaf && dx > SWIPE_COMMIT && node.status !== "done") {
         finish();
+      } else if (dx < -SWIPE_COMMIT) {
+        remove();
       } else {
         reset(dx, velocity);
       }
@@ -269,6 +286,17 @@ function attachGestures(ctx, refs) {
     setX(SWIPE_COMMIT + 40);
     await collapse(shell);
     ctx.setStatus(node.id, "done");
+  };
+
+  // The mirror of finish(), and deliberately not a second deletion rule: it
+  // calls exactly what the row menu's Delete calls, so the tombstone covers the
+  // same subtree and the same undo toast is offered. The menu asks for no
+  // confirmation on any node kind, so this must not invent one either - the
+  // toast is what makes both paths recoverable.
+  const remove = async () => {
+    setX(-(SWIPE_COMMIT + 40));
+    await collapse(shell);
+    ctx.deleteNode(node);
   };
 
   const activate = () => {
