@@ -497,7 +497,7 @@ export const en = {
   "about.intro.p3": "tenfold holds one list: the ten things you truly want. In an honest order. Broken down to the one step you can take tomorrow.",
 
   "about.walk.heading": "What this looks like",
-  "about.walk.p1": "Millions of people have \"get fit\" written on a list somewhere. That is where it stays, because you cannot derive a Tuesday from \"get fit\".",
+  "about.walk.p1": "Millions of people have \"get fit\" written on a list somewhere. That is where it stays - because \"get fit\" never tells you what to actually do this week.",
   "about.walk.p2": "So tenfold asks first: sixty-one, knee trouble, a desk job, little energy in the evenings.",
   "about.walk.lead": "Then it goes level by level:",
   "about.walk.li1": "What exactly do you mean? Climbing the stairs to the fourth floor without stopping.",
@@ -640,6 +640,15 @@ export const en = {
   "import.pick": "Choose a picture",
   "import.another": "Another picture",
   "import.size": "{n} kB to send",
+
+  // ------------------------------------------------------------------- share
+  "share.title": "Shared with tenfold",
+  "share.body": "This came in from another app. It is held on this device unencrypted until you file it or discard it.",
+  "share.addUnder": "Where does it belong?",
+  "share.addTop": "Add to the ten",
+  "share.dismiss": "Discard",
+  "share.added": "Filed under {title}.",
+  "share.addedTop": "Added to the ten.",
 
   // ------------------------------------------------------------------ toasts
   "toast.deleted": "Deleted.",

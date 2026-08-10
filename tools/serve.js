@@ -1094,6 +1094,19 @@ const server = createServer(async (req, res) => {
     rel = "/icons/icon-192.png";
   }
 
+  // The share target belongs to the service worker, which answers this POST
+  // before it can ever reach a socket. This branch is the honest fallback for
+  // the one case where no worker is in control yet (a fresh install, a browser
+  // that dropped it): the body is DISCARDED unread - not parsed, not buffered,
+  // not written, not logged - and the person lands in the app instead of on a
+  // "not found" page. What the browser already put on the wire cannot be
+  // unsent; what this server can decide is that nothing is done with it.
+  if (req.method === "POST" && rel === "/share") {
+    req.resume();
+    res.writeHead(303, { Location: "/", "Cache-Control": "no-store" }).end();
+    return;
+  }
+
   // The mailbox comes before the static files: /api/... is never a file.
   try {
     if (await handleApi(req, res, rel)) return;
@@ -1105,6 +1118,11 @@ const server = createServer(async (req, res) => {
   }
 
   if (rel === "/" || rel === "/index.html") rel = "/index.html";
+  // A directory request resolves to its index, as on any static server. The
+  // deployed app is served at the root and never needs this; the suite opens it
+  // at /web/, and the service worker's very first act is to precache "./" -
+  // which is that directory, and which a 404 would turn into a failed install.
+  else if (rel.endsWith("/")) rel = `${rel}index.html`;
 
   // App files first (served at the root), then repo files (tests, design).
   // The strict CSP applies to the app only - the design previews and test

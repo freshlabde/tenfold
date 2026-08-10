@@ -497,7 +497,7 @@ export const es = {
   "about.intro.p3": "tenfold lleva una sola lista: las diez cosas que de verdad quieres. En un orden honesto. Desglosadas hasta el único paso que puedes dar mañana.",
 
   "about.walk.heading": "Qué aspecto tiene esto",
-  "about.walk.p1": "Millones de personas tienen «ponerme en forma» apuntado en alguna lista. Y ahí se queda, porque de «ponerme en forma» no se deduce ningún martes.",
+  "about.walk.p1": "Millones de personas tienen «ponerme en forma» apuntado en alguna lista. Y ahí se queda — porque «ponerme en forma» no dice qué hacer en concreto esta semana.",
   "about.walk.p2": "Por eso tenfold pregunta primero: sesenta y un años, problemas de rodilla, trabajo de oficina, poca energía por las noches.",
   "about.walk.lead": "Después va nivel a nivel:",
   "about.walk.li1": "¿Qué quieres decir exactamente? Subir sin parar hasta el cuarto piso.",
@@ -640,6 +640,15 @@ export const es = {
   "import.pick": "Elegir una imagen",
   "import.another": "Otra imagen",
   "import.size": "{n} kB a enviar",
+
+  // ------------------------------------------------------------------- share
+  "share.title": "Compartido con tenfold",
+  "share.body": "Esto llega desde otra aplicación. Se guarda sin cifrar en este dispositivo hasta que lo archives o lo descartes.",
+  "share.addUnder": "¿Dónde encaja?",
+  "share.addTop": "Añadir a los diez",
+  "share.dismiss": "Descartar",
+  "share.added": "Guardado en {title}.",
+  "share.addedTop": "Añadido a los diez.",
 
   // ------------------------------------------------------------------ toasts
   "toast.deleted": "Borrado.",

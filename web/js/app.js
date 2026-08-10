@@ -38,6 +38,8 @@ import {
 } from "./entities.js";
 import * as sync from "./sync.js";
 import * as push from "./push.js";
+import { setBadge, clearBadge } from "./badge.js";
+import { readShare, clearShare } from "./shareinbox.js";
 import * as webauthn from "./webauthn.js";
 import { llmEnabled, llmMode, bindContext as bindLlmContext } from "./llm.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
@@ -60,6 +62,7 @@ import { openEditor } from "./ui/editor.js";
 import { openStoryGuide } from "./ui/storyguide.js";
 import * as assist from "./ui/assist.js";
 import * as imageImport from "./ui/imageimport.js";
+import { openShareImport } from "./ui/shareimport.js";
 
 /** Minutes of inactivity after which the document is wiped from memory. */
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -157,6 +160,10 @@ function applyPresentation(settings) {
 // ------------------------------------------------------------------ autosave
 
 function scheduleSave() {
+  // The icon follows every change to the list, and it follows it NOW - not in
+  // 600 ms with the sealed write. This is the cheapest correct hook there is:
+  // everything that can change a status or a due date passes through here.
+  setBadge(state.doc);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     flushSave();
@@ -489,7 +496,31 @@ async function openWithMasterKey(key) {
   state.autoLocked = false;
   applyPresentation(state.doc.settings || {});
   state.savedAt = await lastSavedAt();
+  // First correct count of the session: the worker may have left a numberless
+  // flag on the icon after a push, and nothing before this line could count.
+  setBadge(state.doc);
   touchIdle();
+}
+
+// --------------------------------------------------------------- share inbox
+
+/**
+ * Something was shared into tenfold from another app while this one was closed
+ * or locked. The service worker parked it - it could do nothing else, it holds
+ * no key - and this is the first moment anything can be done with it: the
+ * document is open, so the text can be filed into the sealed vault or dropped.
+ *
+ * Offered, never applied: a sheet asks where it belongs. Until one of its two
+ * buttons is pressed the item stays parked and is offered again at the next
+ * unlock. One item at a time, the newest wins - see the contract.
+ */
+async function offerShare() {
+  if (!state.doc) return;
+  const item = await readShare();
+  // The read is async: a lock, a wipe or a second unlock may have happened in
+  // between, and a sheet over the lock screen would be a leak, not a feature.
+  if (!item || !state.doc) return;
+  openShareImport(layerEl, ctx, item);
 }
 
 // ------------------------------------------------------------------- context
@@ -569,9 +600,11 @@ const ctx = {
       state.stack = [];
       syncHistory();
       ctx.go("today");
+      offerShare();
       return;
     }
     ctx.go("outline", null, { replace: true });
+    offerShare();
   },
 
   finishIntro() {
@@ -589,6 +622,9 @@ const ctx = {
     // Persist immediately - the debounced autosave loses this flag when the
     // page is closed right after the intro, and the intro would reappear.
     flushSave();
+    // The intro is the one screen a shared item must not land on top of, so
+    // the offer waits until it has been read away.
+    offerShare();
   },
   openSheet: (spec) => openSheet(layerEl, spec),
   closeSheet,
@@ -603,6 +639,11 @@ const ctx = {
   async wipeLocalVault() {
     sync.resetSync();
     await clearAll();
+    // Everything this device held about the list goes, including the two
+    // things that live outside the vault: the count on the icon, and anything
+    // another app shared in and nobody filed yet.
+    clearBadge();
+    await clearShare();
     state.vault = null;
     state.masterKey = null;
     state.doc = null;
@@ -1031,6 +1072,36 @@ const ctx = {
     mutate((list) => reorder(list, parentId, orderedIds));
   },
 
+  /**
+   * One node out of something another app shared into tenfold. Ordinary in
+   * every respect - the normal mutate path, `origin: "manual"` - because a
+   * person choosing where a shared link belongs is exactly as manual as typing
+   * it. The ten-root rule applies here as it does everywhere else.
+   *
+   * @param {string|null} parentId null = the ten
+   * @param {{title: string, note: string}} draft
+   * @returns {string|null} the id of the new node
+   */
+  addSharedNode(parentId, draft) {
+    if (!state.doc) return null;
+    const nodes = state.doc.nodes;
+    if (parentId === null && childrenOf(nodes, null).length >= MAX_ROOTS) {
+      toast(t("outline.full"));
+      return null;
+    }
+    const now = Date.now();
+    const node = createNode({
+      title: draft.title,
+      note: draft.note || "",
+      parentId,
+      rank: childrenOf(nodes, parentId).length,
+      createdAt: now,
+      updatedAt: now,
+    });
+    mutate((list) => [...list, node]);
+    return node.id;
+  },
+
   /** The picture flow. Absent in "off" mode - the screens do not build it. */
   importImage(parentId) {
     imageImport.openImageImport(layerEl, ctx, parentId);
@@ -1277,6 +1348,7 @@ const syncCtx = {
     if (!state.doc || !state.masterKey) return;
     state.doc = upgradeDoc(doc);
     applyPresentation(state.doc.settings || {});
+    setBadge(state.doc);
     await flushSave({ fromSync: true });
     render("none");
   },

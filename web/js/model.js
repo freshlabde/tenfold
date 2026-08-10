@@ -379,6 +379,42 @@ function startOfDay(ts) {
 }
 
 /**
+ * Everything the today rule is allowed to consider: living, still-open, and a
+ * LEAF - a node with living children is a goal, not a task. Its own function
+ * because two callers depend on the same answer (the list and the app badge),
+ * and two definitions of "still to be done" would drift apart within a week.
+ */
+function openLeaves(nodes) {
+  return nodes.filter((n) => !n.deletedAt && OPEN_STATUSES.has(n.status) && isLeaf(nodes, n.id));
+}
+
+/**
+ * How urgent a due date is on the day `now` falls in: 0 overdue, 1 due today,
+ * 2 later or not dated at all. The single definition of "calls for today".
+ */
+function dueGroupOf(node, now) {
+  const dayStart = startOfDay(now);
+  if (node.due === null || node.due === undefined) return 2;
+  if (node.due < dayStart) return 0;
+  if (node.due < dayStart + DAY_MS) return 1;
+  return 2;
+}
+
+/**
+ * How many open leaves are overdue or due today - the two groups the today
+ * list ranks first, counted WITHOUT its cap of seven. This is what the app
+ * badge shows: a number, never a title, and derived from exactly the same rule
+ * the screen uses, so the badge can never claim something the list denies.
+ * `opts.now` is injectable, as everywhere else in this module.
+ */
+export function dueNowCount(nodes, opts = {}) {
+  const now = nowOf(opts);
+  let count = 0;
+  for (const node of openLeaves(nodes)) if (dueGroupOf(node, now) <= 1) count += 1;
+  return count;
+}
+
+/**
  * The short list of things to actually do now. Rules:
  *  - only living, still-open nodes (status open or doing)
  *  - only LEAVES: a node with living children is a goal, not a task
@@ -390,8 +426,6 @@ function startOfDay(ts) {
  */
 export function todayList(nodes, opts = {}) {
   const now = nowOf(opts);
-  const dayStart = startOfDay(now);
-  const dayEnd = dayStart + DAY_MS;
   const limit = Math.max(0, Math.min(TODAY_LIMIT, opts.limit === undefined ? TODAY_LIMIT : opts.limit));
 
   const topThree = new Set(childrenOf(nodes, null).slice(0, 3).map((n) => n.id));
@@ -400,16 +434,9 @@ export function todayList(nodes, opts = {}) {
     return chain.length ? chain[0].id : node.id;
   };
 
-  const candidates = nodes.filter(
-    (n) => !n.deletedAt && OPEN_STATUSES.has(n.status) && isLeaf(nodes, n.id),
-  );
+  const candidates = openLeaves(nodes);
 
-  const dueGroup = (n) => {
-    if (n.due === null || n.due === undefined) return 2;
-    if (n.due < dayStart) return 0;
-    if (n.due < dayEnd) return 1;
-    return 2;
-  };
+  const dueGroup = (n) => dueGroupOf(n, now);
 
   const decorated = candidates.map((n) => ({
     n,

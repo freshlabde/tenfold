@@ -128,6 +128,90 @@ Anyone who wants to change an interface changes this file first.
   - Client: `web/js/push.js` (see rule 7), settings row "Daily reminder" inside the sync
     group, honest about iOS needing the installed home-screen app.
 
+## The two outside surfaces: app badge and share target
+
+Everything else in this app only exists while it is open. These two are visible
+from outside it — one writes on the icon, one lets another app write into it —
+so both are specified here down to what they are allowed to know.
+
+### App badge (Badging API)
+
+- **The rule.** The badge shows the number of **open leaves that are overdue or
+  due today** — exactly the two groups `model.todayList` ranks first, counted
+  **without** its cap of seven. There is one implementation, not two:
+  `model.dueNowCount(nodes, opts)` and `todayList` share the same `openLeaves`
+  filter and the same `dueGroupOf` step, so the icon can never claim something
+  the Today screen denies. `web/js/badge.js` owns no rule of its own; it asks
+  model.js and hands the number on.
+- **Content-free by design.** A count, never a title, never a date. It is the
+  one thing this app says while the vault is locked, so it says a number.
+- **Update points** (`web/js/app.js`): `scheduleSave()` — the funnel every
+  mutation already passes through, so status and due changes land immediately
+  rather than 600 ms later with the sealed write; `openWithMasterKey()` — the
+  first correct count of a session, whichever envelope opened the vault;
+  `syncCtx.applyMerged()` — a merge is a change to the list like any other.
+  No event bus was invented for this.
+- **The lock does NOT clear it.** Deliberate, and the point of having a badge:
+  the count is content-free, and a badge that vanishes the moment the app locks
+  (which it does after 15 minutes, and on every reload) would never be seen.
+  What DOES clear it is `wipeLocalVault()` — after a wipe the number would
+  refer to a list that no longer exists on this device.
+- **The service worker badges in FLAG mode.** On a push it calls
+  `setAppBadge()` with **no argument**: the worker holds no key, so it cannot
+  count anything, and it says "there is something" instead of a wrong number.
+  The next open corrects it to a real count.
+- **Everything is guarded twice**: `navigator.setAppBadge` does not exist in
+  most desktop browsers and rejects where the app is not installed. Absent or
+  refused is a no-op, never an error and never a broken session.
+- **No setting.** This surface is quiet and content-free; there is nothing to
+  configure.
+
+### Share target (Android/Chromium, installed PWA)
+
+`manifest.webmanifest` declares `share_target`: `action: "./share"`,
+`method: "POST"`, `enctype: "multipart/form-data"`, params `title`/`text`/`url`.
+iOS has no share target and ignores the whole block — that is fine, nothing
+else changes.
+
+- **POST is the privacy argument, not a detail.** With GET the shared text
+  would be query parameters, and the address bar, the history and any
+  screenshot of either would hold it. With POST it travels in a body and the
+  URL of the app stays clean. A test asserts that `location.search` is empty
+  after a share arrives.
+- **The worker catches it** (`web/sw.js`): the one POST it answers is the share
+  path (registration scope + `share`). It reads the form, parks
+  `{title, text, url, ts}` in a Cache bucket of its own — **`tenfold-share-inbox`**,
+  never IndexedDB, never beside the vault — and answers `303` to the app root,
+  so the browser turns the POST into a plain GET. **One item at a time: the
+  newest share overwrites the previous one (latest wins).** A share carrying
+  nothing readable is dropped instead of parked.
+- **The honest part: this item is PLAINTEXT.** A service worker has no key and
+  cannot have one — that is the design, not an oversight — so it cannot encrypt
+  what it receives. The window is from the moment of sharing until the next
+  unlock. Then the app either files the text into the sealed vault or drops it,
+  and the bucket is deleted either way. It is also deleted on `wipeLocalVault`.
+  It deliberately **survives a worker activation** (like the locale entry), or
+  an update landing between share and unlock would eat something a person
+  deliberately sent here.
+- **If no worker is in control** (fresh install, a browser that dropped it) the
+  POST reaches `tools/serve.js`, which discards the body **unread** — not
+  parsed, not buffered, not written, not logged — and redirects to the app.
+  What the browser already put on the wire cannot be unsent; what the server
+  can decide is that nothing is done with it. This is the one case in the whole
+  design where user text reaches the server, and it is written down rather than
+  hidden.
+- **After unlock** (`offerShare()` in app.js, called from `enterApp` and
+  `finishIntro` — never over the first-run intro) `ui/shareimport.js` offers a
+  sheet: the text that arrived, and the only question that matters — where does
+  it belong. The targets are "Add to the ten" (subject to the ten-root rule)
+  and one row per goal. Filing it calls `ctx.addSharedNode`, which creates an
+  ORDINARY node through the normal mutate path with `origin: "manual"`: the
+  shared title (or the first line of the text, or the link) becomes the title,
+  everything left over plus the link becomes the note, nothing that arrived is
+  dropped. Discarding empties the bucket. Closing the sheet with the X settles
+  nothing — the item stays parked and is offered again at the next unlock.
+- Strings live under the `share.` prefix in all three catalogues.
+
 ## `web/js/crypto.js` (BUILT — do not change without updating its tests)
 
 ```js
@@ -256,6 +340,7 @@ export function softDelete(nodes, id): Node[]                // tombstones the w
 export function isOptedOut(nodes, id): boolean               // own flag or inherited
 export function score(node): number|null                     // impact*confidence/effort
 export function todayList(nodes, opts): Node[]               // rule: see plan; max 7; opts.now injectable
+export function dueNowCount(nodes, opts): number             // open leaves overdue or due today, uncapped (the app badge)
 export function mergeDocs(a, b): Doc                         // per item, younger updatedAt wins
 // stage 2
 export const SCHEMA = 2
