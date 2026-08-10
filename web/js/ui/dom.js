@@ -183,6 +183,25 @@ const PATHS = {
     "M2.8 15.9V19",
     "M14.2 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14",
   ],
+  // The way in from paper. Drawn to stand in the bottom bar next to plus and
+  // scales, so it is kept as open as they are: a body, one viewfinder bump and
+  // one lens, and nothing else - no shutter dot, no flash, no strap lugs, all
+  // of which turn to mud below 20px.
+  //
+  // Geometry, because it is deliberate: the body is 3.6..20.4 x 7.2..19.2, a
+  // little narrower than the 18-wide glyphs of this set, since a closed box
+  // carries more ink than a cross and would otherwise outweigh its neighbours.
+  // The lens sits on the exact middle of the BODY (12 / 13.2), not of the 24
+  // box - the bump above it is what a camera is recognised by and it has to be
+  // given its room. Corners are 2 arcs rather than the plain rect of
+  // note/calendar: at 1.7 stroke a sharp corner reads as a parcel, a soft one
+  // as a device. Rendered at 19px in the bar, where 1.7 units land on 4.04
+  // device pixels at 3x - the closest any size in that range gets to a whole
+  // stroke, which is what keeps the edges crisp on a phone.
+  camera: [
+    "M5.6 7.2H7.9L9.8 4.8H14.2L16.1 7.2H18.4a2 2 0 0 1 2 2V17.2a2 2 0 0 1-2 2H5.6a2 2 0 0 1-2-2V9.2a2 2 0 0 1 2-2z",
+    "M12 9.9a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6z",
+  ],
   // The map: three bodies and the pull between them.
   constellation: [
     "M18 8.4a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z",

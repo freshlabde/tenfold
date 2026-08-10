@@ -174,6 +174,20 @@ async function choosePicture(page) {
   });
 }
 
+/**
+ * The bottom bar, read the way a person reads it: what the controls are called,
+ * left to right, and which of them are closed. A text button answers with its
+ * words, an icon button with its accessible name.
+ */
+async function barControls(page) {
+  return page.evaluate(() =>
+    [...document.querySelector(".bar").children].map((el) => ({
+      name: (el.textContent || "").trim() || el.getAttribute("aria-label"),
+      disabled: !!el.disabled,
+    })),
+  );
+}
+
 /** Everything the document knows about its own shape, by title. */
 async function shape(page) {
   return page.evaluate(async () => {
@@ -195,21 +209,66 @@ test("the way in from paper exists only when a model is switched on", async ({ p
   await setupVault(page);
   await addRoots(page, ["Get the knee fixed"]);
 
-  // Off is the default: not hidden, absent.
+  // Off is the default: not hidden, absent. The bar is the two words it always
+  // was, and nothing has taken the place between them.
   await expect(page.locator('[data-llm="import"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Import from a photo" })).toHaveCount(0);
+  // One goal only, so ordering has nothing to compare and is closed already.
+  expect(await barControls(page)).toEqual([
+    { name: "New entry", disabled: false },
+    { name: "Put in order", disabled: true },
+  ]);
   await page.locator(".row").first().click();
   await expect(page.locator('[data-llm="import"]')).toHaveCount(0);
   await page.locator(".crumb-back").click();
 
   await useLocalModel(page);
 
-  // On the outline, and on the screen of a single goal.
+  // On the outline: three controls, the camera in the middle, and nothing
+  // above the bar any more - the text line it used to be is gone from the DOM.
   await expect(page.locator('[data-llm="import"]')).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Import from a photo" })).toBeVisible();
+  await expect(page.locator(".import-entry")).toHaveCount(0);
+  expect(await barControls(page)).toEqual([
+    { name: "New entry", disabled: false },
+    { name: "Import from a photo", disabled: false },
+    { name: "Put in order", disabled: true },
+  ]);
+  const cam = page.locator(".bar").getByRole("button", { name: "Import from a photo" });
+  await expect(cam).toBeVisible();
+  // Icon only: an accessible name, no words on screen, and a square of one tap.
+  await expect(cam).toHaveText("");
+  await expect(cam.locator("svg")).toHaveCount(1);
+  const box = await cam.boundingBox();
+  expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
+
+  // The screen of a single goal carries exactly the same bar.
   await page.locator(".row").first().click();
   await expect(page.locator(".hero-title")).toHaveText("Get the knee fixed");
   await expect(page.locator('[data-llm="import"]')).toHaveCount(1);
+  await expect(page.locator(".import-entry")).toHaveCount(0);
+  expect(await barControls(page)).toEqual([
+    { name: "Add the first part", disabled: false },
+    { name: "Import from a photo", disabled: false },
+    { name: "Details", disabled: false },
+  ]);
+});
+
+test("the ten-root cap closes the words, never the camera", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]);
+  await useLocalModel(page);
+
+  // The cap is a rule about writing an eleventh goal by hand. A photograph is
+  // decided line by line in the sheet, which enforces the cap where the lines
+  // land - so this control stays open with a full list, by design.
+  expect(await barControls(page)).toEqual([
+    { name: "New entry", disabled: true },
+    { name: "Import from a photo", disabled: false },
+    { name: "Put in order", disabled: false },
+  ]);
+  await page.locator(".bar").getByRole("button", { name: "Import from a photo" }).click();
+  await expect(page.locator(".sheet-title")).toHaveText("Import from a photo");
 });
 
 // ---------------------------------------------------------------- happy path
@@ -220,7 +279,7 @@ test("a photographed outline keeps its levels, and a dropped line drops its own"
   await useLocalModel(page);
 
   sink.says(OUTLINE);
-  await page.getByRole("button", { name: "Import from a photo" }).click();
+  await page.locator(".bar").getByRole("button", { name: "Import from a photo" }).click();
   await expect(page.locator(".sheet-title")).toHaveText("Import from a photo");
   await choosePicture(page);
 
@@ -268,7 +327,9 @@ test("under a goal, the outer margin of the paper becomes the level below it", a
 
   sink.says({ items: [{ title: "Book the MRI", level: 0 }, { title: "Ask for the earliest slot", level: 1 }] });
   await page.locator(".row").first().click();
-  await page.getByRole("button", { name: "Import from a photo" }).click();
+  // The camera in THIS screen's bar, and the target is still this goal - only
+  // the entry point moved, the flow behind it did not.
+  await page.locator(".bar").getByRole("button", { name: "Import from a photo" }).click();
   await expect(page.locator(".sheet")).toContainText("Everything lands under Get the knee fixed");
   await choosePicture(page);
 
@@ -302,7 +363,7 @@ test("what would be the eleventh goal is shown, explained, and out of reach", as
       { title: "thirteen", level: 0 },
     ],
   });
-  await page.getByRole("button", { name: "Import from a photo" }).click();
+  await page.locator(".bar").getByRole("button", { name: "Import from a photo" }).click();
   await choosePicture(page);
   await expect(page.locator(".assist-item")).toHaveCount(7, { timeout: 30000 });
 
@@ -345,7 +406,7 @@ test("an answer that is not a list says so and leaves the document alone", async
   await useLocalModel(page);
 
   sink.says("I am afraid I cannot read that picture, sorry.");
-  await page.getByRole("button", { name: "Import from a photo" }).click();
+  await page.locator(".bar").getByRole("button", { name: "Import from a photo" }).click();
   await choosePicture(page);
 
   await expect(page.locator(".assist-error")).toHaveText(
@@ -376,7 +437,7 @@ test("a title that tries to be markup stays a title", async ({ page }) => {
 
   const canary = '<img src=x onerror="window.XSS=1">';
   sink.says({ items: [{ title: canary, level: 0 }, { title: "<script>window.XSS=2</script>", level: 1 }] });
-  await page.getByRole("button", { name: "Import from a photo" }).click();
+  await page.locator(".bar").getByRole("button", { name: "Import from a photo" }).click();
   await choosePicture(page);
 
   await expect(page.locator(".assist-item")).toHaveCount(2, { timeout: 30000 });

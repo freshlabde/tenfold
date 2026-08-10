@@ -158,6 +158,14 @@ export function blockedByRootCap(items, capacity) {
  * assistance control. A node that is kept away from the model does not collect
  * model-made children either, so it has no entry point of its own.
  *
+ * It lives IN the bottom bar, between the two words: a square camera button of
+ * the same plate as its neighbours, icon only, carrying the import string as
+ * its accessible name. It was a line of text above the bar, and that line cost
+ * the ten a row of height on a phone for something that is a tool, not a
+ * sentence. Deliberately NOT gated by the ten-root rule the way "New entry" is
+ * - what a photograph proposes is decided line by line in the sheet, and the
+ * cap is enforced there (blockedByRootCap).
+ *
  * @param {Object} ctx the app context
  * @param {string|null} parentId null = the ten, otherwise the focused node
  * @returns {HTMLElement|null}
@@ -168,18 +176,16 @@ export function importEntry(ctx, parentId) {
     const keep = ctx.optout(parentId);
     if (keep.own || keep.inherited) return null;
   }
-  return el("div", { class: "import-entry" }, [
-    el(
-      "button",
-      {
-        class: "btn-ghost is-accent",
-        attrs: { type: "button" },
-        dataset: { llm: "import" },
-        on: { click: () => ctx.importImage(parentId) },
-      },
-      [text(t("import.entry"))],
-    ),
-  ]);
+  return el(
+    "button",
+    {
+      class: "btn is-icon",
+      attrs: { type: "button", "aria-label": t("import.entry") },
+      dataset: { llm: "import" },
+      on: { click: () => ctx.importImage(parentId) },
+    },
+    [icon("camera", 19)],
+  );
 }
 
 // ------------------------------------------------------------------ the sheet

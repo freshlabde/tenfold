@@ -716,6 +716,15 @@ button.h-sub {
 .btn.is-wide { width: 100%; }
 .btn.is-big { min-height: 56px; font-size: 15px; border-radius: var(--radius); }
 
+/* The way in from paper, in the bar: a square of exactly the plate, radius and
+   shadow its two neighbours have - only the words are missing. It is one tap
+   target wide, so it never grows with the buttons beside it. */
+.btn.is-icon { width: var(--tap); padding: 0; gap: 0; }
+
+/* A bar with the camera in it names its first two columns; the third, where
+   there is one, falls to grid-auto-columns and is a flexible word again. */
+.bar.has-cam { grid-template-columns: 1fr var(--tap); }
+
 .btn-ghost {
   border: 0; background: none; box-shadow: none;
   color: var(--muted);
@@ -1235,13 +1244,6 @@ button.h-sub {
 .check.is-bare { min-height: 0; padding: 1px 0 0; }
 
 /* ------------------------------------------------------- import from a photo */
-
-/* The way in from paper: one quiet line, sitting on the bottom bar. */
-.import-entry {
-  flex: none;
-  margin: 0 var(--gutter); padding: 6px 0 2px;
-  display: flex; justify-content: flex-start;
-}
 
 /* An indented line of a read outline. Four levels, and the indent is the
    only thing that says which is which - no bullets, no guide lines. */

@@ -158,14 +158,16 @@ export function render(ctx, id) {
         [icon("dots", 16), text(t("focus.openLeaf"))],
       );
 
+  // A picture of a list read into THIS goal: the outer margin of the paper
+  // becomes the level below this node, and everything shifts down with it. The
+  // target stays exactly what it was - only the entry point moved into the bar.
+  const cam = importEntry(ctx, node.id);
+
   return el("section", { class: "screen" }, [
     crumb(ctx, node),
     el("div", { class: "peek", attrs: { "aria-hidden": "true" } }, [el("i", {}), el("i", {})]),
     hero(ctx, node),
     body,
-    // A picture of a list read into THIS goal: the outer margin of the paper
-    // becomes the level below this node, and everything shifts down with it.
-    importEntry(ctx, node.id),
-    el("div", { class: "bar" }, [add, second]),
+    el("div", { class: `bar${cam ? " has-cam" : ""}` }, [add, cam, second]),
   ]);
 }

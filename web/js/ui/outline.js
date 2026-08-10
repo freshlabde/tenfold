@@ -194,11 +194,21 @@ export function render(ctx) {
     [icon("scales", 16), text(t("outline.order"))],
   );
 
+  // The way in from paper sits between the two words, as a camera. It exists
+  // only when assistance is switched on at all, and it is NOT closed by the
+  // ten-root rule: what a photograph proposes is decided line by line in the
+  // sheet, which enforces the cap where the lines actually land.
+  const cam = importEntry(ctx, null);
+  // Three controls, and only the middle one keeps its edges: the template
+  // names the first two columns, the third falls to grid-auto-columns (1fr),
+  // so the same rule serves [add, camera] on an empty list as well.
   const bar = roots.length
-    ? el("div", { class: "bar" }, [add, order])
-    : el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [add]);
+    ? el("div", { class: `bar${cam ? " has-cam" : ""}` }, [add, cam, order])
+    : el(
+        "div",
+        cam ? { class: "bar has-cam" } : { class: "bar", style: { gridAutoFlow: "row" } },
+        [add, cam],
+      );
 
-  // The way in from paper: one quiet line above the bar, next to the way in
-  // from the keyboard. It exists only when assistance is switched on at all.
-  return el("section", { class: "screen" }, [head, body, importEntry(ctx, null), bar]);
+  return el("section", { class: "screen" }, [head, body, bar]);
 }
