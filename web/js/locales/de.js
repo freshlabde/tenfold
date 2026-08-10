@@ -272,6 +272,7 @@ export const de = {
   "push.hour": "Stunde",
   "push.hourHint": "0 bis 23, in deiner eigenen Zeitzone.",
   "push.ios": "Auf iPhone und iPad funktioniert das nur, wenn tenfold auf dem Home-Bildschirm liegt. Safari stellt einer Webseite im Tab keine Meldungen zu.",
+  "push.badge": "Auch der Zähler am App-Symbol hängt an dieser Erlaubnis: iOS zeigt das Kennzeichen erst, wenn Mitteilungen erlaubt sind. Erinnerung einschalten, Mitteilungen erlauben — dann erscheint der Zähler. Er zeigt, wie viele Schritte fällig sind, nie ein Wort.",
   "push.on": "Erinnerung steht auf {time}.",
   "push.off": "Erinnerung aus.",
   "push.unsupported": "Dieser Browser kann keine Meldungen zeigen.",

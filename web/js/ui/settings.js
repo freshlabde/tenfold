@@ -244,6 +244,10 @@ function reminderSheet(ctx) {
       el("p", { class: "field-hint" }, [text(t("push.hourHint"))]),
     ]),
     el("p", { class: "field-hint" }, [text(t("push.ios"))]),
+    // The icon counter rides on the same permission: iOS only badges a web
+    // app once notifications are authorised, so a user who skips the reminder
+    // silently loses the badge too - say so where the decision is made.
+    el("p", { class: "field-hint" }, [text(t("push.badge"))]),
   ]);
 
   const apply = async () => {

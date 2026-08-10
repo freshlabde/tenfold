@@ -272,6 +272,7 @@ export const en = {
   "push.hour": "Hour",
   "push.hourHint": "0 to 23, in your own time zone.",
   "push.ios": "On iPhone and iPad this only works when tenfold has been added to the home screen. Safari does not deliver notifications to a web page in a tab.",
+  "push.badge": "The counter on the app icon needs this permission too: iOS only badges the icon once notifications are allowed. Turn the reminder on, allow notifications, and the badge follows - it shows how many steps are due, never a word.",
   "push.on": "Reminder set for {time}.",
   "push.off": "Reminder off.",
   "push.unsupported": "This browser cannot show notifications.",

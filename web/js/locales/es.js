@@ -272,6 +272,7 @@ export const es = {
   "push.hour": "Hora",
   "push.hourHint": "De 0 a 23, en tu propia zona horaria.",
   "push.ios": "En iPhone y iPad esto solo funciona si tenfold está añadido a la pantalla de inicio. Safari no entrega avisos a una página abierta en una pestaña.",
+  "push.badge": "El contador en el icono también depende de este permiso: iOS solo muestra la insignia cuando las notificaciones están permitidas. Activa el recordatorio, permite las notificaciones y aparecerá el contador — indica cuántos pasos vencen, nunca una palabra.",
   "push.on": "Recordatorio puesto a las {time}.",
   "push.off": "Recordatorio desactivado.",
   "push.unsupported": "Este navegador no puede mostrar avisos.",
