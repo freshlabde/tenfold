@@ -64,8 +64,24 @@ test("the About intro appears exactly once per vault", async ({ page }) => {
   // The intro: the About prose with a single Begin action.
   await expect(page.locator(".prose")).toBeVisible();
   await expect(page.locator(".prose .prose-list li").first()).toBeVisible();
+  // Begin flushes aboutRead into the sealed vault, but the flush is async
+  // (seal + IndexedDB write) - on a slow machine (CI) an immediate reload
+  // outruns it and the reopened vault shows the intro a second time. The flag
+  // itself is ciphertext, so wait for the observable: the sealed blob changed.
+  const before = await page.evaluate(async () =>
+    JSON.stringify(await (await import("/web/js/store.js")).loadVault()),
+  );
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () =>
+          JSON.stringify(await (await import("/web/js/store.js")).loadVault()),
+        ),
+      { timeout: 15_000 },
+    )
+    .not.toBe(before);
 
   // Lock and unlock again: straight to the outline, no second intro.
   await page.reload();
