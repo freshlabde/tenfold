@@ -6,7 +6,7 @@ Fremdbibliothek, kein CDN, keine geladene Schrift, alles CSS inline. Doppelklick
 genügt, oder über den Dev-Server:
 
 ```bash
-cd /Users/kaira/tenfold && node tools/serve.js
+node tools/serve.js   # from the repo root
 # http://127.0.0.1:7710/design/direction-a.html   (b, c analog)
 ```
 

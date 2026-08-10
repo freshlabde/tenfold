@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  tenfold static server, kept alive by launchd.
-  Serves the PWA on 127.0.0.1:7710 for the Cloudflare tunnel
-  (tenfold.kairatools.com). Static files only - no user data.
-  Install:
+  tenfold static server, kept alive by launchd (macOS host).
+  Serves the PWA on 127.0.0.1:7710 for a reverse proxy or tunnel.
+  Static files and the ciphertext mailbox only - no plaintext user data.
+
+  This file is a TEMPLATE: replace every /path/to placeholder with the
+  absolute paths of your machine (launchd resolves no $HOME and no PATH),
+  then:
     cp tools/com.tenfold.serve.plist ~/Library/LaunchAgents/
     launchctl load ~/Library/LaunchAgents/com.tenfold.serve.plist
 -->
@@ -14,17 +17,20 @@
   <string>com.tenfold.serve</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/kaira/.nvm/versions/node/v25.9.0/bin/node</string>
-    <string>/Users/kaira/tenfold/tools/serve.js</string>
+    <string>/path/to/node</string>
+    <string>/path/to/tenfold/tools/serve.js</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/kaira/tenfold</string>
+  <string>/path/to/tenfold</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <!-- The model relay's allowlist: LM Studio on this Mac (no key needed)
-         and the LiteLLM balancer (needs its master key as the API key). -->
+    <!-- The model relay's allowlist: exact OpenAI-compatible base URLs the
+         relay may forward to (comma-separated). Empty or absent = the relay
+         only accepts the built-in cloud hosts. -->
     <key>TENFOLD_LLM_UPSTREAMS</key>
-    <string>http://127.0.0.1:1234/v1,http://127.0.0.1:4000/v1</string>
+    <string>http://127.0.0.1:1234/v1</string>
+    <!-- Operator contact in the Web-Push VAPID claim. Operator data, never
+         user data. -->
     <key>TENFOLD_PUSH_SUBJECT</key>
     <string>mailto:info@freshlab.es</string>
   </dict>
