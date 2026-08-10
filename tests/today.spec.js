@@ -227,12 +227,19 @@ test("the locale for the notification text is parked where the worker looks", as
   await page.getByRole("button", { name: "Deutsch" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
 
-  const parked = await page.evaluate(async () => {
-    const cache = await caches.open("tenfold-locale");
-    const hit = await cache.match(`${location.origin}/tenfold-locale`);
-    return hit ? (await hit.text()).trim() : null;
-  });
-  expect(parked).toBe("de");
+  // The parking write is fire-and-forget; on a slow machine (CI) a single
+  // read raced it and saw the previous value. Poll until it lands.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const cache = await caches.open("tenfold-locale");
+          const hit = await cache.match(`${location.origin}/tenfold-locale`);
+          return hit ? (await hit.text()).trim() : null;
+        }),
+      { timeout: 10_000 },
+    )
+    .toBe("de");
 });
 
 // ---------------------------------------------------------- daily question

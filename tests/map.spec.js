@@ -1340,7 +1340,10 @@ test("a selection moves, and lets go on empty sky", async ({ page }) => {
   await expect(page.locator(".map-tree.has-focus")).toHaveCount(1);
 
   // And a selection is let go the way a focus is: on empty sky, and by the
-  // recentre button.
+  // recentre button. The focus above set the camera gliding, and on a slow
+  // machine (CI) a tap fired mid-glide lands where the card no longer is -
+  // wait for the spring to rest first.
+  await settled(page);
   await tap(page, page.locator(`.map-card[data-card="${ids[0]}"] > .map-hit`));
   await expect(page.locator(".map-card.is-selected")).toHaveCount(1);
   await page.getByRole("button", { name: "Show everything" }).click();
