@@ -757,6 +757,59 @@ providers directly (CORS) and because the phone cannot reach the home LAN from o
   or a local (loopback, no cf-connecting-ip) caller. Without that, strangers would burn the
   operator's local models through the tunnel.
 - Abuse limits apply (the existing per-IP rate limiter covers /api/llm too).
+
+**Two walls, not one.** The upstream allowlist above says WHERE a request may go. The caller
+gate (`tools/llm_gate.js`, pure and unit-tested) says WHO may send it to a LOCAL upstream:
+- **Cloud targets are never gated.** The caller sends their own API key and pays their own
+  bill; there is nothing of the operator's to protect. `gateDecision` returns early for them
+  and the server does not even look up who is calling.
+- **A local upstream is the operator's own machine.** A caller who proved a vault
+  (`X-Sync-Token`) may use it only when THAT sync id stands in the operator's allowlist -
+  through the tunnel and on loopback alike. Otherwise every person who ever created a vault
+  here would be holding a free GPU.
+- **Loopback without a sync id keeps the older allowance** (dev server, test suite, the
+  operator's own browser), and only when the request is genuinely local: loopback address AND
+  no `cf-connecting-ip`, the same test the abuse limits use.
+- **Refusal:** `403 {"error": "llm-approval"}` - a distinct, machine-readable code, separate
+  from the target refusal `403 {"error": "upstream not allowed"}`. The client maps it to
+  `LlmError("approval")` and shows `llm.error.approval` (settings connection test and every
+  assist path use the same code-to-sentence mapping). The answer carries the word and nothing
+  else: no id, no list, no count, nothing about who else may use this server.
+- **State: `DATA_DIR/llm_access.json`**, created lazily, written atomically like the vault
+  records, never inside the repository:
+  ```json
+  { "allowed": ["<syncId>"], "pending": { "<syncId>": { "first": 0, "last": 0, "count": 0 } } }
+  ```
+  A missing, broken or unreadable file means an EMPTY allowlist, never an open one. **No
+  grandfathering:** a fresh gate starts empty and the operator allows ids by hand, their own
+  first. A refused request records or increments its id in `pending` (cap 500, oldest
+  first-seen dropped). **What is stored is the id, two timestamps and a counter. Never a
+  message, a model name, an upstream, an API key, an IP or a user agent** - it is a doorbell,
+  not a log, and it is the ONLY thing the relay ever writes down.
+- **Operator UI: `/stats#llm`** (section "Local model access"), behind the same
+  `TENFOLD_STATS_KEY`, the same constant-time key check and the same rate limiter as the
+  counters. Allowed ids with a revoke button, pending ids with first/last/count and
+  allow/deny buttons. POST `action=llm-allow|llm-deny|llm-revoke` + `id=<syncId>`, answering
+  303 to `?k=KEY#llm`. Without a stats key there is no page and the file is the only surface.
+- **GET links: `/stats?k=KEY&allow=<syncId>` and `&deny=<syncId>`.** The operator's
+  notification is a mail and a mail carries links, not forms, so: **the key in the URL IS the
+  authentication** (checked exactly as for the page, wrong or missing key -> the same plain
+  404 every unknown path gets), and **the action is idempotent** - allowing an allowed id,
+  denying an unknown one and revoking one that is not there all end in the state the name
+  promises, because links get clicked twice, prefetched and reopened from history. Both
+  redirect 303 to `?k=KEY#llm`.
+- **Notification hook (optional): `TENFOLD_NOTIFY_URL`.** When a NEW id appears in `pending`
+  (first time only, never per request), one JSON POST goes out, fire and forget, 5 s timeout,
+  answer never read, every failure swallowed:
+  ```json
+  { "event": "llm-approval-request", "syncId": "...", "allowUrl": "...", "denyUrl": "...", "statsUrl": "..." }
+  ```
+  The three URLs are built from `TENFOLD_PUBLIC_URL` and carry the stats key; they are OMITTED
+  when either that or `TENFOLD_STATS_KEY` is unset, because a link to a page that 404s is a
+  lie. **No mail code lives in this repository** - no dependency, and SMTP is the operator's
+  business. Allow/deny/revoke are idempotent precisely so this mail is safe.
+- Denying is not a blocklist: it forgets the request, and an id that asks again is waiting
+  again. That is the honest behaviour for something the operator may simply not have decided.
 - Timeout ~120 s, response size cap 1 MB, non-streaming in v1 (the UI animates the text in;
   no spinner anywhere).
 

@@ -631,6 +631,7 @@ export const es = {
   "llm.error.offline": "No se ha podido llegar al reenvio.",
   "llm.error.denied": "Este servidor no ha aceptado la peticion.",
   "llm.error.upstream": "Esa direccion no es un servidor de modelos permitido.",
+  "llm.error.approval": "El modelo local de este servidor necesita la aprobación del operador. Tu petición ha quedado anotada; inténtalo de nuevo cuando se conceda.",
   "llm.error.tooLarge": "Habia demasiado que enviar.",
   "llm.error.busy": "Demasiadas peticiones ahora mismo.",
   "llm.error.timeout": "El modelo ha tardado demasiado.",

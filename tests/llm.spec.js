@@ -156,6 +156,16 @@ async function openAssist(page) {
   await expect(page.locator(".sheet-title").last()).toHaveText("Assist");
 }
 
+/**
+ * The vault this file relays with from "outside". Fixed rather than random,
+ * because the caller gate in front of the LOCAL upstreams only lets a sync id
+ * through that the operator allowed - and the operator allows it before the
+ * server starts (playwright.config.js seeds tests/llm_access.seed.json into the
+ * throwaway data dir). That is the mechanism, not a way around it: the refusal
+ * for a vault that is NOT in that file is checked in tests/llmgate.spec.js.
+ */
+const ALLOWED_ID = "relayspecvaultaaaaaaaaaaaa";
+
 function randomId() {
   const alphabet = "23456789abcdefghjkmnpqrstvwxyz";
   let out = "";
@@ -210,8 +220,10 @@ test("a caller the server does not know is turned away", async ({ request }) => 
   expect(wrongToken.status()).toBe(401);
   expect(sink.received).toEqual([]);
 
-  // A vault on this server vouches for its own devices, and for nobody else.
-  const id = randomId();
+  // A vault on this server vouches for its own devices, and for nobody else -
+  // and for a LOCAL model it must also be a vault the operator allowed, which
+  // this one is (the seeded allowlist, see ALLOWED_ID above).
+  const id = ALLOWED_ID;
   const token = `relay-spec-token-${randomId()}`;
   const put = await request.put(`/api/vault/${id}`, {
     headers: { "X-Sync-Token": token, "X-If-Version": "0" },

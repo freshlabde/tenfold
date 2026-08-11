@@ -631,6 +631,7 @@ export const de = {
   "llm.error.offline": "Die Weiterleitung war nicht erreichbar.",
   "llm.error.denied": "Dieser Server hat die Anfrage nicht angenommen.",
   "llm.error.upstream": "Diese Adresse ist kein erlaubter Modell-Server.",
+  "llm.error.approval": "Das lokale Modell dieses Servers braucht die Freigabe des Betreibers. Deine Anfrage ist vermerkt; versuch es noch einmal, sobald sie erteilt ist.",
   "llm.error.tooLarge": "Das war zu viel zum Senden.",
   "llm.error.busy": "Gerade zu viele Anfragen.",
   "llm.error.timeout": "Das Modell hat zu lange gebraucht.",

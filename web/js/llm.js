@@ -337,7 +337,14 @@ export async function call(llm, messages, opts = {}) {
     throw new LlmError("offline");
   }
   if (res.status === 401) throw new LlmError("denied");
-  if (res.status === 403) throw new LlmError("upstream");
+  if (res.status === 403) {
+    // Two different refusals share the status: an address this server does not
+    // allow, and a caller the operator has not allowed for their local models
+    // yet. The second one is answerable ("ask the operator"), so it gets its
+    // own code and its own sentence instead of the address error.
+    const detail = await res.json().catch(() => null);
+    throw new LlmError(detail && detail.error === "llm-approval" ? "approval" : "upstream");
+  }
   if (res.status === 413) throw new LlmError("tooLarge");
   if (res.status === 429) throw new LlmError("busy");
   if (res.status === 504) throw new LlmError("timeout");

@@ -57,6 +57,26 @@
 // If a future change makes this relay remember a single message, the design is
 // broken, not improved.
 //
+// THE SECOND WALL IN FRONT OF THE RELAY - THE CALLER GATE: the upstream
+// allowlist above says WHERE a request may go. This says WHO may send it there,
+// and only for the operator's own LOCAL models:
+//   - A cloud target is never gated. The caller sends their own API key and
+//     pays their own bill; there is nothing of the operator's to protect.
+//   - A LOCAL target is the operator's machine, their electricity, their GPU.
+//     A caller who proved a vault (X-Sync-Token) may use it only when that sync
+//     id stands in the operator's allowlist. Without the gate, everybody who
+//     ever set up a vault here would be holding a free model server.
+//   - Loopback without a sync id keeps the older allowance unchanged: that is
+//     this machine (dev server, test suite, the operator's own browser).
+//   - A refusal is 403 {"error":"llm-approval"} and the id is put in a pending
+//     list so the operator can allow it. THIS IS THE ONE PLACE WHERE THE RELAY
+//     WRITES ANYTHING DOWN, and what it writes is a sync id, a first and last
+//     timestamp and a counter. Never a message, never a key, never an upstream,
+//     never an IP, never a user agent. The pending list is a doorbell, not a
+//     log. If a future change makes it hold what was ASKED, the design is
+//     broken, not improved.
+//   - The decision itself lives in tools/llm_gate.js, pure and testable.
+//
 // THE THIRD EXCEPTION - THE STATS PAGE, AND WHAT IT IS NOT: with the env var
 // TENFOLD_STATS_KEY set, and ONLY then, this server counts document loads.
 // Read this before you take it as the end of "no tracking":
@@ -87,6 +107,7 @@ import { request as httpsRequest } from "node:https";
 import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { homedir } from "node:os";
+import { gateDecision, notePending } from "./llm_gate.js";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const WEB = join(ROOT, "web");
@@ -149,6 +170,33 @@ const LLM_LOCAL_UPSTREAMS = String(process.env.TENFOLD_LLM_UPSTREAMS || "")
   .split(",")
   .map((value) => value.trim().replace(/\/+$/, ""))
   .filter(Boolean);
+
+/**
+ * Who may reach those local models. Beside the vaults, in the data directory,
+ * so an update cannot hand out access by accident. Shape:
+ *   { allowed: ["<syncId>"], pending: { "<syncId>": { first, last, count } } }
+ * Created lazily on the first refusal; absent means an EMPTY allowlist, never
+ * an open one. There is no grandfathering: the operator allows ids by hand,
+ * starting with their own.
+ */
+const LLM_ACCESS_FILE = join(DATA_DIR, "llm_access.json");
+
+/** How many ids may wait for a decision. Past it the oldest first-seen go. */
+const MAX_PENDING_IDS = 500;
+
+/**
+ * Optional operator hook. When set, the FIRST time a new id asks, one JSON POST
+ * goes here - fire and forget, short timeout, every failure swallowed. What the
+ * operator does with it (a mail, a chat message, a log line) is their business:
+ * no SMTP code lives in this repository, and no dependency is added for one.
+ */
+const NOTIFY_URL = String(process.env.TENFOLD_NOTIFY_URL || "");
+
+/** The public address of this deployment, for the links in that POST. */
+const PUBLIC_URL = String(process.env.TENFOLD_PUBLIC_URL || "");
+
+/** The notification is a courtesy, not a step in the request. Five seconds. */
+const NOTIFY_TIMEOUT_MS = 5 * 1000;
 
 // -------------------------------------------------------------------- stats
 /**
@@ -534,7 +582,7 @@ async function handleDeleteVault(req, res, id) {
     if (vaultCount !== null) vaultCount = Math.max(0, vaultCount - 1);
     // The relay's cache of known write tokens may still vouch for the one that
     // just lost its vault. Drop it, so the next relayed request rescans.
-    tokenCache = { at: 0, hashes: [] };
+    tokenCache = { at: 0, owners: [] };
     sendEmpty(res, 204);
   });
 }
@@ -623,11 +671,13 @@ async function vapidAuthorization(endpoint) {
 }
 
 /**
- * THE ONE OUTBOUND CALL IN THIS WHOLE SYSTEM.
+ * THE ONE OUTBOUND CALL THAT NOBODY ASKED FOR.
  *
- * Everything else here answers requests; this is the single place where the
- * server itself reaches out, and it reaches exactly one kind of host: the push
- * service the browser named in its own subscription. The request has NO BODY.
+ * The relay opens a socket because a caller asked it to, and the operator's
+ * notification hook fires because the operator configured one. This is the
+ * single place where the server reaches out ON ITS OWN, on a timer, and it
+ * reaches exactly one kind of host: the push service the browser named in its
+ * own subscription. The request has NO BODY.
  * There is nothing in it about the person, the vault or the list - the push
  * service sees a URL it issued itself and a signature proving who is poking it.
  *
@@ -899,16 +949,20 @@ function carriesImage(messages) {
 }
 
 /**
- * The hashes of every registered write token. Cached, because the alternative
- * is a directory walk per relayed request. The relay deliberately does NOT ask
- * which vault is calling: it only needs to know that SOME vault on this server
- * vouches for the caller, and not asking is one identifier less that exists.
+ * The write-token hash of every registered vault, with the id beside it.
+ * Cached, because the alternative is a directory walk per relayed request.
+ *
+ * The id is in this table for ONE reason: the caller gate for local models
+ * needs a name to compare against the operator's allowlist. relayAuthorised
+ * below still does not read it - a request that is on its way to a cloud
+ * provider is answered without this server ever asking who is calling, exactly
+ * as before. Only the local branch calls callerSyncId.
  */
-let tokenCache = { at: 0, hashes: [] };
+let tokenCache = { at: 0, owners: [] };
 let lastRescanAt = 0;
 
-async function loadTokenHashes() {
-  const hashes = [];
+async function loadTokenOwners() {
+  const owners = [];
   let ids;
   try {
     ids = await readdir(VAULT_DIR);
@@ -918,10 +972,10 @@ async function loadTokenHashes() {
   for (const id of ids) {
     if (!SYNC_ID_RE.test(id)) continue;
     const record = await readRecord(id);
-    if (record && typeof record.tokenHash === "string") hashes.push(record.tokenHash);
+    if (record && typeof record.tokenHash === "string") owners.push({ hash: record.tokenHash, id });
   }
-  tokenCache = { at: Date.now(), hashes };
-  return hashes;
+  tokenCache = { at: Date.now(), owners };
+  return owners;
 }
 
 /**
@@ -937,18 +991,191 @@ async function relayAuthorised(req) {
   const hash = await sha256Hex(token);
   const matches = (list) => {
     let found = false;
-    for (const known of list) if (sameHex(known, hash)) found = true;
+    for (const known of list) if (sameHex(known.hash, hash)) found = true;
     return found;
   };
   const fresh = Date.now() - tokenCache.at < TOKEN_CACHE_MS;
-  if (matches(fresh ? tokenCache.hashes : await loadTokenHashes())) return true;
+  if (matches(fresh ? tokenCache.owners : await loadTokenOwners())) return true;
   // A vault registered seconds ago is not in the cache yet. One rescan, rate
   // limited, so a wrong token cannot be turned into a directory walk per try.
   if (fresh && Date.now() - lastRescanAt > TOKEN_RESCAN_MS) {
     lastRescanAt = Date.now();
-    return matches(await loadTokenHashes());
+    return matches(await loadTokenOwners());
   }
   return false;
+}
+
+/**
+ * WHICH vault is calling, or "" when the caller showed no usable token. Called
+ * ONLY when the target is a local upstream, because that is the one decision
+ * that needs a name; a cloud request never reaches this function.
+ *
+ * The answer lives for the length of the request. It reaches the disk in
+ * exactly one case: the gate refuses, and the id goes into the pending list so
+ * the operator can allow it.
+ */
+async function callerSyncId(req) {
+  const token = req.headers["x-sync-token"];
+  if (typeof token !== "string" || token.length < 16 || token.length > 512) return "";
+  const hash = await sha256Hex(token);
+  const pick = (list) => {
+    let found = "";
+    for (const owner of list) if (sameHex(owner.hash, hash)) found = owner.id;
+    return found;
+  };
+  const fresh = Date.now() - tokenCache.at < TOKEN_CACHE_MS;
+  const hit = pick(fresh ? tokenCache.owners : await loadTokenOwners());
+  if (hit) return hit;
+  if (fresh && Date.now() - lastRescanAt > TOKEN_RESCAN_MS) {
+    lastRescanAt = Date.now();
+    return pick(await loadTokenOwners());
+  }
+  return "";
+}
+
+// ----------------------------------------------------------- the caller gate
+
+let accessPromise = null; // the one load of the file, kept for the process lifetime
+
+/**
+ * Reads the allowlist back, or starts EMPTY. A missing file, a broken file and
+ * an unreadable disk all mean the same thing here: nobody is allowed yet. The
+ * shape is validated on the way in, so a hand-edited file cannot put anything
+ * into the state that is not a sync id.
+ */
+async function loadAccess() {
+  try {
+    const parsed = JSON.parse(await readFile(LLM_ACCESS_FILE, "utf8"));
+    const allowed = Array.isArray(parsed.allowed) ? parsed.allowed.filter((id) => SYNC_ID_RE.test(id)) : [];
+    const pending = {};
+    if (parsed.pending && typeof parsed.pending === "object") {
+      for (const [id, value] of Object.entries(parsed.pending)) {
+        if (!SYNC_ID_RE.test(id) || !value || typeof value !== "object") continue;
+        pending[id] = {
+          first: Number(value.first) || 0,
+          last: Number(value.last) || 0,
+          count: Number(value.count) || 0,
+        };
+      }
+    }
+    return { allowed: [...new Set(allowed)], pending };
+  } catch {
+    return { allowed: [], pending: {} };
+  }
+}
+
+function access() {
+  if (!accessPromise) accessPromise = loadAccess();
+  return accessPromise;
+}
+
+/** Same atomic write as the vault records: a temp file, then a rename. */
+async function saveAccess(data) {
+  await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+  await writeAtomic(LLM_ACCESS_FILE, JSON.stringify(data));
+}
+
+/**
+ * The links the operator's notification carries. They exist only when there is
+ * a public address to build them from AND a stats key to authorise them with -
+ * without the key the page they point at is a 404 for everybody, so a link
+ * would be a lie. No key set, or no public URL: the POST carries the id alone.
+ */
+function notifyLinks(syncId) {
+  if (!PUBLIC_URL || !STATS_KEY) return {};
+  let base;
+  try {
+    base = new URL(PUBLIC_URL).toString().replace(/\/+$/, "");
+  } catch {
+    return {};
+  }
+  const k = encodeURIComponent(STATS_KEY);
+  return {
+    allowUrl: `${base}/stats?k=${k}&allow=${syncId}`,
+    denyUrl: `${base}/stats?k=${k}&deny=${syncId}`,
+    statsUrl: `${base}/stats?k=${k}#llm`,
+  };
+}
+
+/**
+ * One POST to the operator's own hook, and then this server forgets about it.
+ * It is not awaited by the request, nothing is retried, no answer is read, and
+ * every failure is swallowed: a doorbell that breaks must not break the door.
+ *
+ * It uses node's http/https request rather than fetch on purpose - the one
+ * fetch() in this file is the push round, and tests/today.spec.js counts it.
+ */
+function notifyOperator(syncId) {
+  if (!NOTIFY_URL) return;
+  let url;
+  try {
+    url = new URL(NOTIFY_URL);
+  } catch {
+    return;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
+  const body = Buffer.from(
+    JSON.stringify({ event: "llm-approval-request", syncId, ...notifyLinks(syncId) }),
+    "utf8",
+  );
+  const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+  try {
+    const call = send(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port,
+        path: `${url.pathname}${url.search}`,
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": String(body.length) },
+      },
+      (answer) => answer.resume(), // drained, never read
+    );
+    call.setTimeout(NOTIFY_TIMEOUT_MS, () => call.destroy());
+    call.on("error", () => {});
+    call.end(body);
+  } catch {
+    // A hook that is unreachable, misconfigured or gone is not an error the
+    // person waiting for a model answer should ever hear about.
+  }
+}
+
+/** Records that an id asked, and says whether the operator should be poked. */
+async function recordPending(syncId) {
+  let isNew = false;
+  await withIdLock("llm-access", async () => {
+    const data = await access();
+    isNew = notePending(data.pending, syncId, Date.now(), MAX_PENDING_IDS).isNew;
+    await saveAccess(data);
+  });
+  return isNew;
+}
+
+/**
+ * The operator's three decisions, all idempotent: allowing an allowed id,
+ * denying an unknown one and revoking one that is not there all end in the
+ * state the name promises. That is what makes a link in a mail safe to click
+ * twice, and what makes a double POST harmless.
+ */
+async function applyAccessAction(action, syncId) {
+  if (!SYNC_ID_RE.test(syncId)) return;
+  await withIdLock("llm-access", async () => {
+    const data = await access();
+    if (action === "allow") {
+      if (!data.allowed.includes(syncId)) data.allowed.push(syncId);
+      delete data.pending[syncId];
+    } else if (action === "deny") {
+      // Denying forgets the request. It is not a blocklist: an id that asks
+      // again lands in the pending list again, which is the honest behaviour
+      // for something the operator may simply not have decided yet.
+      delete data.pending[syncId];
+    } else if (action === "revoke") {
+      data.allowed = data.allowed.filter((id) => id !== syncId);
+    } else {
+      return;
+    }
+    await saveAccess(data);
+  });
 }
 
 /** The answer, byte for byte, with the content type this API always sends. */
@@ -1044,6 +1271,31 @@ async function handleLlm(req, res) {
     sendJson(res, 403, { error: "upstream not allowed" });
     return;
   }
+
+  // The second wall: WHO may use the operator's own machine as a model server.
+  // A cloud target never gets here - it is the caller's key and the caller's
+  // bill, and this branch is skipped before any identity is looked up.
+  if (target.local) {
+    const store = await access();
+    const decision = gateDecision({
+      targetLocal: true,
+      localRequest: isLocal(req),
+      syncId: await callerSyncId(req),
+      allowed: store.allowed,
+    });
+    if (!decision.pass) {
+      if (decision.syncId) {
+        const isNew = await recordPending(decision.syncId).catch(() => false);
+        if (isNew) notifyOperator(decision.syncId);
+      }
+      // The answer is one machine-readable word. It carries no id, no list, no
+      // count and no hint about who else may use this server - the caller
+      // learns only that a decision is owed, which is what they sent in.
+      sendJson(res, 403, { error: "llm-approval" });
+      return;
+    }
+  }
+
   if (!carriesImage(payload.messages) && read.body.length > MAX_LLM_BODY_BYTES) {
     sendJson(res, 413, { error: "too large" });
     return;
@@ -1357,7 +1609,62 @@ function sparkline(data, days) {
   return `<svg class="spark" viewBox="0 0 ${values.length * w} 58" preserveAspectRatio="none" role="img" aria-label="Document loads per day, last ${values.length} days">${bars}</svg>`;
 }
 
-function statsPage(data, key) {
+/** A moment, in UTC, to the minute. No locale, no timezone guessing. */
+function stamp(ts) {
+  const value = Number(ts) || 0;
+  if (!value) return "-";
+  return new Date(value).toISOString().replace("T", " ").slice(0, 16);
+}
+
+/**
+ * The operator's console for the caller gate: who may use the local models,
+ * and who is waiting for an answer.
+ *
+ * Showing sync ids here is deliberate and bounded. An id is a capability for
+ * the MAILBOX (it grants a read of one ciphertext blob), so it belongs behind
+ * the key - which this page already is, rate limited and unlisted. The operator
+ * holds the data directory anyway; the requester never sees any of it.
+ */
+function gateSection(gate, key) {
+  const action = `?k=${esc(encodeURIComponent(key))}`;
+  const button = (name, id, label) =>
+    `<form class="act" method="post" action="${action}"><input type="hidden" name="action" value="${name}"><input type="hidden" name="id" value="${esc(
+      id,
+    )}"><button type="submit">${esc(label)}</button></form>`;
+
+  const allowedRows = gate.allowed
+    .map((id) => `<tr><td class="id">${esc(id)}</td><td class="act-cell">${button("llm-revoke", id, "Revoke")}</td></tr>`)
+    .join("");
+
+  const waiting = Object.entries(gate.pending).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
+  const pendingRows = waiting
+    .map(
+      ([id, entry]) =>
+        `<tr><td class="id">${esc(id)}</td><td>${esc(stamp(entry.first))}</td><td>${esc(
+          stamp(entry.last),
+        )}</td><td class="n">${num(entry.count)}</td><td class="act-cell">${button(
+          "llm-allow",
+          id,
+          "Allow",
+        )}${button("llm-deny", id, "Deny")}</td></tr>`,
+    )
+    .join("");
+
+  return `<h2 id="llm">Local model access</h2>
+<p class="lede">Who may send a request to the model servers named in TENFOLD_LLM_UPSTREAMS. Cloud targets are
+not affected: those run on the caller's own key. A caller who is not allowed gets a refusal and lands in the
+list below; what is stored per waiting id is the id, when it first and last asked, and how often. Nothing else.</p>
+<h3>Allowed</h3>
+${allowedRows ? `<div class="wrap"><table><tbody>${allowedRows}</tbody></table></div>` : '<p class="none">Nobody yet. Local models are reachable from this machine only.</p>'}
+<h3>Waiting for a decision</h3>
+${
+  pendingRows
+    ? `<div class="wrap"><table><thead><tr><th>Sync id</th><th>First asked</th><th>Last asked</th><th class="n">Tries</th><th></th></tr></thead><tbody>${pendingRows}</tbody></table></div>`
+    : '<p class="none">Nobody is waiting.</p>'
+}`;
+}
+
+function statsPage(data, key, gate) {
   const last30 = recentDays(30);
   const last7 = recentDays(7);
   const allDays = Object.keys(data.days).sort().reverse();
@@ -1420,9 +1727,13 @@ function statsPage(data, key) {
   .none { color: #6C727C; font-size: 13px; }
   td.dim { color: #6C727C; }
   form.clear { margin: 34px 0 0; }
-  form.clear button { background: transparent; border: 1px solid #2A2018; color: #8A9099;
+  form.clear button, form.act button { background: transparent; border: 1px solid #2A2018; color: #8A9099;
     border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
-  form.clear button:hover { border-color: #D6A441; color: #D6A441; }
+  form.clear button:hover, form.act button:hover { border-color: #D6A441; color: #D6A441; }
+  form.act { display: inline-block; margin: 0 0 0 8px; }
+  form.act button { padding: 4px 10px; font-size: 12px; }
+  td.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  td.act-cell { text-align: right; white-space: nowrap; }
   .cols { display: flex; flex-wrap: wrap; gap: 28px; }
   .cols > div { flex: 1 1 300px; min-width: 260px; }
   footer { margin-top: 48px; color: #6C727C; font-size: 12px; border-top: 1px solid #171B23; padding-top: 14px; }
@@ -1432,7 +1743,7 @@ function statsPage(data, key) {
 <h1>tenfold &middot; stats</h1>
 <p class="lede">Document loads only, counted per UTC day. No IP, no cookie, no identifier is stored -
 the visitor number is a daily count of salted hashes that never leave memory.</p>
-<nav><a href="#visitors">Visitors</a><a href="#referrers">Referrers</a><a href="#countries">Countries</a><a href="#platform">Platform</a></nav>
+<nav><a href="#visitors">Visitors</a><a href="#referrers">Referrers</a><a href="#countries">Countries</a><a href="#platform">Platform</a><a href="#llm">Local model access</a></nav>
 
 <div class="cards">
   <div class="card"><div class="k">Loads, all time</div><div class="v">${num(totalHits)}</div></div>
@@ -1465,6 +1776,8 @@ on this page.</p>
 <tr><td>Mobile</td><td class="n">${num(platform.mobile)}</td><td class="n">${share(platform.mobile)}</td></tr>
 <tr><td>Desktop</td><td class="n">${num(platform.desktop)}</td><td class="n">${share(platform.desktop)}</td></tr>
 </tbody></table>
+
+${gateSection(gate, key)}
 
 <form class="clear" method="post" action="?k=${esc(encodeURIComponent(key))}">
   <input type="hidden" name="action" value="clear">
@@ -1502,14 +1815,16 @@ async function handleStats(req, res, rel, query) {
   // key's length nor the position of the first wrong character leaks.
   if (!sameHex(await sha256Hex(given), await sha256Hex(STATS_KEY))) return false;
 
-  // The whole admin surface: one button that throws the counters away. It is a
-  // POST, so no prefetch, no crawler and no history entry can trigger it, and
-  // it needs the same key the page needs. An operator scrubbing their own test
-  // visits should not have to go looking for a file on the server.
+  // The admin surface: the button that throws the counters away, and the three
+  // decisions of the caller gate. All of them POST, so no prefetch, no crawler
+  // and no history entry can trigger them, and all of them need the same key
+  // the page needs.
   if (req.method === "POST") {
     const read = await readBody(req, 4096);
     const form = new URLSearchParams(read.tooLarge ? "" : read.body.toString("utf8"));
-    if (form.get("action") === "clear") {
+    const action = form.get("action") || "";
+    let fragment = "";
+    if (action === "clear") {
       statsData = { days: {} };
       statsPromise = Promise.resolve(statsData);
       visitorDay = "";
@@ -1517,10 +1832,31 @@ async function handleStats(req, res, rel, query) {
       visitorSeen = new Set();
       statsDirty = true;
       await flushStats().catch(() => {});
+    } else if (action.startsWith("llm-")) {
+      await applyAccessAction(action.slice("llm-".length), form.get("id") || "").catch(() => {});
+      fragment = "#llm";
     }
     // Back to the page itself, so a refresh does not repeat the action.
     res.writeHead(303, {
-      Location: `${rel}?k=${encodeURIComponent(given)}`,
+      Location: `${rel}?k=${encodeURIComponent(given)}${fragment}`,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    });
+    res.end();
+    return true;
+  }
+
+  // The clickable half of the same three decisions: /stats?k=KEY&allow=<id>.
+  // The operator's notification is a mail, and a mail carries links, not forms.
+  // THE KEY IN THE LINK IS THE AUTHENTICATION - it was checked above, exactly
+  // as for the page itself - and the action is IDEMPOTENT, because a link gets
+  // clicked twice, prefetched by a mail client and opened again from history.
+  const allowId = query.get("allow") || "";
+  const denyId = query.get("deny") || "";
+  if (allowId || denyId) {
+    await applyAccessAction(allowId ? "allow" : "deny", allowId || denyId).catch(() => {});
+    res.writeHead(303, {
+      Location: `${rel}?k=${encodeURIComponent(given)}#llm`,
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
     });
@@ -1533,7 +1869,8 @@ async function handleStats(req, res, rel, query) {
   // The operator looking is a good moment to put the counters on disk; the
   // interval does the same every five minutes.
   await flushStats().catch(() => {});
-  const body = Buffer.from(statsPage(data, given), "utf8");
+  const gate = await access();
+  const body = Buffer.from(statsPage(data, given, gate), "utf8");
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",

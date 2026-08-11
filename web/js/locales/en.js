@@ -631,6 +631,7 @@ export const en = {
   "llm.error.offline": "The relay could not be reached.",
   "llm.error.denied": "This server did not accept the request.",
   "llm.error.upstream": "That address is not an allowed model server.",
+  "llm.error.approval": "This server's local model needs the operator's approval. Your request has been noted; try again once it is granted.",
   "llm.error.tooLarge": "That was too much to send.",
   "llm.error.busy": "Too many requests just now.",
   "llm.error.timeout": "The model took too long.",

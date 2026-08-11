@@ -19,7 +19,15 @@ export default defineConfig({
   webServer: {
     // Wipe the throwaway data dir first: vaults accumulate across runs and
     // would eventually trip the global MAX_VAULTS cap (a real 507 did occur).
-    command: `rm -rf ${TEST_DATA} && node tools/serve.js`,
+    //
+    // Then seed the relay's caller allowlist, because the gate in front of the
+    // LOCAL upstreams below refuses a vault the operator never allowed. The
+    // seed names ONE fixed sync id, the one tests/llm.spec.js registers when it
+    // checks that a known vault may relay from outside; everything else in the
+    // suite reaches the relay as a nameless local caller and needs no entry.
+    // This is the real mechanism - an operator putting an id in the file - and
+    // deliberately not a bypass env var, of which there is none.
+    command: `rm -rf ${TEST_DATA} && mkdir -p ${TEST_DATA} && cp tests/llm_access.seed.json ${TEST_DATA}/llm_access.json && node tools/serve.js`,
     url: `http://127.0.0.1:${TEST_PORT}/tests/fixture.html`,
     reuseExistingServer: false,
     stdout: "ignore",

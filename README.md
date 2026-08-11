@@ -203,6 +203,15 @@ logged.
 - **Auth.** The relay requires a valid `X-Sync-Token` for a vault that exists on this
   server, or a loopback caller with no `cf-connecting-ip`. Without that, strangers could
   burn the operator's local models through the tunnel.
+- **Caller gate for local models.** The wall above says where a request may go; this says
+  who may send it to the operator's own machine. A cloud target is never gated (the caller
+  pays with their own key). For a LOCAL upstream the caller's sync id must stand in
+  `DATA_DIR/llm_access.json`, which starts empty: nobody is grandfathered in. A caller who
+  is not on it gets `403 {"error": "llm-approval"}`, the app says so in plain words, and the
+  id lands in a pending list the operator works through at `/stats#llm` (allow, deny,
+  revoke) or by clicking a link. With `TENFOLD_NOTIFY_URL` set, the first time a new id asks
+  one JSON POST goes to that address so the operator hears about it; what stores the id is a
+  doorbell, not a log, and holds nothing but the id, two timestamps and a counter.
 - Caps: 1 MB request body, 8 MB when an image part travels with it, 1 MB response,
   120 s timeout, non-streaming. The per-IP rate limiter covers it like every other API
   path.
@@ -317,8 +326,9 @@ including the API key.
 - **off**, the default. Not a single AI control exists in the DOM. Not hidden, absent.
 - **local**, an OpenAI-compatible server on your own machine (LM Studio, llama.cpp,
   Ollama's compatible endpoint). Nothing leaves the network you are on. The operator
-  has to name the address in `TENFOLD_LLM_UPSTREAMS`. This is the recommended mode, and
-  the app says so where the choice is made.
+  has to name the address in `TENFOLD_LLM_UPSTREAMS` and, if you are reaching that server
+  from outside their machine, allow your vault (see the caller gate above). This is the
+  recommended mode, and the app says so where the choice is made.
 - **cloud**, a provider from the allowlist. Switching to it requires a one-time consent
   sheet that states plainly what leaves the device.
 
@@ -354,6 +364,8 @@ from `web/`.
 | `TENFOLD_MAX_VAULTS` | `500` | Global cap on stored vaults; the next `PUT` for a new id gets 507 |
 | `TENFOLD_LLM_UPSTREAMS` | *(empty)* | Comma-separated base URLs of local model servers the relay may reach, matched exactly, e.g. `http://127.0.0.1:1234/v1` |
 | `TENFOLD_PUSH_SUBJECT` | `mailto:tenfold@localhost` | Contact address in the VAPID claim; operator data, never user data |
+| `TENFOLD_NOTIFY_URL` | *(empty = off)* | Where one JSON POST goes the first time a new sync id asks to use a local model: `{event, syncId, allowUrl, denyUrl, statsUrl}`, fire and forget. Turn it into a mail with whatever you already run; no mail code and no dependency lives here |
+| `TENFOLD_PUBLIC_URL` | *(empty)* | Public address of this deployment, e.g. `https://tenfold.example.org`. Only used to build the links in that POST; without it (or without a stats key) the POST carries the id alone |
 | `TENFOLD_STATS_KEY` | *(empty = off)* | Opt-in visitor counters. Unset: nothing is counted and `/stats` 404s. Set: aggregate per-day counts (loads, visitors, referrer hosts, countries, mobile/desktop, bots) in `stats.json`, readable at `/stats?k=<key>`; no IP or identifier is ever stored ([contracts](docs/CONTRACTS.md)) |
 
 Keeping it alive on macOS (`tools/com.tenfold.serve.plist`):
