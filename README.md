@@ -1,5 +1,7 @@
 # tenfold
 
+[![tests](https://github.com/freshlabde/tenfold/actions/workflows/test.yml/badge.svg)](https://github.com/freshlabde/tenfold/actions/workflows/test.yml)
+
 **tenfold - get what you want.**
 
 tenfold holds one list: the ten things you truly want, in an honest order, each one
