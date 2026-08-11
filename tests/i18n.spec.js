@@ -40,6 +40,10 @@ test("no catalogue value contains markup or a stray placeholder", async ({ page 
         if (typeof v !== "string") out.push(`${l}:${k} is not a string`);
         else if (/<[a-z/!]/i.test(v)) out.push(`${l}:${k} contains markup`);
         else if (/\{\s*\}/.test(v)) out.push(`${l}:${k} has an empty placeholder`);
+        // House style: no em dash in UI copy. A sentence that needs one is a
+        // sentence that can be split, and the character reads as a hyphen in
+        // several of the fonts the three skins fall back to.
+        else if (v.includes("—")) out.push(`${l}:${k} contains an em dash`);
       }
     });
     return out;

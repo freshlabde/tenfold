@@ -600,7 +600,9 @@ test("About is readable before unlocking", async ({ page }) => {
   await expect(page.locator(".h-title")).toHaveText("About tenfold");
   await expect(page.locator(".prose")).toContainText("Raymond Hull");
   await expect(page.locator(".prose")).toContainText("encrypted on this device");
-  await expect(page.locator(".prose .claim")).toContainText("get what you want");
+  // The claim is a lockup, not a sentence: the separator is a plain hyphen and
+  // stays one everywhere it is written (catalogues, README, launch notes).
+  await expect(page.locator(".prose .claim")).toContainText("tenfold - get what you want.");
 });
 
 test("search finds a node and jumps to it", async ({ page }) => {
@@ -1133,6 +1135,19 @@ test("no emoji anywhere in the shipped source", async () => {
   for (const file of files) {
     const body = await readFile(file, "utf8");
     expect(emoji.test(body), `${file.replace(ROOT, "")} contains an emoji`).toBe(false);
+  }
+});
+
+// The owner's house style: no em dash in prose. It is a typographic habit the
+// three catalogues were cleaned of, and the two documents that speak for the
+// product have to hold the same line, or the next paragraph written by hand
+// quietly puts one back. The dash the catalogues are guarded against lives in
+// tests/i18n.spec.js; this is the same rule for the docs on disk.
+test("no em dash in the documents that describe the product", async () => {
+  for (const name of ["README.md", "docs/CONTRACTS.md"]) {
+    const body = await readFile(join(ROOT, name), "utf8");
+    const line = body.split("\n").findIndex((l) => l.includes("—")) + 1;
+    expect(line, `${name} carries an em dash on line ${line}`).toBe(0);
   }
 });
 

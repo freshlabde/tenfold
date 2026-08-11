@@ -69,7 +69,7 @@ export const IDLE_LOCK_MS = 15 * 60 * 1000;
 const AUTOSAVE_MS = 600;
 const MAX_ROOTS = 10;
 const UI_PREF_KEY = "tenfold.ui";
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "1.0.0";
 
 const appEl = document.getElementById("app");
 const layerEl = document.getElementById("layer");
@@ -1547,8 +1547,11 @@ async function boot() {
     // on the SECOND reload: the first one still serves from the old cache
     // while the new worker installs in the background - the owner sat on a
     // week-old map wondering why nothing changed. When the new worker takes
-    // control the page reloads once; the guard stops any loop, and an open
-    // sheet or a mid-edit composer is respected by waiting for idle.
+    // control the page reloads once, immediately; the guard stops any loop.
+    // The reload does NOT wait for idle: an unlocked vault is sealed on disk
+    // at every debounced save, so the worst a reload costs is the last 600ms
+    // of typing, and an update that waits for a quiet moment on a phone that
+    // is never quiet is an update that never lands.
     // On the very first visit clients.claim() also fires controllerchange -
     // that is adoption, not an update, and must not reload a fresh page.
     const hadController = !!navigator.serviceWorker.controller;

@@ -1,4 +1,4 @@
-# tenfold — binding contracts between modules
+# tenfold: binding contracts between modules
 
 This file is the contract that all modules are built against, independently of each other.
 Anyone who wants to change an interface changes this file first.
@@ -7,15 +7,15 @@ Anyone who wants to change an interface changes this file first.
 
 1. **Pure ES modules.** `export`/`import`, no bundler, no third-party library, no CDN.
 2. **No `innerHTML` with user content.** Anywhere. Text goes through `textContent` /
-   `document.createTextNode` only. In a zero-knowledge app an injected script is total loss —
+   `document.createTextNode` only. In a zero-knowledge app an injected script is total loss:
    it would hold the plaintext *and* the key.
 3. **No `eval`, no `new Function`, no inline event attributes** (`onclick=…`).
    `addEventListener` only.
 4. **No emojis** in code, UI copy, or comments.
-5. **Language: English is the default everywhere** — identifiers, comments, docs, commit
+5. **Language: English is the default everywhere** for identifiers, comments, docs, commit
    messages. UI copy goes through i18n (see below).
 6. **i18n: en, de, es.** English is the source of truth and the fallback chain is
-   `[requested] -> en`. All three locales ship with identical key sets — a missing key in any
+   `[requested] -> en`. All three locales ship with identical key sets; a missing key in any
    locale is a test failure. No hardcoded UI strings in components.
 7. **Network discipline.** Exactly TWO modules are allowed to use `fetch`:
    `web/js/sync.js` (same-origin `/api/vault/...` only) and `web/js/push.js` (same-origin
@@ -54,7 +54,7 @@ Anyone who wants to change an interface changes this file first.
  */
 ```
 
-### Schema 2 (stage 2 — story layer)
+### Schema 2 (stage 2, story layer)
 
 ```js
 /** Node gains:
@@ -157,11 +157,11 @@ answer is a step the eye can name.
   plate. **Tier 2** = ranks two and three: mid height, mid title, the rank figure at full
   contrast. **Tier 3** = rank four and below: compact, smaller title, a pale and smaller
   figure. `rows.js` writes the class (`is-tier1|2|3`) from the rank index in `nodeList`, and
-  **only where it also sets the rank figures** — a sublist, Today and the search results have
+  **only where it also sets the rank figures**: a sublist, Today and the search results have
   no bands. Each band moves height, title size and figure size together, so the edge survives
   in `register` and `breath`, which have no plate to draw one with. The per-skin values are
   the nine `--tier*` tokens in `tokens.css`; `app.css` names no size of its own.
-- The **background ramp stays underneath as the quiet echo** — still loud-to-quiet rank by
+- The **background ramp stays underneath as the quiet echo**, still loud-to-quiet rank by
   rank, still normalised to the length of the list actually present (`--rank-last`, set on
   the `ul`). The old per-rank title shrink (`--row-title-step`) and the per-rank opacity fade
   (`--rank-fade`) are **gone**: opacity is now one value per band, and a title no longer gets
@@ -169,8 +169,8 @@ answer is a step the eye can name.
 - **The height budget is part of the design.** Ten one-line goals must stand on a 390x844
   phone with rank one and rank ten both fully visible and nothing to scroll: about
   58 + 2x46 + 7x36 plus gaps, ~456 px, inside the ~570 px the header and the bar leave over
-  (the photo link used to take a row of that budget and no longer does — see below). That budget is what holds tier 3 at nine pixels of padding. **A title that
-  wraps to two lines may push past it, and that is the only thing allowed to** — nothing here
+  (the photo link used to take a row of that budget and no longer does; see below). That budget is what holds tier 3 at nine pixels of padding. **A title that
+  wraps to two lines may push past it, and that is the only thing allowed to.** Nothing here
   truncates a goal to make the sums work.
 - **Fewer goals use the space.** `--tier-scale` (padding and gap) and `--tier-type` (type and
   figure) are derived from `--rank-last` on `.list.is-ranked`, so a five-goal list relaxes
@@ -178,14 +178,14 @@ answer is a step the eye can name.
   norm.
 - **Done and parked keep their treatments layered on top of the band**: a done row in tier 2
   sits at tier-2 size with done styling. They are written after the tier rules because they
-  tie with them on specificity — that order is a rule, not a coincidence.
+  tie with them on specificity, and that order is a rule, not a coincidence.
 
 **The cap at the button.** With **ten living top-level goals** (living = not tombstoned; done
 and parked still hold their place until the next paper ritual) the outline's "New entry"
 button carries the real `disabled` attribute and the ordinary `.btn[disabled]` styling.
 Anything that brings the count back under ten enables it on the next repaint. This is the
 **only** gate: a photo import, a shared note filed from another app and a merge from another
-device can each still land an eleventh entry. A list longer than ten renders correctly — it
+device can each still land an eleventh entry. A list longer than ten renders correctly: it
 scrolls, which is exactly what the fit budget stops being able to promise beyond ten.
 
 ## Row gestures (`web/js/ui/rows.js`)
@@ -194,10 +194,10 @@ One row owns three direct manipulations, told apart before anything moves: past 
 horizontally it is a swipe, past it vertically the list scrolls, and a press held for
 `LONG_PRESS_MS` without either lifts the row for reordering. A swipe right past `SWIPE_COMMIT`
 finishes a step (leaves only); **a swipe left past the same distance deletes the node through
-`ctx.deleteNode` — the identical call the row menu's Delete makes, so it tombstones the whole
+`ctx.deleteNode`, the identical call the row menu's Delete makes, so it tombstones the whole
 subtree, asks for no confirmation on any node kind, and the undo toast is the only safety net
-on both paths alike.** The layer behind the row carries both affordances — the check on the
-left edge, the trash on the right in the danger register — and lights the one the finger pulls
+on both paths alike.** The layer behind the row carries both affordances (the check on the
+left edge, the trash on the right in the danger register) and lights the one the finger pulls
 towards. Every list built from `nodeRow`/`nodeList` (the ten, a focus screen's parts, Today)
 gets both swipes; the duel screen has gestures of its own and none of this. Under
 `prefers-reduced-motion` a commit lands without the spring and without the collapse.
@@ -205,13 +205,13 @@ gets both swipes; the duel screen has gestures of its own and none of this. Unde
 ## The two outside surfaces: app badge and share target
 
 Everything else in this app only exists while it is open. These two are visible
-from outside it — one writes on the icon, one lets another app write into it —
-so both are specified here down to what they are allowed to know.
+from outside it: one writes on the icon, one lets another app write into it.
+Both are therefore specified here down to what they are allowed to know.
 
 ### App badge (Badging API)
 
 - **The rule.** The badge shows the number of **open leaves that are overdue or
-  due today** — exactly the two groups `model.todayList` ranks first, counted
+  due today**, exactly the two groups `model.todayList` ranks first, counted
   **without** its cap of seven. There is one implementation, not two:
   `model.dueNowCount(nodes, opts)` and `todayList` share the same `openLeaves`
   filter and the same `dueGroupOf` step, so the icon can never claim something
@@ -221,16 +221,16 @@ so both are specified here down to what they are allowed to know.
   primitive the outline hint splits its line by: one count, two readings.
 - **Content-free by design.** A count, never a title, never a date. It is the
   one thing this app says while the vault is locked, so it says a number.
-- **Update points** (`web/js/app.js`): `scheduleSave()` — the funnel every
+- **Update points** (`web/js/app.js`): `scheduleSave()`, the funnel every
   mutation already passes through, so status and due changes land immediately
-  rather than 600 ms later with the sealed write; `openWithMasterKey()` — the
+  rather than 600 ms later with the sealed write; `openWithMasterKey()`, the
   first correct count of a session, whichever envelope opened the vault;
-  `syncCtx.applyMerged()` — a merge is a change to the list like any other.
+  `syncCtx.applyMerged()`, because a merge is a change to the list like any other.
   No event bus was invented for this.
 - **The lock does NOT clear it.** Deliberate, and the point of having a badge:
   the count is content-free, and a badge that vanishes the moment the app locks
   (which it does after 15 minutes, and on every reload) would never be seen.
-  What DOES clear it is `wipeLocalVault()` — after a wipe the number would
+  What DOES clear it is `wipeLocalVault()`: after a wipe the number would
   refer to a list that no longer exists on this device.
 - **The service worker badges in FLAG mode.** On a push it calls
   `setAppBadge()` with **no argument**: the worker holds no key, so it cannot
@@ -246,7 +246,7 @@ so both are specified here down to what they are allowed to know.
 
 `manifest.webmanifest` declares `share_target`: `action: "./share"`,
 `method: "POST"`, `enctype: "multipart/form-data"`, params `title`/`text`/`url`.
-iOS has no share target and ignores the whole block — that is fine, nothing
+iOS has no share target and ignores the whole block. That is fine, nothing
 else changes.
 
 - **POST is the privacy argument, not a detail.** With GET the shared text
@@ -256,13 +256,13 @@ else changes.
   after a share arrives.
 - **The worker catches it** (`web/sw.js`): the one POST it answers is the share
   path (registration scope + `share`). It reads the form, parks
-  `{title, text, url, ts}` in a Cache bucket of its own — **`tenfold-share-inbox`**,
-  never IndexedDB, never beside the vault — and answers `303` to the app root,
+  `{title, text, url, ts}` in a Cache bucket of its own (**`tenfold-share-inbox`**,
+  never IndexedDB, never beside the vault) and answers `303` to the app root,
   so the browser turns the POST into a plain GET. **One item at a time: the
   newest share overwrites the previous one (latest wins).** A share carrying
   nothing readable is dropped instead of parked.
 - **The honest part: this item is PLAINTEXT.** A service worker has no key and
-  cannot have one — that is the design, not an oversight — so it cannot encrypt
+  cannot have one (that is the design, not an oversight), so it cannot encrypt
   what it receives. The window is from the moment of sharing until the next
   unlock. Then the app either files the text into the sealed vault or drops it,
   and the bucket is deleted either way. It is also deleted on `wipeLocalVault`.
@@ -270,25 +270,25 @@ else changes.
   an update landing between share and unlock would eat something a person
   deliberately sent here.
 - **If no worker is in control** (fresh install, a browser that dropped it) the
-  POST reaches `tools/serve.js`, which discards the body **unread** — not
-  parsed, not buffered, not written, not logged — and redirects to the app.
+  POST reaches `tools/serve.js`, which discards the body **unread** (not
+  parsed, not buffered, not written, not logged) and redirects to the app.
   What the browser already put on the wire cannot be unsent; what the server
   can decide is that nothing is done with it. This is the one case in the whole
   design where user text reaches the server, and it is written down rather than
   hidden.
 - **After unlock** (`offerShare()` in app.js, called from `enterApp` and
-  `finishIntro` — never over the first-run intro) `ui/shareimport.js` offers a
-  sheet: the text that arrived, and the only question that matters — where does
-  it belong. The targets are "Add to the ten" (subject to the ten-root rule)
+  `finishIntro`, never over the first-run intro) `ui/shareimport.js` offers a
+  sheet showing the text that arrived and the only question that matters: where
+  does it belong. The targets are "Add to the ten" (subject to the ten-root rule)
   and one row per goal. Filing it calls `ctx.addSharedNode`, which creates an
   ORDINARY node through the normal mutate path with `origin: "manual"`: the
   shared title (or the first line of the text, or the link) becomes the title,
   everything left over plus the link becomes the note, nothing that arrived is
   dropped. Discarding empties the bucket. Closing the sheet with the X settles
-  nothing — the item stays parked and is offered again at the next unlock.
+  nothing; the item stays parked and is offered again at the next unlock.
 - Strings live under the `share.` prefix in all three catalogues.
 
-## `web/js/crypto.js` (BUILT — do not change without updating its tests)
+## `web/js/crypto.js` (BUILT, do not change without updating its tests)
 
 ```js
 export const MAGIC = "TENFOLD1";
@@ -320,18 +320,18 @@ export async function rotateMasterKey(vault, oldMasterKey, { passphrase }): Prom
 
 - KDF: PBKDF2-SHA256, 600000 rounds, 16-byte salt, WebCrypto.
 - Cipher: AES-256-GCM, 12-byte nonce, never reused, fresh per seal().
-- Per-wrapper AAD: the wrapper's own metadata (magic, version, id, kind, label, kdf, nonce) —
+- Per-wrapper AAD: the wrapper's own metadata (magic, version, id, kind, label, kdf, nonce), so
   parameter tampering fails the GCM tag check.
-- `VaultFile` is JSON-serialisable: `{ magic, version, wrappers[], payload }` — binary parts
+- `VaultFile` is JSON-serialisable: `{ magic, version, wrappers[], payload }`, with binary parts
   base64url. No top-level `settings`/`nodes`/`doc` key, ever (store.js rejects those).
 - Recovery key: 7 groups of 4 from a confusable-free base32 alphabet (137 bits), input
   normalisation tolerates case, hyphens, spaces.
 
-### Biometric unlock (WebAuthn PRF) — `web/js/webauthn.js`
+### Biometric unlock (WebAuthn PRF): `web/js/webauthn.js`
 
 Touch ID on a Mac, Face ID on an iPhone, Windows Hello, an Android screen lock: the
 platform authenticator becomes **one more envelope on the vault**, using the raw-key wrapper
-prepared in wave 1. It is the answer to "a reload locks the vault immediately" — reload,
+prepared in wave 1. It is the answer to "a reload locks the vault immediately": reload,
 one touch, back in. The passphrase path never goes away.
 
 ```js
@@ -348,31 +348,31 @@ export function forget(): void
 
 - **Derivation.** `credentials.create` with a platform authenticator, `residentKey: "preferred"`,
   `userVerification: "required"`, `attestation: "none"`, extension `prf.eval.first = <32 random
-  bytes, per vault>`. The PRF output is reduced by one fixed step — `SHA-256(prf.first)` → 32
-  bytes — and handed to `addRawKeyWrapper(vault, masterKey, bytes, "webauthn:<credIdPrefix>")`,
+  bytes, per vault>`. The PRF output is reduced by one fixed step (`SHA-256(prf.first)` → 32
+  bytes) and handed to `addRawKeyWrapper(vault, masterKey, bytes, "webauthn:<credIdPrefix>")`,
   which runs HKDF over it again. `unlock` repeats the same evaluation through
   `credentials.get` and calls `unlockWithRawKey`. If `create()` returns no PRF results, one
   immediate `get()` is tried (some platforms only evaluate on assertions); if that is empty too,
   the device is reported unsupported and **nothing is enrolled**.
-- **What is stored.** `localStorage["tenfold.webauthn"] = { credentialId, salt }` — two
+- **What is stored.** `localStorage["tenfold.webauthn"] = { credentialId, salt }`, two
   device-local, non-secret pointers. Nothing key-like: without the authenticator and the user
   verification it insists on, they derive nothing. **The master key never touches storage**;
   the PRF output is recomputed from the hardware on every unlock and never cached.
 - **No personal data, no server.** The credential's user handle is the fixed opaque string
-  `"tenfold"` — no name, no address, no account. There is no relying party to verify the
+  `"tenfold"`: no name, no address, no account. There is no relying party to verify the
   assertion; the challenge is fresh random and unverified, because this is a key derivation
   gated by a fingerprint, not an authentication handshake. No `fetch` in this module.
-- **Sync.** The wrapper travels inside the VaultFile, so it reaches other devices — the
+- **Sync.** The wrapper travels inside the VaultFile, so it reaches other devices; the
   credential does not. Every device enrols its own, and labels are per credential
   (`webauthn:<first 12 chars of the base64url credential id>`), so revoking on device A leaves
   device B's wrapper alone. Re-enrolling the same credential replaces its own envelope instead
   of colliding with it. `rotateMasterKey` drops all raw wrappers, as documented above.
 - **UI.** Settings → Security carries one row with a neutral label (`webauthn.title`,
-  "Unlock with face or fingerprint" — naming Face ID would be wrong on half the devices that
-  can do this); the row only exists where the platform reports a user-verifying platform
+  "Unlock with face or fingerprint", since naming Face ID would be wrong on half the devices
+  that can do this); the row only exists where the platform reports a user-verifying platform
   authenticator. The lock screen shows the biometric button **above** the passphrase field
   whenever this device is enrolled, and fires it once automatically on arrival. A cancelled or
-  failed prompt is silent — no banner, no counter — and leaves the passphrase field focused.
+  failed prompt is silent (no banner, no counter) and leaves the passphrase field focused.
 
 ## Browser history (wave: session UX)
 
@@ -386,7 +386,7 @@ depth = state.stack.length + (isSheetOpen() ? 1 : 0)     // the sheet guard is t
 `ctx.go` pushes, `{ replace: true }` collapses the stack (and the reconciliation walks the
 browser back to the new depth, so entries that can no longer be reached are not left behind),
 `ctx.back` pops. A `popstate` runs the same back logic as the in-app arrow: with a sheet open
-it closes the sheet — the guard entry is exactly what that press spends; otherwise it walks
+it closes the sheet, and the guard entry is exactly what that press spends; otherwise it walks
 the in-app stack; at the outline root it lets the navigation leave the app.
 
 **Nothing calls the history API directly.** Every routing change calls one `syncHistory()`,
@@ -396,13 +396,13 @@ sheet) would otherwise push first and travel back afterwards and leave the page 
 where the app thinks it is. Reconciled, the pair cancels out and any number of steps costs one
 `history.go(-n)`, whose popstate is suppressed. That bug was real and cost the app its DOM.
 
-A history entry carries the screen NAME only — never a node id, because browsers persist
+A history entry carries the screen NAME only, never a node id, because browsers persist
 history state to disk for session restore. The entries are decorative anyway: routing reads
 the app's own counters, never `history.state`. A reload always lands on lock/setup at depth 0,
 so `#s=<code>` and `?view=today` keep working unchanged (both strip themselves with
 `replaceState`, preserving the state object).
 
-## `web/js/model.js` (BUILT) — pure tree functions, no IO
+## `web/js/model.js` (BUILT): pure tree functions, no IO
 
 ```js
 export function createNode(partial): Node
@@ -438,7 +438,7 @@ the same rule.
 it does not know about (a newer version's data is never dropped), and touches no timestamp.
 Every `openFromVault` in app.js and sync.js passes through it before anything else sees the doc.
 
-## `web/js/entities.js` (BUILT, stage 2) — the context index, pure
+## `web/js/entities.js` (BUILT, stage 2): the context index, pure
 
 ```js
 export function listEntities(entities): Entity[]             // living, by name
@@ -458,7 +458,7 @@ export function foldName(value): string
 Dismissed names live in `doc.settings.dismissedNames` (folded, max 50), so the answer to
 "who is X?" travels with the vault.
 
-## `web/js/store.js` (BUILT) — IndexedDB, ciphertext only
+## `web/js/store.js` (BUILT): IndexedDB, ciphertext only
 
 ```js
 export async function requestPersistence(): Promise<{ persisted, supported }>
@@ -469,7 +469,7 @@ export async function lastSavedAt(): Promise<number|null>
 ```
 
 **Only the encrypted vault ever goes into IndexedDB.** No plaintext field, no search index,
-no cache — never. `saveVault` actively rejects objects carrying `nodes`, `doc`, `plaintext`
+no cache. Never. `saveVault` actively rejects objects carrying `nodes`, `doc`, `plaintext`
 or `settings` keys.
 
 ## `web/js/portability.js` (BUILT)
@@ -480,7 +480,7 @@ export async function importEncrypted(file): Promise<VaultFile>
 export function exportPlaintextMarkdown(doc): Blob      // only after explicit confirmation
 ```
 
-## `web/js/prioritize.js` (BUILT) — duel state machine, no UI, no randomness
+## `web/js/prioritize.js` (BUILT): duel state machine, no UI, no randomness
 
 ```js
 export function startDuel(items): DuelState
@@ -490,7 +490,7 @@ export function result(state): string[]                 // ids, best first
 export function progress(state): { done, estimatedTotal }
 ```
 
-Binary insertion: ten items in at most 25 comparisons. No `Math.random()` — reproducible.
+Binary insertion: ten items in at most 25 comparisons. No `Math.random()`, so it is reproducible.
 
 ## `web/js/search.js` (BUILT)
 
@@ -515,7 +515,7 @@ export function onLocaleChange(fn): void
 
 - Catalogues live in `web/js/locales/{en,de,es}.js` as plain exported objects (ES modules,
   not JSON, so no fetch is needed and stage 1 stays network-free).
-- Identical key sets across all three files — enforced by a test.
+- Identical key sets across all three files, enforced by a test.
 - Interpolation via `{name}` placeholders. No HTML in catalogue values, ever (XSS rule 2).
 
 ## Skins (stage 1, wave 2)
@@ -524,11 +524,11 @@ The three design directions under `design/` become user-selectable skins. One DO
 one set of components; the look is carried entirely by CSS custom properties plus a
 `data-skin` attribute on `<html>`:
 
-- `slate` (**default**) — direction B: layered slabs, light edges, rank as depth
-- `register` — direction A: set type, hairlines, serif stack, no boxes
-- `breath` — direction C: text on black, hierarchy through size and opacity
+- `slate` (**default**) is direction B: layered slabs, light edges, rank as depth
+- `register` is direction A: set type, hairlines, serif stack, no boxes
+- `breath` is direction C: text on black, hierarchy through size and opacity
 
-Rules: components never hardcode colors, radii, shadows, or font stacks — tokens only
+Rules: components never hardcode colors, radii, shadows, or font stacks. Tokens only
 (`--bg`, `--surface`, `--text`, `--muted`, `--accent`, `--line`, `--radius`, `--shadow`,
 `--font-display`, `--font-body`, `--font-mono`). Skin-specific structural touches go through
 `[data-skin="…"]` selectors in the skin file, never through JS branching. Each skin defines a
@@ -537,26 +537,26 @@ dark and a light variant (`data-theme="dark|light"`, dark default). The choice p
 
 ### The data palette (`--data-1` … `--data-10`)
 
-One accent per skin still governs every **control**: the accent means "you" — what you
+One accent per skin still governs every **control**. The accent means "you": what you
 pressed, what you are on, the primary action, the focus ring. Alongside it there is exactly
 one second colour system, and it means "the things": which parts belong to which goal on the
 map. Nothing else in the app may reach into it.
 
-- Ten hues at **one lightness and one chroma** in OKLCH — dark `oklch(.735 .062 h)`, light
-  `oklch(.545 .075 h)` — so no family is louder than another and the chroma stays about a
+- Ten hues at **one lightness and one chroma** in OKLCH (dark `oklch(.735 .062 h)`, light
+  `oklch(.545 .075 h)`), so no family is louder than another and the chroma stays about a
   third of a normal chart palette. Only the hue moves.
 - Defined per **theme**, not per skin (a data surface must not change meaning because
   somebody prefers serifs), in the block at the foot of `tokens.css`.
 - Hue order walks the wheel in jumps, so two families that land next to each other on screen
-  are far apart in hue. **Rank never rides on hue** — it is carried by size and by how much
-  of the family colour is mixed into the body (`--rm`) — so two families a colour-blind eye
+  are far apart in hue. **Rank never rides on hue**: it is carried by size and by how much
+  of the family colour is mixed into the body (`--rm`), so two families a colour-blind eye
   reads as similar are still told apart. Nothing on the map depends on hue alone.
 - `ui/map.js` never names a colour. It writes the family **index** as a class
   (`is-fam0` … `is-fam9`) and the ladder as plain numbers (`--rm`, `--glow`, `--ink`); what
   those mean is decided in `app.css`. The one exception is the halo's `fill`, which is a
   fragment id (`url(#tf-halo-N)`) and not a colour: an SVG paint server referenced from an
   *external* stylesheet resolves against the stylesheet's URL in some engines.
-- Where OKLCH is unavailable the whole palette falls back to the skin's accent — a quieter
+- Where OKLCH is unavailable the whole palette falls back to the skin's accent, a quieter
   map, never a broken one.
 - Also theme-level, and also map-only: `--map-halo-in`, `--map-halo-mid`, `--map-core`. On
   paper a halo stops reading as light and starts reading as a smudge, so it is pulled back.
@@ -564,48 +564,48 @@ map. Nothing else in the app may reach into it.
 ## About screen (stage 1, wave 2)
 
 A calm, readable screen inside the app (`web/js/ui/about.js`), reachable from settings and
-from the lock screen — it must be readable *before* unlocking, since it explains what the
+from the lock screen; it must be readable *before* unlocking, since it explains what the
 app is and what happens to the data. On the very first entry into a vault it is shown once
 as an intro with a single "Begin" action (`ctx.introAbout` / `ctx.finishIntro`); after that
 it never appears uninvited. Outline (v4, all through i18n, key prefix `about.`):
 
-1. **Opening**, no heading (`intro.p1..p3`) — you know what matters; it sinks in the
+1. **Opening**, no heading (`intro.p1..p3`): you know what matters; it sinks in the
    everyday; it is not a question of effort but of nobody ever settling what comes first.
    tenfold holds one list: the ten things you truly want, in an honest order, broken down
    to the one step you can take tomorrow.
-2. **What this looks like** (`walk.*`) — one worked goal, end to end: "get fit" stays on
+2. **What this looks like** (`walk.*`) walks one worked goal, end to end: "get fit" stays on
    every list because you cannot derive a Tuesday from it, so tenfold asks about the
    circumstances first; then four labelled question/answer lines (`walk.li1..li4`: what do
    you mean, what stands in the way, what works anyway, when exactly), the concrete first
    step (`walk.step`), and the point of it (`walk.p3`): a goal without context cannot be
    broken down.
-3. **Exactly ten. Not twenty.** (`ten.*`) — ten is a limit, not a round number; the order
+3. **Exactly ten. Not twenty.** (`ten.*`): ten is a limit, not a round number; the order
    is the hard part, so the duel asks one pair at a time (at most 25 questions for ten
-   entries, stoppable at any time — the reached order stays; binary insertion, so
+   entries, stoppable at any time, and the reached order stays; binary insertion, so
    contradictions cannot arise); work from the top down; done goals stay visible and the
    attention moves on, the list itself is re-decided at the next paper ritual.
-4. **Where the method comes from** (`origin.*`) — Raymond Hull (1919–1985), British-Canadian
+4. **Where the method comes from** (`origin.*`): Raymond Hull (1919–1985), British-Canadian
    author in Vancouver; *How to Get What You Want* (1969), same year as *The Peter
    Principle*, of which he was co-author; his observation and his tool. Plus the honest
    demarcation: tenfold takes the ordered list and the writing ritual, leaves the rest of
    the book, and the limit of exactly ten is ours. Named as origin, no quoted material.
-5. **Paper and app share the work** (`paper.*`) — the monthly handwritten ritual stays
+5. **Paper and app share the work** (`paper.*`). The monthly handwritten ritual stays
    (writing is the thinking), then the four things the app adds (`paper.li1..li4`):
-   lossless, depth (level by level — hence the name: *ten* goals, *fold* levels), memory of
+   lossless, depth (level by level, hence the name: *ten* goals, *fold* levels), memory of
    your circumstances, confidentiality.
-6. **What tenfold is not** (`not.*`) — not a task manager, not a habit app, not a calendar.
-7. **Privacy — and three honest limits** (`privacy.*`) — encrypted on the device with your
+6. **What tenfold is not** (`not.*`): not a task manager, not a habit app, not a calendar.
+7. **Privacy, and three honest limits** (`privacy.*`): encrypted on the device with your
    passphrase (PBKDF2 600k rounds, AES-256-GCM); stored and transmitted is an unreadable
    block; no accounts, no plaintext on servers; how a second device gets the block (QR
    pairing) and the two export formats. The three limits: lost passphrase *and* recovery
    key with no export file means the data is gone; an unlocked device in foreign hands;
-   AI assistance as a deliberate opt-in, where the stored context travels with the goal —
+   AI assistance as a deliberate opt-in, where the stored context travels with the goal,
    hence the recommendation to point it at your own LM Studio / Ollama server.
-8. **Closing + the claim** (`close.p1`, `claim.p1`) — none of this is new, and that is the
-   strength; "tenfold — get what you want."
+8. **Closing + the claim** (`close.p1`, `claim.p1`): none of this is new, and that is the
+   strength; "tenfold - get what you want."
 
 Rendering: headings are plain `h2`s, lists use the `leadItem` helper, which sets everything
-up to the first colon or question mark in `strong` — built from text nodes only, never from
+up to the first colon or question mark in `strong`, built from text nodes only, never from
 markup in a catalogue value (ground rule 2). The same helper renders `walk.step` as a
 paragraph.
 
@@ -625,7 +625,7 @@ counter, and the hash of an auth token. It has no code path that could decrypt a
   Only a device that can OPEN the vault can derive it. The server stores its SHA-256 hash,
   registered on the first PUT (trust on first use). PUT requires the token; GET does not
   (bootstrap: a new device must fetch the blob before it can decrypt anything).
-- Both `syncId` and `authSalt` live in `vault.sync = { id, authSalt }` — non-secret metadata
+- Both `syncId` and `authSalt` live in `vault.sync = { id, authSalt }`, non-secret metadata
   on the VaultFile, travelling with exports. crypto.js must preserve unknown top-level
   fields across sealIntoVault.
 
@@ -636,28 +636,28 @@ PUT /api/vault/<syncId>          -> 200 { version } | 401 | 409 { version, vault
     headers: X-Sync-Token, X-If-Version (optimistic lock)
     body: { vault }
 DELETE /api/vault/<syncId>       -> 204 | 401 | 404
-    header: X-Sync-Token (required from EVERY caller — see below)
+    header: X-Sync-Token (required from EVERY caller, see below)
 ```
 - Version is a server-side monotonic counter. A PUT with a stale X-If-Version returns 409
   with the current record; the CLIENT merges (decrypt both, `mergeDocs`, re-seal, re-PUT).
-  The server never merges — it cannot.
+  The server never merges; it cannot.
 - The server keeps the last 10 versions per syncId (rescue net), enforces a 4 MB blob cap,
   validates syncId against `^[a-z0-9]{26}$` (path traversal), and stores everything under
-  the data dir (`TENFOLD_DATA`, default `~/.tenfold-data` — OUTSIDE the repo).
+  the data dir (`TENFOLD_DATA`, default `~/.tenfold-data`, OUTSIDE the repo).
 - No logging of tokens or bodies. Access log lines carry syncId prefix (6 chars) at most.
 
-**Deletion (DELETE /api/vault/<syncId>)** — the mailbox must be able to let go of what it
+**Deletion (DELETE /api/vault/<syncId>).** The mailbox must be able to let go of what it
 holds, or "your data, your device" is only half true:
 - **The token is required from every caller, loopback included.** The loopback exemption that
   applies to the abuse limits and to the model relay does NOT apply here: a stray local script
-  — a half-written cron job, a test pointed at the wrong port — must not be able to destroy
+  (a half-written cron job, a test pointed at the wrong port) must not be able to destroy
   what it cannot open. Only a device that can derive the key-based `authToken` may delete.
   Wrong or missing token -> 401, unknown id -> 404, success -> 204 (no body).
 - What goes is the WHOLE id directory: `current.json`, every `v<n>.json` history file and
   `push.json` with the reminder subscriptions. The directory is renamed out of the vault dir
   first and then removed, so no half-emptied record is ever served; the vault counter is
   decremented and the relay's token cache is dropped.
-- **Deletion is destruction, not a tombstone.** Nothing is kept — no marker, no "this id
+- **Deletion is destruction, not a tombstone.** Nothing is kept: no marker, no "this id
   existed" file. Afterwards the id is free: the next PUT with ANY token registers it again as
   a brand-new mailbox (trust on first use), and the token that used to own it has no standing.
 - Rate limits apply exactly as for the other API calls.
@@ -672,8 +672,8 @@ export async function pull(ctx): Promise<"clean"|"merged"|"offline">  // on unlo
 export function pairingCode(vault): string                // grouped syncId for the other device
 export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then normal unlock
 ```
-- Sync is OFF by default; enabling is an explicit act — in settings, or as the answer to the
-  one question the first run asks (see below). Nothing enables it silently.
+- Sync is OFF by default; enabling is an explicit act, either in settings or as the answer
+  to the one question the first run asks (see below). Nothing enables it silently.
 - **The backup step (last step of the first run, `ui/setup.js`, key prefix `setup.backup.`)**:
   after the starting point and before `ctx.enterApp()`, the setup asks whether to keep the
   encrypted copy on the server, because clearing the browser's site data deletes IndexedDB and
@@ -682,7 +682,7 @@ export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then
   a calm toast naming settings as the way back, never a wall. Import and adopt paths land on
   the lock screen, not on setup, and never see this step.
 - **`doc.settings.exportedAt`** (epoch ms) is stamped wherever an encrypted or a plaintext
-  export is actually delivered — the two settings handlers, never the setup recovery-key
+  export is actually delivered: the two settings handlers, never the setup recovery-key
   screen. With sync off AND no `exportedAt`, the outline's `h-sub` carries one extra clause
   (`outline.onlyHere`, in the `.hot` tone) and becomes a button into settings; in every other
   state it stays plain text. The clause disappears the moment either condition changes.
@@ -692,37 +692,37 @@ export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then
 - New device: "Open from another device" on the setup welcome screen asks for the pairing
   code, calls `adopt`, then the normal lock screen takes the passphrase. The URL fragment
   form `#s=<code>` triggers the same flow (fragments never reach the server).
-- **Delete everywhere (`ctx.deleteEverywhere`, settings danger row, key prefix `danger.`)** —
+- **Delete everywhere (`ctx.deleteEverywhere`, settings danger row, key prefix `danger.`)** is
   the last row of the security group. The sheet names what dies before anything happens: the
   encrypted server copy (or, with sync off, that there is none this device could reach), this
   device down to the list, the keys and the Face ID enrolment, and honestly that other paired
   devices keep their local copy, stop syncing, and would create a NEW server copy under the
   same pairing code if one of them ever uploads again. Confirmation is the recovery-key
-  acknowledgement pattern — a checkbox ("I understand this is final") that ungreys the primary
-  — not a countdown. **Order matters and is a rule, not a detail:** `deleteRemote` runs FIRST
+  acknowledgement pattern, not a countdown: a checkbox ("I understand this is final") that
+  ungreys the primary. **Order matters and is a rule, not a detail:** `deleteRemote` runs FIRST
   and throws before anything local is touched; on failure the flow STOPS, says which side
   failed, and offers "Delete only on this device" instead of silently half-deleting. On
   success: `push.forgetLocal()`, `webauthn.forget()`, `clearAll()`, `resetSync()`, setup
-  screen, toast. The presentation prefs (skin/theme/lang in `tenfold.ui`) stay — three enum
+  screen, toast. The presentation prefs (skin/theme/lang in `tenfold.ui`) stay, because three enum
   values about how a screen looks are not personal data.
 - The lock-screen reset stays what it always was, a device-only wipe; `lock.reset.syncNote`
   now points at the bigger action ("unlock first, Settings, Delete the vault everywhere"),
   because a locked device cannot derive the token that deletion requires.
 
-## Stage 3 — the model (assistance is an accessory, never the foundation)
+## Stage 3: the model (assistance is an accessory, never the foundation)
 
 **Three modes, default OFF.** `doc.settings.llm = { mode: "off"|"local"|"cloud", provider,
-baseUrl, model, apiKey }` lives INSIDE the sealed vault — the server never stores any of it.
-In `off` mode not a single AI control exists in the DOM (not hidden — absent). Switching to
+baseUrl, model, apiKey }` lives INSIDE the sealed vault; the server never stores any of it.
+In `off` mode not a single AI control exists in the DOM (absent, not hidden). Switching to
 `cloud` requires a one-time explicit consent sheet stating plainly what leaves the device.
 
-**Server relay (`POST /api/llm`)** — exists only because browsers cannot reach most
+**Server relay (`POST /api/llm`)** exists only because browsers cannot reach most
 providers directly (CORS) and because the phone cannot reach the home LAN from outside:
 - Body: `{ upstream, model, apiKey?, messages, maxTokens?, temperature? }`. The server
   forwards to `<upstream>/chat/completions` (OpenAI-compatible), returns the JSON verbatim,
-  **stores nothing, logs nothing** — same rule as the vault mailbox.
+  **stores nothing, logs nothing**, the same rule as the vault mailbox.
 - **No open proxy.** `upstream` must be EITHER on the built-in cloud allowlist
-  (api.openai.com, api.anthropic.com, openrouter.ai, api.mistral.ai, api.groq.com — https
+  (api.openai.com, api.anthropic.com, openrouter.ai, api.mistral.ai, api.groq.com, https
   only) OR exactly match one of the operator-configured local upstreams in the env var
   `TENFOLD_LLM_UPSTREAMS` (comma-separated base URLs, e.g. `http://127.0.0.1:1234/v1`).
   Anything else -> 403. This is the SSRF wall; weakening it is never an improvement.
@@ -733,7 +733,7 @@ providers directly (CORS) and because the phone cannot reach the home LAN from o
 - Timeout ~120 s, response size cap 1 MB, non-streaming in v1 (the UI animates the text in;
   no spinner anywhere).
 
-**Client (`web/js/llm.js` — the third and last module allowed to fetch, `/api/llm` only):**
+**Client (`web/js/llm.js`, the third and last module allowed to fetch, `/api/llm` only):**
 - Context scoping per request: the target node, its ancestor chain, direct siblings and
   children, the stories along that chain, and the LINKED entity cards. Never the whole tree.
 - Filters enforced at prompt build (with tests): `llm_optout` subtrees never appear;
@@ -742,15 +742,15 @@ providers directly (CORS) and because the phone cannot reach the home LAN from o
 - Every result is a PROPOSAL: rendered as an acceptable diff, applied item by item through
   the normal mutate path with `origin: "llm"`. Nothing writes to the doc directly.
 
-**Operations v1** (`web/js/prompts.js`): understand (the interview gate — step 1 returns
+**Operations v1** (`web/js/prompts.js`): understand (the interview gate, where step 1 returns
 `{ready:false, questions:[...]}` or `{ready:true}`; answers append to story/entity cards
 with confirmation), then: break down (3-7 substeps), sharpen (vague -> testable), smallest
 next step (<30 min), blockers & preconditions, done-criterion, rank siblings with one-line
 reasons. Break down ALWAYS runs the interview gate first.
 
 **Node opt-out UI:** the `llmOptout` field exists since schema 2; stage 3 must add the
-toggle (row menu + leaf screen, with the inherited state shown) — without UI the field is a
-dead promise.
+toggle (row menu + leaf screen, with the inherited state shown), because without UI the field is
+a dead promise.
 
 **Image import (stage 3b):** photograph a handwritten list, a table, or a structured
 outline/mindmap screenshot -> vision model via the same relay (`messages` with image content
@@ -762,7 +762,7 @@ acceptable/editable and unchecking a parent unchecks its subtree. The user picks
 `origin: "llm"` through the normal mutate path. Never a silent direct import. Works in
 local mode with a vision model (e.g. qwen2.5-vl) and in cloud mode; absent in off mode like
 every AI control. Honest failure: if the model cannot read the image, one calm line, no
-partial garbage import. **The entry point is the camera button in the bottom bar** — on the
+partial garbage import. **The entry point is the camera button in the bottom bar**, on the
 outline and on a focus screen alike, the middle of three controls (new entry · camera · put
 in order), icon only, carrying `import.entry` as its accessible name, square at one tap width
 while the two words stay flexible; it replaced the text line that used to stand above the bar
@@ -771,7 +771,7 @@ disables "New entry": what a photograph proposes is decided line by line in the 
 enforces the cap where the lines actually land.
 
 **QR pairing (stage 3c):** the pairing sheet shows the pairing URL additionally as a QR
-code — generated by our own encoder (`web/js/qr.js`, byte mode, EC level M, no third-party
+code, generated by our own encoder (`web/js/qr.js`, byte mode, EC level M, no third-party
 code; correctness proven against fixed known-good vectors in tests). The new device scans
 it with the NATIVE camera app (the URL opens the app, `#s=` adopts) or with the in-app
 "Scan code" button on the welcome/adopt screen, which exists on **every** platform and
@@ -781,7 +781,7 @@ picks its mechanism itself:
   browser's own detector, in `web/js/ui/scan.js`.
 - otherwise (iOS Safari has no `BarcodeDetector` at all) → `web/js/ui/photoscan.js`: an
   `input[type=file][accept=image/*][capture=environment]` opens the native camera, and the
-  single photograph it returns is decoded by **our own reader**, `web/js/qrread.js` —
+  single photograph it returns is decoded by **our own reader**, `web/js/qrread.js`:
   adaptive threshold, finder patterns, perspective grid, and real Reed-Solomon *correction*
   (Berlekamp-Massey, Chien, Forney over the GF(256) tables `qr.js` exports), so the handful
   of wrong modules a phone photo of a screen always carries are repaired rather than merely
@@ -789,7 +789,7 @@ picks its mechanism itself:
   tried first, then a 2× centre crop; a failure is one calm line naming both ways out.
 
 Both paths are progressive enhancement over the typed code, which stays fully usable.
-Frames and photographs are processed locally and never leave the device — no fetch in
+Frames and photographs are processed locally and never leave the device: no fetch in
 either module; the live stream stops the moment the sheet closes, and the photo path drops
 file, bitmap and canvas in the same single-point teardown. The symbol is rendered by
 `web/js/ui/qrview.js` (one SVG path, quiet zone 4, black on white in every skin).

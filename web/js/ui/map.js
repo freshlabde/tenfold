@@ -949,7 +949,7 @@ function shortName(entity) {
 export function render(ctx) {
   const nodes = ctx.doc.nodes;
   const roots = childrenOf(nodes, null);
-  // Which reading of the tree. Unknown values fall back to the sky, so a
+  // Which reading of the tree. Unknown values fall back to the TREE, so a
   // document written by a newer version can never leave this screen blank.
   const settings = ctx.doc.settings || {};
   // The mind map is the DEFAULT reading (owner decision): structure first,
