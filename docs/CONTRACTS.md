@@ -778,7 +778,7 @@ gate (`tools/llm_gate.js`, pure and unit-tested) says WHO may send it to a LOCAL
 - **State: `DATA_DIR/llm_access.json`**, created lazily, written atomically like the vault
   records, never inside the repository:
   ```json
-  { "allowed": ["<syncId>"], "pending": { "<syncId>": { "first": 0, "last": 0, "count": 0 } } }
+  { "allowed": ["<syncId>"], "pending": { "<syncId>": { "first": 0, "last": 0, "count": 0 } }, "notes": { "<syncId>": "operator label" } }
   ```
   A missing, broken or unreadable file means an EMPTY allowlist, never an open one. **No
   grandfathering:** a fresh gate starts empty and the operator allows ids by hand, their own
@@ -786,6 +786,9 @@ gate (`tools/llm_gate.js`, pure and unit-tested) says WHO may send it to a LOCAL
   first-seen dropped). **What is stored is the id, two timestamps and a counter. Never a
   message, a model name, an upstream, an API key, an IP or a user agent** - it is a doorbell,
   not a log, and it is the ONLY thing the relay ever writes down.
+- **Notes** are operator-entered labels for allowed ids (POST `action=llm-note&id=&note=`,
+  capped at 120 characters, empty clears). They render only on the key-gated stats page and
+  never travel to any caller.
 - **Operator UI: `/stats#llm`** (section "Local model access"), behind the same
   `TENFOLD_STATS_KEY`, the same constant-time key check and the same rate limiter as the
   counters. Allowed ids with a revoke button, pending ids with first/last/count and

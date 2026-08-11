@@ -1058,11 +1058,25 @@ async function loadAccess() {
         };
       }
     }
-    return { allowed: [...new Set(allowed)], pending };
+    // Operator-entered labels ("Michael's iPhone") so an allowed id has a face.
+    // Plain text, capped, only ever rendered on the key-gated page - a note is
+    // for the operator's memory and never travels to any caller.
+    const notes = {};
+    if (parsed.notes && typeof parsed.notes === "object") {
+      for (const [id, value] of Object.entries(parsed.notes)) {
+        if (!SYNC_ID_RE.test(id) || typeof value !== "string") continue;
+        const trimmed = value.trim().slice(0, NOTE_MAX_CHARS);
+        if (trimmed) notes[id] = trimmed;
+      }
+    }
+    return { allowed: [...new Set(allowed)], pending, notes };
   } catch {
-    return { allowed: [], pending: {} };
+    return { allowed: [], pending: {}, notes: {} };
   }
 }
+
+/** A note is a label, not a document. */
+const NOTE_MAX_CHARS = 120;
 
 function access() {
   if (!accessPromise) accessPromise = loadAccess();
@@ -1157,10 +1171,11 @@ async function recordPending(syncId) {
  * state the name promises. That is what makes a link in a mail safe to click
  * twice, and what makes a double POST harmless.
  */
-async function applyAccessAction(action, syncId) {
+async function applyAccessAction(action, syncId, note) {
   if (!SYNC_ID_RE.test(syncId)) return;
   await withIdLock("llm-access", async () => {
     const data = await access();
+    if (!data.notes || typeof data.notes !== "object") data.notes = {};
     if (action === "allow") {
       if (!data.allowed.includes(syncId)) data.allowed.push(syncId);
       delete data.pending[syncId];
@@ -1171,6 +1186,13 @@ async function applyAccessAction(action, syncId) {
       delete data.pending[syncId];
     } else if (action === "revoke") {
       data.allowed = data.allowed.filter((id) => id !== syncId);
+    } else if (action === "note") {
+      // The operator's label for an id. An empty note takes the label away;
+      // saving the same note twice is a no-op - the link/button rules of the
+      // other three actions hold here too.
+      const trimmed = typeof note === "string" ? note.trim().slice(0, NOTE_MAX_CHARS) : "";
+      if (trimmed) data.notes[syncId] = trimmed;
+      else delete data.notes[syncId];
     } else {
       return;
     }
@@ -1632,8 +1654,26 @@ function gateSection(gate, key) {
       id,
     )}"><button type="submit">${esc(label)}</button></form>`;
 
+  // The note gives an allowed id a face ("Michael's iPhone") - operator's
+  // memory only, rendered nowhere but here, never sent to any caller.
+  const noteForm = (id, current) =>
+    `<form class="act note" method="post" action="${action}"><input type="hidden" name="action" value="llm-note"><input type="hidden" name="id" value="${esc(
+      id,
+    )}"><input class="note-input" type="text" name="note" maxlength="120" placeholder="Note" value="${esc(
+      current || "",
+    )}"><button type="submit">Save</button></form>`;
+
   const allowedRows = gate.allowed
-    .map((id) => `<tr><td class="id">${esc(id)}</td><td class="act-cell">${button("llm-revoke", id, "Revoke")}</td></tr>`)
+    .map(
+      (id) =>
+        `<tr><td class="id">${esc(id)}${
+          gate.notes && gate.notes[id] ? `<div class="note-label">${esc(gate.notes[id])}</div>` : ""
+        }</td><td class="act-cell">${noteForm(id, gate.notes && gate.notes[id])}${button(
+          "llm-revoke",
+          id,
+          "Revoke",
+        )}</td></tr>`,
+    )
     .join("");
 
   const waiting = Object.entries(gate.pending).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
@@ -1731,6 +1771,11 @@ function statsPage(data, key, gate) {
     border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
   form.clear button:hover, form.act button:hover { border-color: #D6A441; color: #D6A441; }
   form.act { display: inline-block; margin: 0 0 0 8px; }
+  form.act.note { display: inline-flex; gap: 6px; align-items: center; }
+  .note-input { background: #0F1216; border: 1px solid #2A2018; border-radius: 6px; color: #C6CBD3;
+    font: inherit; font-size: 12px; padding: 4px 8px; width: 140px; }
+  .note-input:focus { outline: none; border-color: #D6A441; }
+  .note-label { color: #D6A441; font-size: 12px; margin-top: 3px; }
   form.act button { padding: 4px 10px; font-size: 12px; }
   td.id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
   td.act-cell { text-align: right; white-space: nowrap; }
@@ -1833,7 +1878,9 @@ async function handleStats(req, res, rel, query) {
       statsDirty = true;
       await flushStats().catch(() => {});
     } else if (action.startsWith("llm-")) {
-      await applyAccessAction(action.slice("llm-".length), form.get("id") || "").catch(() => {});
+      await applyAccessAction(action.slice("llm-".length), form.get("id") || "", form.get("note") || "").catch(
+        () => {},
+      );
       fragment = "#llm";
     }
     // Back to the page itself, so a refresh does not repeat the action.

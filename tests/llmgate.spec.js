@@ -461,3 +461,38 @@ test("the app says what is missing instead of a generic failure", async ({ page 
     timeout: 15_000,
   }).toBe(true);
 });
+
+test("a note gives an allowed id a face, stays operator-only, and clears when emptied", async () => {
+  await statsPost(`action=llm-allow&id=${VAULT_ID}`);
+
+  // Set a label - with characters that would break out of the HTML if the
+  // renderer forgot to escape them.
+  const label = "Michael's iPhone <b>&test</b>";
+  const noted = await statsPost(`action=llm-note&id=${VAULT_ID}&note=${encodeURIComponent(label)}`);
+  expect(noted.status).toBe(303);
+
+  const state = await accessState();
+  expect(state.notes).toEqual({ [VAULT_ID]: label });
+
+  // The page shows it escaped, next to the allowed id.
+  const html = await (await fetch(`${BASE}/stats?k=${encodeURIComponent(KEY)}`)).text();
+  // esc() encodes &, <, > and double quotes - enough for text nodes and the
+  // double-quoted attribute the input value sits in; the apostrophe may stay.
+  expect(html).toContain("Michael's iPhone &lt;b&gt;&amp;test&lt;/b&gt;");
+  expect(html).not.toContain("<b>&test</b>");
+
+  // The note never travels to a caller: the refusal body of a stranger and a
+  // successful relay body both stay free of it.
+  const through = await relay(asVault);
+  expect(await through.text()).not.toContain("Michael");
+
+  // A long note is capped, an empty one removes the label.
+  await statsPost(`action=llm-note&id=${VAULT_ID}&note=${encodeURIComponent("x".repeat(500))}`);
+  expect((await accessState()).notes[VAULT_ID].length).toBe(120);
+  await statsPost(`action=llm-note&id=${VAULT_ID}&note=`);
+  expect((await accessState()).notes).toEqual({});
+
+  // Housekeeping for the specs above: leave the gate the way this file's
+  // earlier tests expect between runs.
+  await statsPost(`action=llm-revoke&id=${VAULT_ID}`);
+});
