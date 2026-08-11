@@ -95,6 +95,11 @@ export const es = {
   "setup.backup.keep": "Guardar una copia cifrada en el servidor",
   "setup.backup.working": "Subiendo la copia sellada.",
   "setup.backup.later": "La copia no ha llegado. Tu lista sigue a salvo aquí; puedes volver a intentarlo desde los ajustes cuando quieras.",
+  "setup.reminder.eyebrow": "Recordatorio",
+  "setup.reminder.title": "Una línea al día",
+  "setup.reminder.body": "Una vez al día, a la hora que elijas, este dispositivo muestra una sola línea: tu pregunta te espera. Lo que llega no lleva nada - ni título, ni lista, ni una palabra tuya. La frase sale de la propia aplicación.",
+  "setup.reminder.working": "Preguntando al navegador.",
+  "setup.reminder.inApp": "Lo haré en la aplicación",
 
   "template.health": "Salud y cuerpo",
   "template.money": "Dinero y seguridad",

@@ -609,7 +609,7 @@ test("the push channel can never carry content", async () => {
   // The service worker writes its own sentence and never reads what arrived.
   expect(sw).toMatch(/showNotification/);
   expect(sw).not.toMatch(/event\.data/);
-  expect(sw).toMatch(/tenfold-v49/);
+  expect(sw).toMatch(/tenfold-v50/);
 
   const serve = await readFile(new URL("../tools/serve.js", import.meta.url), "utf8");
   const stripped = stripComments(serve);

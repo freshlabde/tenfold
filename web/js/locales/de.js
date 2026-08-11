@@ -95,6 +95,11 @@ export const de = {
   "setup.backup.keep": "Verschlüsselte Kopie auf dem Server behalten",
   "setup.backup.working": "Die versiegelte Kopie wird hochgeladen.",
   "setup.backup.later": "Die Kopie ist nicht durchgekommen. Deine Liste bleibt hier sicher; du kannst es jederzeit in den Einstellungen erneut versuchen.",
+  "setup.reminder.eyebrow": "Erinnerung",
+  "setup.reminder.title": "Eine Zeile am Tag",
+  "setup.reminder.body": "Einmal am Tag, zu einer Stunde deiner Wahl, zeigt dieses Gerät eine einzige Zeile: Deine Frage wartet. Was ankommt, trägt gar nichts mit sich - keinen Titel, keine Liste, kein Wort von dir. Der Satz kommt aus der App selbst.",
+  "setup.reminder.working": "Der Browser wird gefragt.",
+  "setup.reminder.inApp": "Ich mache das in der App",
 
   "template.health": "Gesundheit und Körper",
   "template.money": "Geld und Sicherheit",

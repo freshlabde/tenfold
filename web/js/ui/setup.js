@@ -1,11 +1,14 @@
-// ui/setup.js - first run: passphrase, recovery key, starting point, backup.
+// ui/setup.js - first run: passphrase, recovery key, starting point, backup,
+// daily reminder.
 //
-// What it does: five quiet steps. Explain what this is, take a passphrase,
+// What it does: six quiet steps. Explain what this is, take a passphrase,
 // show the recovery key exactly once behind a forced acknowledgement, offer an
-// empty list or a neutral frame of eight life areas, and finally ask the one
-// question that decides whether the vault survives a cleared browser. Plus one
-// side door: a vault that already exists somewhere else can be opened here with
-// its pairing code, after which the normal lock screen asks for the passphrase.
+// empty list or a neutral frame of eight life areas, ask the one question that
+// decides whether the vault survives a cleared browser, and - only if that one
+// was answered with the server copy - offer the daily reminder, because nobody
+// goes looking for it in the settings afterwards. Plus one side door: a vault
+// that already exists somewhere else can be opened here with its pairing code,
+// after which the normal lock screen asks for the passphrase.
 //
 // What it deliberately does NOT do: it never stores the recovery key, never
 // shows it a second time, and never lets the user past that screen without
@@ -497,7 +500,11 @@ function backupStep(ctx) {
     // retrying in the background - it must not hold up the first run, so the
     // toast says where to look and the app opens either way.
     if (ctx.sync.status.phase !== "idle") ctx.toast(t("setup.backup.later"));
-    done();
+    // Sync is on, so the reminder can be asked for. It is the step after this
+    // one and only after this answer: without the server copy there is no
+    // token a subscription could be registered with.
+    step = "reminder";
+    ctx.render();
   });
 
   return screen([
@@ -509,11 +516,134 @@ function backupStep(ctx) {
   ]);
 }
 
+// ------------------------------------------------------------------ reminder
+
+/** "at 08:00" - the hour in the plain 24 hour form every locale can read. */
+function hourLabel(hour) {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+/**
+ * The daily reminder, asked where the decision actually gets made. Nobody
+ * opens the settings later to switch this on, so the first run asks once -
+ * right after the server copy, because a subscription needs that write token.
+ *
+ * Two shapes, one step. Where a permission prompt can lead somewhere, the
+ * press is the prompt and the hour comes with it. Where it cannot - iOS
+ * delivers push to the installed home-screen app and to nothing else - the
+ * step says so plainly and continues; `ui/pushoffer.js` picks the question up
+ * again at the first unlock inside the installed app. In that case nothing is
+ * recorded as a decision, or that later offer would never appear.
+ */
+function reminderStep(ctx) {
+  const done = () => {
+    reset();
+    ctx.enterApp();
+  };
+
+  // Asked and answered: neither answer is ever asked for a second time.
+  // Written immediately rather than with the debounced autosave - the About
+  // intro follows, and a reload in between would resurrect the question.
+  const settle = () => ctx.setSettings({ pushOffered: true }, { now: true });
+
+  if (!ctx.push.usableHere) {
+    const go = el(
+      "button",
+      {
+        class: "btn is-primary is-big is-wide",
+        attrs: { type: "button" },
+        on: { click: () => done() },
+      },
+      [text(t("setup.reminder.inApp"))],
+    );
+    return screen([
+      head("setup.reminder.eyebrow", "setup.reminder.title", "setup.reminder.body"),
+      el("div", { class: "scroll" }, [
+        el("p", { class: "field-hint", style: { maxWidth: "34ch" } }, [text(t("push.ios"))]),
+      ]),
+      el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [go]),
+    ]);
+  }
+
+  const field = el("input", {
+    class: "input",
+    attrs: {
+      type: "number",
+      min: "0",
+      max: "23",
+      step: "1",
+      inputmode: "numeric",
+      "aria-label": t("push.hour"),
+    },
+  });
+  field.value = String(ctx.push.status.hour);
+
+  const turnOn = el(
+    "button",
+    { class: "btn is-primary is-big is-wide", attrs: { type: "button" } },
+    [text(t("push.enable"))],
+  );
+  const skip = el(
+    "button",
+    {
+      class: "btn-ghost",
+      attrs: { type: "button" },
+      on: {
+        click: () => {
+          if (busy) return;
+          settle();
+          done();
+        },
+      },
+    },
+    [text(t("common.notNow"))],
+  );
+
+  turnOn.addEventListener("click", async () => {
+    if (busy) return;
+    busy = true;
+    const raw = Number(field.value);
+    const hour = Math.max(0, Math.min(23, Math.trunc(Number.isFinite(raw) ? raw : 8)));
+    clear(turnOn);
+    turnOn.appendChild(text(t("setup.reminder.working")));
+    turnOn.setAttribute("disabled", "disabled");
+    skip.setAttribute("disabled", "disabled");
+    try {
+      // No await before this call: the permission prompt inside it has to stay
+      // inside the gesture that asked for it.
+      await ctx.push.enable(hour);
+      ctx.toast(t("push.on", { time: hourLabel(hour) }));
+    } catch (err) {
+      // A refused permission, a server that will not answer: say it in the
+      // ordinary toast and walk on. The first run is not a place to be stuck.
+      ctx.toast(t(`push.error.${err && err.code ? err.code : "server"}`));
+    }
+    await ctx.push.refresh();
+    busy = false;
+    settle();
+    done();
+  });
+
+  return screen([
+    head("setup.reminder.eyebrow", "setup.reminder.title", "setup.reminder.body"),
+    el("div", { class: "scroll" }, [
+      el("div", { class: "field" }, [
+        el("span", { class: "field-label" }, [text(t("push.hour"))]),
+        field,
+        el("p", { class: "field-hint" }, [text(t("push.hourHint"))]),
+      ]),
+      el("p", { class: "field-hint", style: { maxWidth: "34ch" } }, [text(t("push.ios"))]),
+    ]),
+    el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [turnOn, skip]),
+  ]);
+}
+
 export function render(ctx) {
   if (step === "adopt") return adopt(ctx);
   if (step === "pass") return passphrase(ctx);
   if (step === "key") return recovery(ctx);
   if (step === "template") return templateStep(ctx);
   if (step === "backup") return backupStep(ctx);
+  if (step === "reminder") return reminderStep(ctx);
   return welcome(ctx);
 }

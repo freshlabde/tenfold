@@ -102,6 +102,11 @@ test("choosing the copy turns sync on and the server holds a sealed vault", asyn
   await freshApp(page);
   await walkToBackup(page);
   await page.getByRole("button", { name: "Keep an encrypted copy on the server" }).click();
+  // Saying yes to the copy is what makes a reminder possible at all, so the
+  // step after this one asks about it. It is answered in pushsetup.spec.js;
+  // here it is walked past, and the backup decision stays what is under test.
+  await expect(page.locator(".eyebrow")).toHaveText("Reminder");
+  await page.getByRole("button", { name: "Not now" }).click();
   await enterApp(page);
 
   // The vault now carries its sync metadata, and the marker is not there.

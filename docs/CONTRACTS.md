@@ -146,6 +146,23 @@ Anyone who wants to change an interface changes this file first.
     which the app consumes once and strips from the URL.
   - Client: `web/js/push.js` (see rule 7), settings row "Daily reminder" inside the sync
     group, honest about iOS needing the installed home-screen app.
+  - **Asked at vault creation, never left to the settings.** Nobody goes looking for a
+    reminder later, so the first run asks - see the setup flow below - and the once-only
+    bookkeeping is `doc.settings.pushOffered`: written by BOTH answers, sealed immediately
+    (`setSettings(patch, { now: true })`), travelling with the vault, so no device asks twice.
+  - **`push.usableHere()` / `push.remindableHere()`** decide where the question is worth
+    asking. Both rest on one overridable probe (`installedHere()`, `setInstalledProbe()` -
+    `navigator.standalone` or `display-mode: standalone`): on Apple platforms a tab receives
+    nothing, so `usableHere()` is false there and the setup step says so instead of prompting
+    for nothing; `remindableHere()` additionally gates the after-unlock offer to the installed
+    app.
+  - **The one-time offer** (`ui/pushoffer.js`, `offerPush()` in app.js, called from
+    `offerAfterUnlock()`): on an unlock in the installed app, with sync on, no subscription
+    running and no `pushOffered` recorded, ONE sheet asks the same question with the same
+    words and the same enable path. Ordering is a rule: the share import is offered first and
+    the reminder only if that left the screen empty - never over the About intro, never over
+    another sheet. Closing with the X settles nothing (the share rule), both buttons settle it
+    for ever.
 
 ## The ranked ten: three tiers, and the height budget
 
@@ -681,6 +698,16 @@ export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then
   now" is a ghost button, and neither answer blocks: a failed upload (offline, server down) is
   a calm toast naming settings as the way back, never a wall. Import and adopt paths land on
   the lock screen, not on setup, and never see this step.
+- **The reminder step (`setup.reminder.*`, immediately after the backup step)** exists only
+  on the "keep the copy" branch: a subscription needs the vault's write token, so "Not now"
+  on the backup question skips it entirely and lands in the app as before. It reuses the
+  reminder's own words (`push.body`, `push.hour`, `push.ios`, `push.enable`) and the exact
+  `ctx.push.enable(hour)` path the settings row uses, hour default 8. A denied permission or
+  a server that will not answer is the ordinary `push.error.*` toast and the first run
+  continues - nothing here traps anybody. Where notifications cannot work in this window
+  (`push.usableHere()` false - an iOS browser tab) the step still appears, says exactly that,
+  and its one action is "I will do it in the app": that branch deliberately records NOTHING,
+  because the after-unlock offer in the installed app is what makes up for it.
 - **`doc.settings.exportedAt`** (epoch ms) is stamped wherever an encrypted or a plaintext
   export is actually delivered: the two settings handlers, never the setup recovery-key
   screen. With sync off AND no `exportedAt`, the outline's `h-sub` carries one extra clause

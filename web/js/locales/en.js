@@ -95,6 +95,11 @@ export const en = {
   "setup.backup.keep": "Keep an encrypted copy on the server",
   "setup.backup.working": "Uploading the sealed copy.",
   "setup.backup.later": "The copy did not get through. Your list is safe here; you can try again from settings whenever you like.",
+  "setup.reminder.eyebrow": "Reminder",
+  "setup.reminder.title": "One line a day",
+  "setup.reminder.body": "Once a day, at an hour you pick, this device shows a single line: your question is waiting. What arrives carries nothing at all - no title, no list, not one word of yours. The sentence comes out of the app itself.",
+  "setup.reminder.working": "Asking the browser.",
+  "setup.reminder.inApp": "I will do it in the app",
 
   "template.health": "Health and body",
   "template.money": "Money and security",

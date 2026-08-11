@@ -18,7 +18,7 @@
 // share POST are passed through untouched, so nothing can be smuggled through
 // this worker.
 
-const VERSION = "tenfold-v49";
+const VERSION = "tenfold-v50";
 
 /**
  * Where the app leaves the current locale for the notification text. The key is
@@ -95,6 +95,7 @@ const SHELL = [
   "./js/ui/assist.js",
   "./js/ui/imageimport.js",
   "./js/ui/shareimport.js",
+  "./js/ui/pushoffer.js",
   "./js/ui/setup.js",
   "./js/ui/emergency.js",
   "./js/ui/langswitch.js",

@@ -63,6 +63,7 @@ import { openStoryGuide } from "./ui/storyguide.js";
 import * as assist from "./ui/assist.js";
 import * as imageImport from "./ui/imageimport.js";
 import { openShareImport } from "./ui/shareimport.js";
+import { openPushOffer } from "./ui/pushoffer.js";
 
 /** Minutes of inactivity after which the document is wiped from memory. */
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -456,11 +457,18 @@ function undo() {
   render();
 }
 
-function setSettings(patch) {
+/**
+ * @param {Object} patch
+ * @param {{now?: boolean}} [opts] `now` seals immediately instead of waiting
+ *   for the debounced autosave - for a flag that decides whether a question is
+ *   ever asked again, where a reload in the next 600 ms would ask it twice.
+ */
+function setSettings(patch, opts = {}) {
   if (!state.doc) return;
   state.doc = { ...state.doc, settings: { ...state.doc.settings, ...patch } };
   applyPresentation(state.doc.settings);
-  scheduleSave();
+  if (opts.now) flushSave();
+  else scheduleSave();
   render();
 }
 
@@ -521,6 +529,43 @@ async function offerShare() {
   // between, and a sheet over the lock screen would be a leak, not a feature.
   if (!item || !state.doc) return;
   openShareImport(layerEl, ctx, item);
+}
+
+// -------------------------------------------------------------- push offer
+
+/**
+ * The daily reminder, asked once where the first run could not ask for it.
+ * On iOS the setup step can only say that a tab receives nothing, so the
+ * question is picked up here: the first unlock inside the INSTALLED app, with
+ * sync on (the subscription needs the write token) and no reminder running.
+ *
+ * Both answers write `settings.pushOffered`, so this happens exactly once per
+ * vault and the decision travels to every device with it.
+ */
+async function offerPush() {
+  if (!state.doc || state.introAbout) return;
+  // Something that arrived from outside the app is the older claim on this
+  // moment; the reminder can wait for the next unlock.
+  if (isSheetOpen()) return;
+  if (state.doc.settings.pushOffered) return;
+  if (!sync.syncMeta(state.vault)) return;
+  if (!push.remindableHere()) return;
+  // The browser is the authority on whether a subscription already exists.
+  await push.refresh();
+  if (push.snapshot().enabled) return;
+  // The refresh is async: a lock, a wipe or a share sheet may have happened.
+  if (!state.doc || state.introAbout || isSheetOpen()) return;
+  openPushOffer(layerEl, ctx);
+}
+
+/**
+ * Everything that wants a word after an unlock, in the one order that makes
+ * sense: what another app sent in is answered first, and the reminder is only
+ * offered when that left the screen empty.
+ */
+async function offerAfterUnlock() {
+  await offerShare();
+  await offerPush();
 }
 
 // ------------------------------------------------------------------- context
@@ -600,11 +645,11 @@ const ctx = {
       state.stack = [];
       syncHistory();
       ctx.go("today");
-      offerShare();
+      offerAfterUnlock();
       return;
     }
     ctx.go("outline", null, { replace: true });
-    offerShare();
+    offerAfterUnlock();
   },
 
   finishIntro() {
@@ -624,7 +669,7 @@ const ctx = {
     flushSave();
     // The intro is the one screen a shared item must not land on top of, so
     // the offer waits until it has been read away.
-    offerShare();
+    offerAfterUnlock();
   },
   openSheet: (spec) => openSheet(layerEl, spec),
   closeSheet,
@@ -1307,6 +1352,14 @@ const ctx = {
   push: {
     get status() {
       return push.snapshot();
+    },
+    /**
+     * Would a permission prompt lead anywhere in THIS window? False in an iOS
+     * browser tab, where only the installed home-screen app ever receives a
+     * push - the first run says so instead of asking for nothing.
+     */
+    get usableHere() {
+      return push.usableHere();
     },
     /** Re-read the browser truth; resolves to true when something changed. */
     refresh: () => push.refresh(),

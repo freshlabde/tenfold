@@ -45,7 +45,11 @@ const PROVIDERS = [
 /** What LM Studio serves on by default - the most likely local case. */
 const DEFAULT_LOCAL_URL = "http://127.0.0.1:1234/v1";
 /** The owner's standing local setup; picking "local" starts from it. */
-const DEFAULT_LOCAL_MODEL = "google/gemma-4-26b-a4b";
+const DEFAULT_LOCAL_MODEL = "qwen/qwen3-8b";
+/** Reading photos needs a vision model, usually a different one - picking
+ *  "local" prefills this too, so the photo import works without a visit back
+ *  to this screen. */
+const DEFAULT_LOCAL_VISION_MODEL = "qwen3-vl-8b-instruct-mlx";
 const THEMES = ["dark", "light"];
 const DEPTH = ["on", "off"];
 
@@ -347,7 +351,7 @@ function localSheet(ctx, llm) {
     class: "input",
     attrs: { type: "text", spellcheck: "false", autocomplete: "off", "aria-label": t("llm.visionModel") },
   });
-  visionModel.value = llm.visionModel || "";
+  visionModel.value = llm.visionModel || DEFAULT_LOCAL_VISION_MODEL;
 
   const body = el("div", {}, [
     el("div", { class: "field" }, [

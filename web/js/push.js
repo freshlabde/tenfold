@@ -63,6 +63,62 @@ export function pushSupported() {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+/**
+ * Is this window the installed app rather than a browser tab? One small
+ * function, deliberately: it is the whole iOS story, and a test has to be able
+ * to stand where a phone stands without being one.
+ */
+function defaultInstalled() {
+  if (typeof window === "undefined") return false;
+  // iOS Safari's own flag, older than display-mode and still the honest one.
+  if (navigator && navigator.standalone === true) return true;
+  try {
+    return !!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  } catch {
+    return false;
+  }
+}
+
+let installedProbe = defaultInstalled;
+
+/** Test seam: replace the probe, or pass nothing to put the real one back. */
+export function setInstalledProbe(fn) {
+  installedProbe = typeof fn === "function" ? fn : defaultInstalled;
+}
+
+/** @returns {boolean} true when this window is the installed home-screen app. */
+export function installedHere() {
+  return !!installedProbe();
+}
+
+/** iPhone, iPad, iPod - including the iPad that calls itself a Mac. */
+function applePlatform() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+}
+
+/**
+ * Would asking for permission lead anywhere HERE, right now? On iOS a
+ * notification prompt in a Safari tab is a prompt for nothing: only the app on
+ * the home screen ever receives a push. Everywhere else a tab is enough.
+ */
+export function usableHere() {
+  if (!pushSupported()) return false;
+  if (applePlatform()) return installedHere();
+  return true;
+}
+
+/**
+ * Should the app offer the reminder on its own, after an unlock? Only in the
+ * installed app: that is where the first run could not ask, and it is the one
+ * context where the answer is worth anything on every platform.
+ */
+export function remindableHere() {
+  return pushSupported() && installedHere();
+}
+
 /** The last known state. Cheap, synchronous, possibly one tick stale. */
 export function snapshot() {
   return { ...state, supported: state.supported === null ? pushSupported() : state.supported };
