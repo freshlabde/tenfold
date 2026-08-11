@@ -119,8 +119,30 @@ async function openMap(page) {
  */
 async function tap(page, locator) {
   await settled(page);
-  const box = await locator.boundingBox();
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // settled() covers view transitions only - the camera spring (glideTo) is
+  // none, so a box read straight after it is stale by the time the click
+  // lands, and on a slow runner (CI) the miss window is wide: the tap fell
+  // on empty sky and cleared instead of selected, twice, in two different
+  // hardening attempts. Wait until the element's box actually holds still.
+  // The sky's idle drift moves well under a pixel per 120ms, so it passes
+  // the tolerance; the 3s ceiling keeps a dead element from hanging the spec.
+  let prev = null;
+  const until = Date.now() + 3000;
+  for (;;) {
+    const box = await locator.boundingBox();
+    if (
+      (prev &&
+        box &&
+        Math.abs(box.x - prev.x) < 0.6 &&
+        Math.abs(box.y - prev.y) < 0.6) ||
+      Date.now() > until
+    ) {
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      return;
+    }
+    prev = box;
+    await page.waitForTimeout(120);
+  }
 }
 
 const roots = ".map-tree > .map-body.is-d0";
