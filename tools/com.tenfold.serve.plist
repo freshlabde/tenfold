@@ -33,6 +33,16 @@
          user data. -->
     <key>TENFOLD_PUSH_SUBJECT</key>
     <string>mailto:info@freshlab.es</string>
+    <!-- Visitor counters, OFF unless this key is set. With it, the server
+         counts document loads per UTC day (loads, distinct visitors, referrer
+         hosts, countries, mobile/desktop, bots) and shows them at
+         /stats?k=<the key>. Aggregates only: no IP, no user agent, no cookie
+         and no identifier is ever written. Leave it out and nothing is
+         counted and the page does not exist. Use a long random string. -->
+    <!--
+    <key>TENFOLD_STATS_KEY</key>
+    <string>replace-with-a-long-random-string</string>
+    -->
   </dict>
   <key>RunAtLoad</key>
   <true/>

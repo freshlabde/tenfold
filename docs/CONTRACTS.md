@@ -795,6 +795,56 @@ file, bitmap and canvas in the same single-point teardown. The symbol is rendere
 `web/js/ui/qrview.js` (one SVG path, quiet zone 4, black on white in every skin).
 `decodeImage(imageDataOrCanvas)` returns `string|null` and never throws.
 
+## Visitor counters (`TENFOLD_STATS_KEY`, off by default)
+
+The server logs nothing. This is the **fourth explicit exception** to that rule, after the VAPID
+signing key, the model relay and the share-target fallback, and it is written down here for the
+same reason as the other three: an exception that is not named is a hole. (The header of
+`tools/serve.js` labels it the third, because it numbers only the exceptions declared in that
+header - the share-target fallback is documented at its branch in the router.)
+
+**It does not exist unless the operator switches it on.** With `TENFOLD_STATS_KEY` absent or
+empty nothing is counted, no file is written, and `/stats` answers the same plain 404 as any
+unknown path. Every deployment that does not opt in stays exactly as tracking-free as before;
+the test suite's own server runs without the key, so "off by default" is the state the rest of
+the suite is proven under (`tests/stats.spec.js`).
+
+**What is recorded**, per UTC calendar day, in memory, flushed to `stats.json` in `TENFOLD_DATA`
+every 5 minutes and whenever the page is rendered:
+- `hits` - document loads of the app's own `index.html` (bare domain and the `/tenfold` prefix).
+- `visitors` - a COUNT of distinct SHA-256(daily random salt + IP). The salt is generated per
+  day, held only in memory, never persisted; the hash Set is never persisted either. Only the
+  number reaches the disk, so the file cannot be turned back into who was there.
+- `bots` - loads whose user agent carries one of a short list of markers (bot, crawler, spider,
+  preview, fetch, curl, wget, python-requests, headless). A bot increments **this counter only**
+  and appears in no other number, so a launch-day crawler wave cannot drown the human figures.
+- `ref` - the external referrer **host** (`news.ycombinator.com`), never the full URL: a foreign
+  URL can carry a foreign query secret.
+- `geo` - the `cf-ipcountry` header when Cloudflare sets one, else `??`.
+- `platform` - one bit, mobile against desktop, from a user-agent substring.
+
+`ref` and `geo` are capped at **200 keys per day** with an `other` bucket, so a hostile `Referer`
+cannot grow the file without bound; days are capped at 400. The visitor Set is capped at 100 000
+hashes per day and then stops counting rather than eating memory.
+
+**What is never recorded:** `/api/*` of any kind (those URLs carry sync ids, which are capability
+secrets), static assets, query strings, the stats page itself, and any 404. No IP, no user agent
+string, no cookie, no session, no identifier, nothing that links two days of one person - the
+same visitor tomorrow is a new one, because today's salt is gone.
+
+**The page.** `GET /stats?k=KEY`, and `/stats.php?k=KEY` for the operator's muscle memory, same
+handler. The key is compared in fixed time over SHA-256 digests; a wrong key, a missing key, a
+disabled feature and a rate-limited caller all get the byte-identical plain 404, so the answer
+never betrays that the page exists. Server-rendered HTML, inline CSS, no script, no external
+asset, `noindex`; sections `#visitors` (per-day table plus an inline SVG bar chart of the last
+30 days), `#referrers`, `#countries`, `#platform`. `/stats` goes through the same per-IP limiter
+as the API calls.
+
+**The one write action.** `POST /stats` with `action=clear` and the same key wipes the file and
+the in-memory state and redirects back to the page (303), so an operator can scrub their own test
+visits. That is the whole admin surface; there is nothing to edit, because there is nothing in
+there about anybody.
+
 ## Tests
 
 Playwright, headless. `tests/*.spec.js` load the ES modules directly in an empty page via a

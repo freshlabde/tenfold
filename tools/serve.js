@@ -56,6 +56,32 @@
 //     relay is not on it.
 // If a future change makes this relay remember a single message, the design is
 // broken, not improved.
+//
+// THE THIRD EXCEPTION - THE STATS PAGE, AND WHAT IT IS NOT: with the env var
+// TENFOLD_STATS_KEY set, and ONLY then, this server counts document loads.
+// Read this before you take it as the end of "no tracking":
+//   - It is OFF unless the operator switches it on. With no key set nothing is
+//     counted, nothing is written, and /stats does not exist - a 404 like any
+//     other unknown path. Every deployment that does not opt in stays exactly
+//     as tracking-free as it was.
+//   - What is counted is a COUNTER, not a visit record. Per UTC day: how many
+//     document loads, how many distinct visitors, which external referrer
+//     hosts, which countries, mobile against desktop. Sums, nothing else.
+//   - No IP is ever written. The "distinct visitors" number comes from an
+//     in-memory Set of SHA-256(daily random salt + IP); the salt is made fresh
+//     each day, lives only in this process, and is never persisted. Only the
+//     COUNT reaches the disk, so the file cannot be turned back into who was
+//     there - not by us, not by whoever takes the disk.
+//   - Only the app's own document is counted. Never /api/... (those URLs carry
+//     sync ids, which are capability secrets), never an asset, never a query
+//     string, never the stats page itself.
+//   - Referrers are stored as HOST only. A full referrer URL can carry another
+//     site's query secrets, and none of that belongs in a counter.
+//   - There is no cookie, no id, no session, no path through a person's visits.
+//     Two loads by one person on one day are one visitor; the same person
+//     tomorrow is a new one, because yesterday's salt is gone.
+// If a future change makes this file able to say WHO was here, the design is
+// broken, not improved.
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
@@ -123,6 +149,40 @@ const LLM_LOCAL_UPSTREAMS = String(process.env.TENFOLD_LLM_UPSTREAMS || "")
   .split(",")
   .map((value) => value.trim().replace(/\/+$/, ""))
   .filter(Boolean);
+
+// -------------------------------------------------------------------- stats
+/**
+ * The switch. Absent or empty means the whole feature does not exist: nothing
+ * is counted and /stats answers 404 like any unknown path. An operator who
+ * wants numbers sets a long random string here and reads them at
+ * /stats?k=<that string>.
+ */
+const STATS_KEY = String(process.env.TENFOLD_STATS_KEY || "");
+const STATS_ENABLED = STATS_KEY.length > 0;
+
+/** The counters, in the data directory - never inside the repository. */
+const STATS_FILE = join(DATA_DIR, "stats.json");
+
+/** The counters are held in memory and written out this often, like push. */
+const STATS_FLUSH_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * Cap per referrer/country map per day. A hostile Referer header is free to
+ * invent hosts, so without a ceiling one visitor could grow the file without
+ * bound. Everything past the cap lands in one "other" bucket.
+ */
+const STATS_MAX_KEYS = 200;
+
+/** Roughly thirteen months of days; older ones are dropped on flush. */
+const STATS_MAX_DAYS = 400;
+
+/**
+ * Ceiling for the per-day visitor Set. 100k hashes is far beyond anything this
+ * server will see and keeps a flood from eating memory. Past it the visitor
+ * number stops rising - it under-reports rather than lies about a number it
+ * could not hold.
+ */
+const STATS_MAX_VISITORS = 100_000;
 
 /** A prompt is kilobytes of text. One megabyte is already generous. */
 const MAX_LLM_BODY_BYTES = 1024 * 1024;
@@ -1024,6 +1084,473 @@ async function handleLlm(req, res) {
   sendRaw(res, answer.status, answer.body);
 }
 
+// -------------------------------------------------------------------- stats
+//
+// Everything from here to the router is the counter described at the top of
+// this file. It exists only when TENFOLD_STATS_KEY is set. It touches nothing
+// else: no request is delayed by it, no handler branches on it, and with the
+// key absent every function below returns immediately.
+
+/** The UTC calendar day as YYYY-MM-DD - the only time resolution kept. */
+function utcDateKey(ts) {
+  const d = new Date(ts);
+  const p = (v) => String(v).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
+/** Random hex, for the daily visitor salt. Web Crypto, no new import. */
+function randomHex(bytes) {
+  const buf = new Uint8Array(bytes);
+  globalThis.crypto.getRandomValues(buf);
+  return Buffer.from(buf).toString("hex");
+}
+
+let statsData = null; // { days: { "YYYY-MM-DD": DayEntry } }
+let statsPromise = null; // the one load of the file
+let statsDirty = false;
+
+// The visitor approximation. All three live ONLY here: the salt is never
+// written, the Set is never written, and both are thrown away when the day
+// turns. What survives a restart is the number that was already counted.
+let visitorDay = "";
+let visitorSalt = "";
+let visitorSeen = new Set();
+
+function emptyDay() {
+  return { hits: 0, visitors: 0, bots: 0, ref: {}, geo: {}, platform: { mobile: 0, desktop: 0 } };
+}
+
+/**
+ * Coarse bot check on the user agent. Deliberately a short substring list, not
+ * a catalogue to maintain: it catches the crawlers, the link previewers and
+ * the command-line fetchers that arrive in bulk the moment a link is posted
+ * somewhere, and misses the clever ones - which is fine, because the point is
+ * that a launch day's crawler wave does not drown the human numbers.
+ *
+ * A bot increments ONE counter and nothing else: no visitor, no referrer, no
+ * country, no platform. Its user agent is read for this one decision and, like
+ * every other user agent here, never stored.
+ */
+const BOT_MARKERS = [
+  "bot",
+  "crawler",
+  "spider",
+  "preview",
+  "fetch",
+  "curl",
+  "wget",
+  "python-requests",
+  "headless",
+];
+
+function isBot(ua) {
+  if (typeof ua !== "string" || ua.length === 0) return false;
+  const lower = ua.toLowerCase();
+  return BOT_MARKERS.some((marker) => lower.includes(marker));
+}
+
+/** Reads the counters back, or starts fresh. A broken file is never fatal. */
+async function loadStats() {
+  try {
+    const parsed = JSON.parse(await readFile(STATS_FILE, "utf8"));
+    if (parsed && typeof parsed.days === "object" && parsed.days !== null) {
+      const days = {};
+      for (const [day, value] of Object.entries(parsed.days)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !value || typeof value !== "object") continue;
+        const entry = emptyDay();
+        entry.hits = Number(value.hits) || 0;
+        entry.visitors = Number(value.visitors) || 0;
+        entry.bots = Number(value.bots) || 0;
+        if (value.ref && typeof value.ref === "object") entry.ref = { ...value.ref };
+        if (value.geo && typeof value.geo === "object") entry.geo = { ...value.geo };
+        if (value.platform && typeof value.platform === "object") {
+          entry.platform.mobile = Number(value.platform.mobile) || 0;
+          entry.platform.desktop = Number(value.platform.desktop) || 0;
+        }
+        days[day] = entry;
+      }
+      return { days };
+    }
+  } catch {
+    // No file yet, or an unreadable one: counting starts from zero.
+  }
+  return { days: {} };
+}
+
+function stats() {
+  if (!statsPromise) statsPromise = loadStats();
+  return statsPromise;
+}
+
+async function flushStats() {
+  if (!STATS_ENABLED || !statsDirty || !statsData) return;
+  const days = Object.keys(statsData.days).sort();
+  for (const day of days.slice(0, Math.max(0, days.length - STATS_MAX_DAYS))) {
+    delete statsData.days[day];
+  }
+  statsDirty = false;
+  await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+  await writeAtomic(STATS_FILE, JSON.stringify(statsData));
+}
+
+/** One more for this key, or one more for "other" once the map is full. */
+function bump(map, key, cap) {
+  if (Object.prototype.hasOwnProperty.call(map, key)) {
+    map[key] += 1;
+    return;
+  }
+  if (Object.keys(map).length >= cap) {
+    map.other = (map.other || 0) + 1;
+    return;
+  }
+  map[key] = 1;
+}
+
+/**
+ * The referrer's HOST, or "" when there is none worth keeping. Same-origin
+ * referrers are dropped (that is navigation inside the app, not a source), and
+ * so is anything that does not parse or does not look like a hostname. The
+ * full URL is never touched again after this line: a foreign query string can
+ * carry a foreign secret.
+ */
+function externalRefHost(referer, host) {
+  if (typeof referer !== "string" || referer.length === 0 || referer.length > 2048) return "";
+  let url;
+  try {
+    url = new URL(referer);
+  } catch {
+    return "";
+  }
+  const name = url.hostname.toLowerCase();
+  if (!/^[a-z0-9][a-z0-9.-]{0,119}$/.test(name)) return "";
+  if (typeof host === "string" && name === host.toLowerCase().split(":")[0]) return "";
+  return name;
+}
+
+/** The two-letter country Cloudflare puts on the request, or "??". */
+function countryOf(value) {
+  return typeof value === "string" && /^[A-Za-z0-9]{2}$/.test(value) ? value.toUpperCase() : "??";
+}
+
+/**
+ * Mobile or desktop, and nothing else. The user agent string is read once for
+ * this one bit and is not kept, not hashed, not counted in any other shape.
+ */
+function platformOf(ua) {
+  return typeof ua === "string" && /Mobi|Android|iPhone|iPad/.test(ua) ? "mobile" : "desktop";
+}
+
+/**
+ * The distinct-visitor approximation. The hash exists for the length of a
+ * comparison and lives in a Set that is dropped when the day turns; the salt
+ * that makes it unlinkable is generated in memory and never written anywhere.
+ */
+async function noteVisitor(entry, day, ip) {
+  if (visitorDay !== day) {
+    visitorDay = day;
+    visitorSalt = randomHex(32);
+    visitorSeen = new Set();
+  }
+  if (visitorSeen.size >= STATS_MAX_VISITORS) return;
+  const digest = await sha256Hex(`${visitorSalt}:${ip}`);
+  if (visitorSeen.has(digest)) return;
+  visitorSeen.add(digest);
+  entry.visitors += 1;
+}
+
+/**
+ * One document load. Called only for the app's own index.html, only for GET,
+ * and only when the file was really served. Everything it reads off the
+ * request it turns into a number here and now; nothing is queued, kept or
+ * passed on. It does not await anything the response needs: a page must never
+ * wait on a counter.
+ */
+function recordDocumentLoad(req) {
+  if (!STATS_ENABLED || req.method !== "GET") return;
+  const refHost = externalRefHost(req.headers.referer, req.headers.host);
+  const country = countryOf(req.headers["cf-ipcountry"]);
+  const platform = platformOf(req.headers["user-agent"]);
+  const bot = isBot(req.headers["user-agent"]);
+  const ip = clientIp(req);
+  void (async () => {
+    try {
+      const data = await stats();
+      statsData = data;
+      const day = utcDateKey(Date.now());
+      const entry = data.days[day] || (data.days[day] = emptyDay());
+      if (bot) {
+        // One number, and out. A crawler is traffic, not a visitor.
+        entry.bots += 1;
+        statsDirty = true;
+        return;
+      }
+      entry.hits += 1;
+      entry.platform[platform] += 1;
+      bump(entry.geo, country, STATS_MAX_KEYS);
+      if (refHost) bump(entry.ref, refHost, STATS_MAX_KEYS);
+      await noteVisitor(entry, day, ip);
+      statsDirty = true;
+    } catch {
+      // A counter that fails is a counter that fails. It never becomes an
+      // error the person on the page can see.
+    }
+  })();
+}
+
+// ------------------------------------------------------------- the stats page
+
+function esc(text) {
+  return String(text).replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+  );
+}
+
+/** Plain numbers with thin thousands groups - no locale surprises. */
+function num(value) {
+  return String(Math.trunc(Number(value) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+/** The last n UTC days, oldest first, whether or not anything happened. */
+function recentDays(n) {
+  const out = [];
+  const today = Date.now();
+  for (let i = n - 1; i >= 0; i -= 1) out.push(utcDateKey(today - i * 86400000));
+  return out;
+}
+
+/** Sums one of the string-keyed maps across the given days. */
+function totalsOver(data, days, field) {
+  const out = new Map();
+  for (const day of days) {
+    const entry = data.days[day];
+    if (!entry) continue;
+    for (const [key, count] of Object.entries(entry[field] || {})) {
+      out.set(key, (out.get(key) || 0) + (Number(count) || 0));
+    }
+  }
+  return [...out.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function rows(pairs, limit, empty) {
+  if (pairs.length === 0) return `<p class="none">${esc(empty)}</p>`;
+  const body = pairs
+    .slice(0, limit)
+    .map(([key, count]) => `<tr><td>${esc(key)}</td><td class="n">${num(count)}</td></tr>`)
+    .join("");
+  return `<table><tbody>${body}</tbody></table>`;
+}
+
+/** Thirty bars, drawn as one SVG. No script, no library, no external asset. */
+function sparkline(data, days) {
+  const values = days.map((day) => (data.days[day] ? data.days[day].hits : 0));
+  const peak = Math.max(1, ...values);
+  const w = 10;
+  const bars = values
+    .map((value, i) => {
+      const h = Math.round((value / peak) * 52);
+      return `<rect x="${i * w + 1}" y="${56 - h}" width="${w - 2}" height="${Math.max(h, 1)}"><title>${esc(
+        days[i],
+      )}: ${num(value)}</title></rect>`;
+    })
+    .join("");
+  return `<svg class="spark" viewBox="0 0 ${values.length * w} 58" preserveAspectRatio="none" role="img" aria-label="Document loads per day, last ${values.length} days">${bars}</svg>`;
+}
+
+function statsPage(data, key) {
+  const last30 = recentDays(30);
+  const last7 = recentDays(7);
+  const allDays = Object.keys(data.days).sort().reverse();
+  const totalHits = allDays.reduce((sum, day) => sum + data.days[day].hits, 0);
+  const totalVisitors = allDays.reduce((sum, day) => sum + data.days[day].visitors, 0);
+  const totalBots = allDays.reduce((sum, day) => sum + data.days[day].bots, 0);
+  const platform = allDays.reduce(
+    (acc, day) => {
+      acc.mobile += data.days[day].platform.mobile;
+      acc.desktop += data.days[day].platform.desktop;
+      return acc;
+    },
+    { mobile: 0, desktop: 0 },
+  );
+  const platformTotal = platform.mobile + platform.desktop;
+  const share = (value) => (platformTotal ? `${Math.round((value / platformTotal) * 100)}%` : "-");
+
+  const dayRows = allDays
+    .slice(0, 60)
+    .map(
+      (day) =>
+        `<tr><td>${esc(day)}</td><td class="n">${num(data.days[day].hits)}</td><td class="n">${num(
+          data.days[day].visitors,
+        )}</td><td class="n dim">${num(data.days[day].bots)}</td></tr>`,
+    )
+    .join("");
+
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>tenfold stats</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 28px 20px 64px; background: #0B0D11; color: #E7E9EE;
+         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; letter-spacing: .01em; margin: 0 0 4px; }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em;
+       color: #D6A441; margin: 40px 0 12px; }
+  h3 { font-size: 12px; font-weight: 600; color: #8A9099; margin: 22px 0 8px; text-transform: uppercase;
+       letter-spacing: .1em; }
+  .lede { color: #8A9099; font-size: 13px; margin: 0 0 4px; }
+  nav { margin: 18px 0 0; font-size: 13px; }
+  nav a { color: #D6A441; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
+  .cards { display: flex; flex-wrap: wrap; gap: 12px; margin: 22px 0 0; }
+  .card { flex: 1 1 150px; border: 1px solid #1D212A; border-radius: 10px; padding: 12px 14px; background: #10131A; }
+  .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #8A9099; }
+  .card .v { font-size: 22px; font-weight: 600; color: #D6A441; margin-top: 4px; }
+  .spark { width: 100%; height: 72px; display: block; margin: 8px 0 4px; }
+  .spark rect { fill: #D6A441; opacity: .85; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  td { border-bottom: 1px solid #171B23; padding: 6px 8px 6px 0; }
+  td.n { text-align: right; width: 6em; color: #D6A441; }
+  th { text-align: left; font-weight: 600; color: #8A9099; font-size: 12px; padding: 0 8px 6px 0;
+       border-bottom: 1px solid #1D212A; text-transform: uppercase; letter-spacing: .08em; }
+  th.n { text-align: right; }
+  .none { color: #6C727C; font-size: 13px; }
+  td.dim { color: #6C727C; }
+  form.clear { margin: 34px 0 0; }
+  form.clear button { background: transparent; border: 1px solid #2A2018; color: #8A9099;
+    border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  form.clear button:hover { border-color: #D6A441; color: #D6A441; }
+  .cols { display: flex; flex-wrap: wrap; gap: 28px; }
+  .cols > div { flex: 1 1 300px; min-width: 260px; }
+  footer { margin-top: 48px; color: #6C727C; font-size: 12px; border-top: 1px solid #171B23; padding-top: 14px; }
+  .wrap { overflow-x: auto; }
+</style>
+</head><body><main>
+<h1>tenfold &middot; stats</h1>
+<p class="lede">Document loads only, counted per UTC day. No IP, no cookie, no identifier is stored -
+the visitor number is a daily count of salted hashes that never leave memory.</p>
+<nav><a href="#visitors">Visitors</a><a href="#referrers">Referrers</a><a href="#countries">Countries</a><a href="#platform">Platform</a></nav>
+
+<div class="cards">
+  <div class="card"><div class="k">Loads, all time</div><div class="v">${num(totalHits)}</div></div>
+  <div class="card"><div class="k">Visitors, summed daily</div><div class="v">${num(totalVisitors)}</div></div>
+  <div class="card"><div class="k">Days recorded</div><div class="v">${num(allDays.length)}</div></div>
+  <div class="card"><div class="k">Bot hits, all time</div><div class="v">${num(totalBots)}</div></div>
+</div>
+
+<h2 id="visitors">Visitors</h2>
+${sparkline(data, last30)}
+<p class="lede">Human loads per day, last 30 days. Bots are counted separately and are in no other number
+on this page.</p>
+<div class="wrap"><table><thead><tr><th>Day (UTC)</th><th class="n">Loads</th><th class="n">Visitors</th><th class="n">Bots</th></tr></thead>
+<tbody>${dayRows || '<tr><td colspan="4" class="none">Nothing counted yet.</td></tr>'}</tbody></table></div>
+
+<h2 id="referrers">Referrers</h2>
+<div class="cols">
+  <div><h3>All time</h3>${rows(totalsOver(data, allDays, "ref"), 50, "No external referrer so far.")}</div>
+  <div><h3>Last 7 days</h3>${rows(totalsOver(data, last7, "ref"), 20, "No external referrer in the last 7 days.")}</div>
+</div>
+
+<h2 id="countries">Countries</h2>
+<div class="cols">
+  <div><h3>All time</h3>${rows(totalsOver(data, allDays, "geo"), 50, "Nothing counted yet.")}</div>
+  <div><h3>Last 7 days</h3>${rows(totalsOver(data, last7, "geo"), 20, "Nothing in the last 7 days.")}</div>
+</div>
+
+<h2 id="platform">Platform</h2>
+<table><tbody>
+<tr><td>Mobile</td><td class="n">${num(platform.mobile)}</td><td class="n">${share(platform.mobile)}</td></tr>
+<tr><td>Desktop</td><td class="n">${num(platform.desktop)}</td><td class="n">${share(platform.desktop)}</td></tr>
+</tbody></table>
+
+<form class="clear" method="post" action="?k=${esc(encodeURIComponent(key))}">
+  <input type="hidden" name="action" value="clear">
+  <button type="submit">Clear all counters</button>
+</form>
+
+<footer>Counted: document loads of the app, per UTC day, with the referrer host, the country header
+Cloudflare sets, and one bit of mobile against desktop. Crawlers and command-line fetchers are put in the
+bot column and appear in nothing else. Never counted: API calls, assets, query strings, this page.
+Never stored: IP addresses, user agents, cookies, sessions, anything that could name a person.
+A visitor counted today and tomorrow is two, because the daily salt is gone by then.</footer>
+</main></body></html>`;
+}
+
+/**
+ * GET /stats?k=KEY, and /stats.php?k=KEY for the operator's muscle memory.
+ * Returns true when the request was handled here.
+ *
+ * A wrong key, a missing key and a disabled feature all answer the SAME plain
+ * 404 the static branch sends for any unknown path, so the answer never
+ * betrays that this page exists at all.
+ */
+async function handleStats(req, res, rel, query) {
+  if (rel !== "/stats" && rel !== "/stats.php") return false;
+  if (!STATS_ENABLED) return false;
+  if (req.method !== "GET" && req.method !== "POST") return false;
+  // The same per-IP limiter the API calls go through, so the key cannot be
+  // guessed at speed. Over the limit is a 404 as well - a 429 here would tell
+  // a stranger that the path is worth trying.
+  if (!isLocal(req) && overLimit(rateHits, clientIp(req), RATE_WINDOW_MS, RATE_MAX_PER_WINDOW)) {
+    return false;
+  }
+  const given = query.get("k") || "";
+  // Fixed-time over the digests: same length whatever was sent, so neither the
+  // key's length nor the position of the first wrong character leaks.
+  if (!sameHex(await sha256Hex(given), await sha256Hex(STATS_KEY))) return false;
+
+  // The whole admin surface: one button that throws the counters away. It is a
+  // POST, so no prefetch, no crawler and no history entry can trigger it, and
+  // it needs the same key the page needs. An operator scrubbing their own test
+  // visits should not have to go looking for a file on the server.
+  if (req.method === "POST") {
+    const read = await readBody(req, 4096);
+    const form = new URLSearchParams(read.tooLarge ? "" : read.body.toString("utf8"));
+    if (form.get("action") === "clear") {
+      statsData = { days: {} };
+      statsPromise = Promise.resolve(statsData);
+      visitorDay = "";
+      visitorSalt = "";
+      visitorSeen = new Set();
+      statsDirty = true;
+      await flushStats().catch(() => {});
+    }
+    // Back to the page itself, so a refresh does not repeat the action.
+    res.writeHead(303, {
+      Location: `${rel}?k=${encodeURIComponent(given)}`,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    });
+    res.end();
+    return true;
+  }
+
+  const data = await stats();
+  statsData = data;
+  // The operator looking is a good moment to put the counters on disk; the
+  // interval does the same every five minutes.
+  await flushStats().catch(() => {});
+  const body = Buffer.from(statsPage(data, given), "utf8");
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Robots-Tag": "noindex, nofollow",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    // Its own policy: this page is one file with one inline stylesheet and no
+    // script at all. Nothing may load, nothing may run, nothing may frame it.
+    // form-action is 'self' for the one clear button and nothing else.
+    "Content-Security-Policy":
+      "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    "Content-Length": body.length,
+  });
+  res.end(body);
+  return true;
+}
+
 /**
  * Routes /api/vault/<syncId>. Returns true when the request was handled here.
  * Anything that is not an exact match falls through to the static files, so a
@@ -1117,6 +1644,15 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // The counters, when the operator switched them on. Before the static
+  // branch, because /stats is not a file, and it answers a plain 404 for every
+  // caller who cannot show the key.
+  try {
+    if (await handleStats(req, res, rel, url.searchParams)) return;
+  } catch {
+    // A broken counter must not take the server with it.
+  }
+
   if (rel === "/" || rel === "/index.html") rel = "/index.html";
   // A directory request resolves to its index, as on any static server. The
   // deployed app is served at the root and never needs this; the suite opens it
@@ -1136,6 +1672,10 @@ const server = createServer(async (req, res) => {
     res.writeHead(404).end("not found");
     return;
   }
+  // The one place anything is counted, and only when the operator switched it
+  // on: the app's own document, really served, nothing else. Assets, API
+  // calls, the repo fallback paths and every 404 pass this line untouched.
+  if (fromApp && rel === "/index.html") recordDocumentLoad(req);
   res.writeHead(200, {
     "Content-Type": TYPES[extname(rel)] || "application/octet-stream",
     "Cache-Control": "no-store",
@@ -1160,3 +1700,17 @@ const dispatchTimer = setInterval(() => {
   });
 }, DISPATCH_INTERVAL_MS);
 if (typeof dispatchTimer.unref === "function") dispatchTimer.unref();
+
+// The counters, when they exist at all: held in memory and written out on the
+// same rhythm as the push round. A crash loses at most the last five minutes
+// of counting, which is the right trade for a number nobody bills anybody for.
+// Rendering the page writes them out too, so the operator never reads a stale
+// file. unref() so this timer cannot hold the process open either.
+if (STATS_ENABLED) {
+  const statsTimer = setInterval(() => {
+    flushStats().catch(() => {
+      // A full or read-only disk is not worth a crash; the next round retries.
+    });
+  }, STATS_FLUSH_INTERVAL_MS);
+  if (typeof statsTimer.unref === "function") statsTimer.unref();
+}

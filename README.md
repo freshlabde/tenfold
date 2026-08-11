@@ -254,6 +254,13 @@ banner, no prompt and no "reload to update" button anywhere.
 - **Metadata the server can see:** that a `syncId` exists, when it was written, how
   large the blob is, how often it changes, and the IP address a request came from while
   it is being rate-limited (never written to disk).
+- **Aggregate visitor counts, if the operator switched them on** (`TENFOLD_STATS_KEY`,
+  absent by default). Then the server keeps per UTC day: how many times the app's page
+  was loaded, how many distinct visitors, which external referrer hosts and countries,
+  mobile against desktop, and a separate bot count. Sums only - no IP, no user agent, no
+  cookie, no identifier and nothing that links two days of one person ever reaches the
+  disk, and no `/api/` request is counted at all. With the variable unset nothing is
+  recorded and the page does not exist.
 - **The badge is a number on a locked device.** Content-free by design, and still one
   bit more than nothing: it says how many steps are due.
 - **An unlocked device in someone else's hands** lays everything open. So does a
@@ -347,6 +354,7 @@ from `web/`.
 | `TENFOLD_MAX_VAULTS` | `500` | Global cap on stored vaults; the next `PUT` for a new id gets 507 |
 | `TENFOLD_LLM_UPSTREAMS` | *(empty)* | Comma-separated base URLs of local model servers the relay may reach, matched exactly, e.g. `http://127.0.0.1:1234/v1` |
 | `TENFOLD_PUSH_SUBJECT` | `mailto:tenfold@localhost` | Contact address in the VAPID claim; operator data, never user data |
+| `TENFOLD_STATS_KEY` | *(empty = off)* | Opt-in visitor counters. Unset: nothing is counted and `/stats` 404s. Set: aggregate per-day counts (loads, visitors, referrer hosts, countries, mobile/desktop, bots) in `stats.json`, readable at `/stats?k=<key>`; no IP or identifier is ever stored ([contracts](docs/CONTRACTS.md)) |
 
 Keeping it alive on macOS (`tools/com.tenfold.serve.plist`):
 
@@ -376,12 +384,13 @@ npx playwright test                    # the whole suite, headless Chromium
 npx playwright test tests/crypto.spec.js
 ```
 
-302 tests in 23 spec files, run against the app's own server instance on port 7711 with
+309 tests in 24 spec files, run against the app's own server instance on port 7711 with
 a throwaway data directory, never against a running production server. They cover the
 crypto round trip, every envelope on its own including WebAuthn PRF, tamper detection,
 the merge rules, the plaintext-leak guarantee of the store, both readings of the map,
 the row gestures, the QR encoder and the hand-written photo decoder, sync, pairing and
-delete-everywhere, the relay's SSRF wall and the photo import, i18n key-set equality
+delete-everywhere, the relay's SSRF wall and the photo import, the visitor counters
+including the proof that they stay absent unless switched on, i18n key-set equality
 across all three locales, the wide viewport tier, the source rules (no `innerHTML`, no
 `eval`, no fetch outside the three modules allowed to have it, no emoji), and the full
 chain from setup to sync.
