@@ -11,6 +11,7 @@
 import { el, text, icon, brandMark } from "./dom.js";
 import { nodeList, composer } from "./rows.js";
 import { dueCounts } from "../model.js";
+import { treeReviewAvailable } from "../aihelp.js";
 import { t } from "../i18n.js";
 import { relativeTime } from "./format.js";
 
@@ -78,6 +79,33 @@ function dueHint(ctx) {
   );
 }
 
+/**
+ * The title of this screen, and the one thing tapping it does: carry the WHOLE
+ * list out as a review prompt.
+ *
+ * The heading stays a heading - the h1 keeps its role and the button lives
+ * inside it, so nothing about the document outline changes. The line above it
+ * is the precedent for the shape (`button.h-sub` becomes tappable only while it
+ * has somewhere to lead) and for the register: no chevron, no icon, no colour.
+ * A list that is empty, or every goal of which is kept away from models, has
+ * nothing to review, and then this is a plain heading again.
+ */
+function headerTitle(ctx) {
+  const label = t("outline.title");
+  if (!treeReviewAvailable(ctx.doc)) return el("h1", { class: "h-title" }, [text(label)]);
+  return el("h1", { class: "h-title" }, [
+    el(
+      "button",
+      {
+        class: "h-title-btn",
+        attrs: { type: "button", "aria-label": t("a11y.treeReview") },
+        on: { click: () => ctx.aiHelpTree() },
+      },
+      [text(label)],
+    ),
+  ]);
+}
+
 function emptyState(ctx) {
   return el("div", { class: "empty" }, [
     el("div", { class: "empty-mark" }, [icon("mark", 30)]),
@@ -134,10 +162,7 @@ export function render(ctx) {
 
   const head = el("div", { class: "head" }, [
     el("div", { class: "head-row" }, [
-      el("div", {}, [
-        brandMark(),
-        el("h1", { class: "h-title" }, [text(t("outline.title"))]),
-      ]),
+      el("div", {}, [brandMark(), headerTitle(ctx)]),
       actions,
     ]),
     headerSub(ctx),

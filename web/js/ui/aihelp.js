@@ -6,6 +6,11 @@
 // back it takes whatever was pasted - the whole chat, prose and all - reads the
 // list out of it, and shows what would be created before anything is.
 //
+// The same sheet has a second mode with only one half. Opened from the outline
+// title it carries the WHOLE list out as a review prompt - and stops there: no
+// paste row, no parser, no preview, no Apply, because that answer is prose to
+// read and not steps to import. The line where the paste row would be says so.
+//
 // What it deliberately does NOT do: it never talks to a model, it never
 // installs anything, it knows no provider and holds no key - the person owns
 // that half of the loop and always will. It never writes to the document
@@ -16,7 +21,7 @@
 import { el, text, icon, clear } from "./dom.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { t, getLocale } from "../i18n.js";
-import { buildPrompt, parseAnswer } from "../aihelp.js";
+import { buildPrompt, buildTreePrompt, parseAnswer } from "../aihelp.js";
 
 /** How many of the lines the preview writes out before it counts the rest. */
 export const PREVIEW_LINES = 8;
@@ -280,4 +285,109 @@ export function openAiHelp(layer, ctx, node) {
 
   paintPrompt();
   openSheet(layer, { title: t("aihelp.title"), body, footer, onClose: () => reset() });
+}
+
+// ------------------------------------------------------------- the whole list
+
+/**
+ * The same sheet in TREE MODE: the list of ten, once, as a prompt to carry out.
+ *
+ * Owner's question: "Click auf The Ten soll mir Think it through with an AI
+ * Prompt für den gesamten Baum anbieten. Ist das zu viel?" No - but only as a
+ * different thing. This is a review, a Bestandsaufnahme, and its answer is
+ * prose to read.
+ *
+ * So there is NO way back in here, and that is the whole difference in the UI:
+ * no paste row, no parser, no preview, no Apply. One prompt, copy or share, and
+ * a line under it that says so plainly, because a person who has used the leaf
+ * sheet will look for the paste row and should be told rather than left hunting.
+ *
+ * @param {Element} layer the overlay host
+ * @param {Object} ctx the app context
+ */
+export function openAiHelpTree(layer, ctx) {
+  const now = typeof ctx.now === "function" ? ctx.now() : Date.now();
+  const built = buildTreePrompt(ctx.doc, getLocale(), { now });
+  // No list, or a list every goal of which is kept away from models: nothing
+  // opens. The same rule the leaf sheet applies at its own door.
+  if (!built) return;
+
+  const goals = built.context.goals.length;
+  const body = el("div", { class: "assist" });
+  const footer = el("div", { class: "sheet-foot" });
+
+  body.appendChild(
+    el("p", { class: "field-hint" }, [
+      text(goals === 1 ? t("aihelp.tree.scopeOne") : t("aihelp.tree.scope", { n: goals })),
+    ]),
+  );
+
+  const field = el("textarea", {
+    class: "textarea is-prompt",
+    attrs: { rows: "12", readonly: "readonly", spellcheck: "false", "aria-label": t("aihelp.tree.title") },
+    dataset: { ai: "tree-prompt" },
+  });
+  field.value = built.text;
+  body.appendChild(field);
+
+  // The line the leaf sheet spends on its paste row. Here it says the opposite,
+  // in the same place, so the absence reads as a decision and not as a gap.
+  body.appendChild(
+    el("p", { class: "field-hint", dataset: { ai: "tree-nopaste" } }, [text(t("aihelp.tree.noPaste"))]),
+  );
+
+  const btn = (label, onClick, primary, extra) =>
+    el(
+      "button",
+      {
+        class: `btn${primary ? " is-primary" : ""}`,
+        attrs: { type: "button" },
+        dataset: extra || null,
+        on: { click: onClick },
+      },
+      [text(label)],
+    );
+
+  if (canShare()) {
+    footer.appendChild(
+      btn(
+        t("aihelp.share"),
+        () => {
+          try {
+            const shared = navigator.share({ text: built.text });
+            if (shared && typeof shared.catch === "function") shared.catch(() => {});
+          } catch {
+            // A cancelled share menu is a decision, not an error.
+          }
+        },
+        false,
+        { ai: "tree-share" },
+      ),
+    );
+  }
+  footer.appendChild(
+    btn(
+      t("aihelp.copy"),
+      async () => {
+        const ok = await toClipboard(built.text);
+        if (!ok) {
+          field.focus();
+          field.select();
+        }
+        ctx.toast(ok ? t("aihelp.copied") : t("aihelp.copyByHand"));
+      },
+      true,
+      { ai: "tree-copy" },
+    ),
+  );
+
+  openSheet(layer, {
+    title: t("aihelp.tree.title"),
+    body,
+    footer,
+    onClose: () => {
+      clear(body);
+      clear(footer);
+    },
+  });
 }

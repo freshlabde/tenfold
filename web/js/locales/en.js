@@ -627,6 +627,13 @@ export const en = {
   "aihelp.preview.apply": "Write them",
   "aihelp.applied": "{n} taken over.",
 
+  // The same loop, but for the whole list at once: a review to read, never
+  // steps to import. Opened from the title of the outline screen.
+  "aihelp.tree.title": "Look at the whole list with an AI",
+  "aihelp.tree.scope": "What travels: your {n} goals in their order, with their status, a short piece of each story, what is due under them and how far each one got. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.tree.scopeOne": "What travels: your one goal with its status, a short piece of its story, what is due under it and how far it got. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.tree.noPaste": "This one comes back as reading, not as steps. Nothing from the answer is pasted into your list.",
+
   // ------------------------------------------------------------------- share
   "share.title": "Shared with tenfold",
   "share.body": "This came in from another app. It is held on this device unencrypted until you file it or discard it.",
@@ -661,6 +668,7 @@ export const en = {
   "a11y.onlyHere": "This list is only in this browser. Set up a backup.",
   "a11y.back": "Back one level",
   "a11y.dueHint": "{what}. Open Today.",
+  "a11y.treeReview": "The Ten. Look at the whole list with an AI.",
 
   // -------------------------------------------------------------------- time
   "time.justNow": "just now",

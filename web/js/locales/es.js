@@ -617,6 +617,13 @@ export const es = {
   "aihelp.preview.apply": "Escribirlos",
   "aihelp.applied": "{n} aceptados.",
 
+  // El mismo bucle, pero para la lista entera: una revisión para leer, nunca
+  // pasos para importar. Se abre desde el título de la pantalla principal.
+  "aihelp.tree.title": "Mirar la lista entera con una IA",
+  "aihelp.tree.scope": "Qué viaja: tus {n} objetivos en su orden, con su estado, un trozo corto de cada historia, lo que vence debajo de ellos y por dónde va cada uno. Las fichas que marcaste como sensibles, las notas de las fichas y todo lo que mantienes lejos de un modelo se quedan aquí.",
+  "aihelp.tree.scopeOne": "Qué viaja: tu único objetivo con su estado, un trozo corto de su historia, lo que vence debajo y por dónde va. Las fichas que marcaste como sensibles, las notas de las fichas y todo lo que mantienes lejos de un modelo se quedan aquí.",
+  "aihelp.tree.noPaste": "Esta respuesta vuelve para leerla, no como pasos. Nada de ella se pega en tu lista.",
+
   // ------------------------------------------------------------------- share
   "share.title": "Compartido con tenfold",
   "share.body": "Esto llega desde otra aplicación. Se guarda sin cifrar en este dispositivo hasta que lo archives o lo descartes.",
@@ -651,6 +658,7 @@ export const es = {
   "a11y.onlyHere": "Esta lista solo está en este navegador. Configura una copia de seguridad.",
   "a11y.back": "Un nivel atrás",
   "a11y.dueHint": "{what}. Abrir Hoy.",
+  "a11y.treeReview": "Los Diez. Mirar la lista entera con una IA.",
 
   // -------------------------------------------------------------------- time
   "time.justNow": "ahora mismo",

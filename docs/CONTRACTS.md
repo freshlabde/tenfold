@@ -1362,6 +1362,51 @@ Vorschlag, nie Ausfuehrung.
 so the leaf screen offers it whether or not any other assistance is configured. Without it the
 promise above would have no control behind it.
 
+### The tree review: the whole list, and no way back
+
+Owner's question: *"Click auf The Ten soll mir Think it through with an AI Prompt für den
+gesamten Baum anbieten. Ist das zu viel?"* It is not, but only as a **different prompt**. The
+leaf prompt UNFOLDS one goal into steps and therefore ends in a format contract. The tree prompt
+REVIEWS the list - a Bestandsaufnahme - and ends in prose.
+
+**Entry point:** the title of the outline screen. The `<h1 class="h-title">` keeps its heading
+role and holds a `button.h-title-btn` (`aria-label` from `a11y.treeReview`) - the same treatment
+`button.h-sub` gets one line below it, and the same register: no chevron, no icon, no colour,
+a press dims it. It is a plain heading again whenever `treeReviewAvailable(doc)` is false, which
+is an empty list or one whose every goal is kept away from models.
+
+**What enters it** (`buildTreeContext`, pure, tested): the LIVING ROOTS only, never the tree
+under them. Per goal: its rank in the document, title, status, a story excerpt, due pressure
+(overdue / due today, counted with `model.dueCounts` over that goal's subtree) and progress
+(done of total steps). Plus the linked cards of the roots, through the same `collectCards` the
+leaf prompt uses - one function, so the card rule cannot drift into two versions.
+
+**What never enters it** is what never enters the leaf prompt, enforced in the same builder
+layer: an opted-out root is **absent and counted**, an opted-out branch under a living root is
+absent **and out of that root's counts**, a card marked `sensitivity: "high"` is dropped, and
+card notes never travel. Ranks are the document's ranks, so a withheld goal leaves a **gap**
+rather than a silently renumbered list, and the "left out on purpose" line explains it.
+
+**Story excerpts: `MAX_STORY_EXCERPT` = 240 characters**, cut on a word boundary and flattened
+to one paragraph. Ten stories written properly are pages, and a prompt nobody reads to the end
+is a prompt whose ask gets skimmed; 240 is about three sentences, enough to tell a goal with a
+reason behind it from a goal that is only a title. A cut story is **marked** on its own line
+(`(story continues)`) and the prompt says once, in a sentence of its own, that the longer ones
+were cut and the rest can be asked for.
+
+**The ask** (`PROMPT[locale].tree.ask`, en/de/es): read the whole of it first; up to three
+questions, only where an answer would change the reading; then the review proper - where goals
+collide or are the same goal twice, which are too vague to unfold, which have no story yet,
+whether the order is honest, and which ONE deserves the coming week; then a short verdict in
+prose, in the person's words.
+
+**No paste-back, anywhere.** There is no code-block contract in this prompt (a spec asserts the
+absence of a fence, of the word JSON and of the `"step"`/`"substeps"` keys in all three
+languages, while asserting the leaf prompt built from the same document still carries all of
+them). The sheet opened in tree mode has no paste row, no parser, no preview and no Apply; the
+line where the leaf sheet puts its paste row says so instead. Copy and share behave exactly as
+they do on the leaf side.
+
 ## Visitor counters (`TENFOLD_STATS_KEY`, off by default)
 
 The server logs nothing. This is the **third explicit exception** to that rule, after the VAPID

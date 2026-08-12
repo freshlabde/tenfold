@@ -8,6 +8,14 @@
 // indented outline when a model ignored the demand, and either becomes steps
 // under the same node.
 //
+// There is a SECOND prompt in here, and it is not that loop. The tree review
+// takes the whole list - every root goal, its story in excerpt, what is due
+// under it and how far it got - and asks for a reading of it: what collides,
+// what is too vague to unfold, what has no story yet, whether the order is
+// honest, which one deserves the coming week. It ends in prose and has no way
+// home: nothing that comes back from it is parsed, previewed or written. Two
+// prompts, two shapes, on purpose - one that asked for both would get neither.
+//
 // What it deliberately does NOT do: it does not fetch, does not touch the DOM,
 // does not read storage and holds no state. It is a string builder and a text
 // parser, and both are pure - the same document and the same text always give
@@ -21,12 +29,26 @@
 // sync id, the recovery material and the settings have no representation in
 // this file at all; they cannot be forgotten out because they were never in.
 
-import { ancestorsOf, childrenOf, isOptedOut } from "./model.js";
+import { ancestorsOf, childrenOf, descendantsOf, dueCounts, isOptedOut } from "./model.js";
 import { entityById } from "./entities.js";
 
 /** The neighbourhood is a neighbourhood, not a tree walk. */
 export const MAX_CHILDREN = 20;
 export const MAX_ENTITIES = 12;
+
+/**
+ * How much of one story travels in the WHOLE-LIST prompt.
+ *
+ * The leaf prompt carries one story entire, because it is about that one goal.
+ * The tree prompt carries ten, and ten stories written properly are pages - a
+ * prompt nobody reads to the end is a prompt whose last paragraph, the ask,
+ * gets skimmed. 240 characters is about three sentences: enough for a model to
+ * tell a goal with a reason behind it from a goal that is only a title, which
+ * is exactly the distinction the review is asked to make. What is cut is
+ * MARKED, and the prompt says in one line that it was cut and that the rest can
+ * be asked for.
+ */
+export const MAX_STORY_EXCERPT = 240;
 
 /** Four levels deep, 0..3 - the depth a real outline reaches. */
 export const MAX_OUTLINE_LEVEL = 3;
@@ -39,6 +61,53 @@ export const MAX_OUTLINE_TITLE = 200;
 
 function line(value) {
   return String(value === null || value === undefined ? "" : value).trim();
+}
+
+/**
+ * The cards behind a set of references, under the one rule both prompts obey.
+ *
+ * Written once because it is the rule, not a convenience: a card marked
+ * sensitive is dropped and counted, the notes on ANY card never travel, and the
+ * cap holds whether the references came from one goal's chain or from all ten.
+ * A second copy of this in the tree builder would be a second place for the
+ * rule to drift.
+ *
+ * @param {Array} entities the document's cards
+ * @param {string[]} refs card ids, in the order they were met
+ * @param {{sensitive: number, notes: boolean}} omitted counted in place
+ */
+function collectCards(entities, refs, omitted) {
+  const cards = [];
+  for (const id of refs) {
+    const card = entityById(entities, id);
+    if (!card || card.deletedAt) continue;
+    if (card.sensitivity === "high") {
+      omitted.sensitive += 1;
+      continue;
+    }
+    // The history on a card never travels this way. A name and what somebody
+    // is to you make the card readable; the notes are the private half.
+    if (line(card.notes)) omitted.notes = true;
+    cards.push({ name: line(card.name), kind: card.kind, relation: line(card.relation) });
+    if (cards.length >= MAX_ENTITIES) break;
+  }
+  return cards;
+}
+
+/**
+ * One story, cut to length on a word boundary and flattened to a paragraph.
+ * The guide writes a story as labelled blocks with blank lines between them;
+ * inside a list of ten that shape turns the block into a wall, so the excerpt
+ * is one run of text. The cut is reported by the caller, never hidden.
+ */
+function excerptOf(story) {
+  const flat = line(story).replace(/\s+/g, " ");
+  if (flat.length <= MAX_STORY_EXCERPT) return flat;
+  const cut = flat.slice(0, MAX_STORY_EXCERPT);
+  const space = cut.lastIndexOf(" ");
+  // Only break at a space that is actually near the end; a story without one
+  // (a long single word, a pasted URL) is cut where the limit falls.
+  return (space > MAX_STORY_EXCERPT * 0.6 ? cut.slice(0, space) : cut).trim();
 }
 
 // ------------------------------------------------------------ what may travel
@@ -86,20 +155,7 @@ export function buildCopyContext(doc, nodeId) {
       if (!refs.includes(id)) refs.push(id);
     }
   }
-  const cards = [];
-  for (const id of refs) {
-    const card = entityById(entities, id);
-    if (!card || card.deletedAt) continue;
-    if (card.sensitivity === "high") {
-      omitted.sensitive += 1;
-      continue;
-    }
-    // The history on a card never travels this way. A name and what somebody
-    // is to you make the card readable; the notes are the private half.
-    if (line(card.notes)) omitted.notes = true;
-    cards.push({ name: line(card.name), kind: card.kind, relation: line(card.relation) });
-    if (cards.length >= MAX_ENTITIES) break;
-  }
+  const cards = collectCards(entities, refs, omitted);
 
   return {
     target: {
@@ -118,6 +174,91 @@ export function buildCopyContext(doc, nodeId) {
     // What the prompt will be made of, countable: a test can assert that it
     // never grows with the tree.
     nodeCount: 1 + chain.length + children.length,
+  };
+}
+
+/**
+ * The WHOLE list, once - the other prompt this app can build.
+ *
+ * Owner's question: "Click auf The Ten soll mir Think it through with an AI
+ * Prompt für den gesamten Baum anbieten. Ist das zu viel?" It is not, as long
+ * as it asks for something else: the leaf prompt UNFOLDS one goal into steps
+ * and ends in a format contract, this one REVIEWS ten and ends in prose. What
+ * comes back is read, not imported, which is why nothing here has a way home.
+ *
+ * Scoped by exactly the rules the leaf prompt is scoped by, and for the same
+ * reason - the text leaves this device by hand:
+ *  - a root kept away from any model is ABSENT, not reduced, and counted;
+ *  - so is an opted-out branch under a root, including from its own counts;
+ *  - a card marked sensitive is dropped, the notes on any card never travel;
+ *  - a story longer than MAX_STORY_EXCERPT is cut, and the cut is declared.
+ *
+ * The ranks are the ranks in the document, so a withheld goal leaves a gap the
+ * "left out on purpose" line explains rather than a silently renumbered list.
+ *
+ * @param {Object} doc the open document
+ * @param {{now?: number}} [opts] injectable clock, as everywhere else
+ * @returns {Object|null} null when there is no list to review
+ */
+export function buildTreeContext(doc, opts = {}) {
+  const nodes = doc && Array.isArray(doc.nodes) ? doc.nodes : [];
+  const entities = doc && Array.isArray(doc.entities) ? doc.entities : [];
+  const now = typeof opts.now === "number" ? opts.now : Date.now();
+
+  const roots = childrenOf(nodes, null);
+  if (!roots.length) return null;
+
+  const omitted = { optout: 0, sensitive: 0, notes: false };
+  const goals = [];
+  const refs = [];
+  let cutStories = 0;
+
+  roots.forEach((root, index) => {
+    if (isOptedOut(nodes, root.id)) {
+      omitted.optout += 1;
+      return;
+    }
+    const living = descendantsOf(nodes, root.id).filter((n) => !n.deletedAt);
+    const open = living.filter((n) => !isOptedOut(nodes, n.id));
+    omitted.optout += living.length - open.length;
+
+    // The due split is the model's own definition, not a second one: the same
+    // primitive the badge, the Today list and the outline hint already share.
+    const { overdue, today } = dueCounts([root, ...open], { now });
+    const story = line(root.story);
+    const excerpt = excerptOf(story);
+    if (excerpt.length < story.replace(/\s+/g, " ").length) cutStories += 1;
+
+    goals.push({
+      rank: index + 1,
+      title: line(root.title),
+      status: root.status,
+      story: excerpt,
+      hasStory: !!story,
+      storyCut: excerpt.length < story.replace(/\s+/g, " ").length,
+      overdue,
+      today,
+      done: open.filter((n) => n.status === "done").length,
+      steps: open.length,
+    });
+
+    for (const id of Array.isArray(root.entityRefs) ? root.entityRefs : []) {
+      if (!refs.includes(id)) refs.push(id);
+    }
+  });
+
+  // Ten goals all kept away from models are ten goals with no prompt, the same
+  // answer buildCopyContext gives for one.
+  if (!goals.length) return null;
+
+  return {
+    goals,
+    entities: collectCards(entities, refs, omitted),
+    omitted,
+    cutStories,
+    // Countable, like the leaf context: a test can pin that the prompt is the
+    // ten roots and nothing under them.
+    nodeCount: goals.length,
   };
 }
 
@@ -162,6 +303,32 @@ export const PROMPT = {
       'Then end your answer with a single code block, fenced with three backticks, holding nothing but a JSON array of those steps, exactly like this:\n\n```\n[{"step": "Call the practice on Monday", "substeps": ["Ask for the earliest slot", "Write the date on the fridge"]}]\n```\n\n"substeps" is optional - a step with nothing under it is just {"step": "..."}. No commentary inside the block, no second block, nothing after it. That is the deal: whatever else you write, end with that one code block.',
       "And if we keep talking after this, the same holds for every answer that follows: each one ends again with the complete, updated list in that same block - the whole list, not only the part that changed.",
     ],
+    tree: {
+      open: "I keep one list of goals in an honest order, and I would like you to look at the whole of it rather than at any one of them.",
+      here: "Here they are, with their stories and how far each one got.",
+      labels: {
+        list: "THE LIST",
+        story: "STORY",
+        due: "PRESSURE",
+        progress: "PROGRESS",
+        cards: "PEOPLE AND PLACES",
+        withheld: "LEFT OUT ON PURPOSE",
+      },
+      marks: {
+        noStory: "nothing written yet",
+        more: "(story continues)",
+        noSteps: "no steps yet",
+      },
+      due: { overdue: "{n} overdue", today: "{n} due today", none: "nothing due" },
+      progress: "{done} of {total} steps done",
+      excerpt: "The longer stories are cut off after about {n} characters and marked. Ask me for the rest of one if it would change what you say.",
+      ask: [
+        "Read the whole of it before you say anything about a single line of it.",
+        "First: ask me up to three questions, and only the ones whose answers would really change how you read this list. Then stop and wait for me.",
+        "After I have answered, go through the list as a list and tell me: where two goals collide, or are the same goal written twice; which ones are so vague that they could not be unfolded into steps at all; which have no story yet and would mean little until they have one; whether the order is honest, or whether something further down is quietly the thing that matters most; and which ONE of them deserves the coming week.",
+        "End with a short verdict I can act on. Prose, in my words and my situation, not general advice, and no list is demanded of you. Nothing you write goes back into the app - I am going to read this, not import it.",
+      ],
+    },
   },
   de: {
     open: "Ich zerlege ein Ziel in Schritte, die ich wirklich tun kann, und hätte gern Hilfe bei den nächsten.",
@@ -191,6 +358,32 @@ export const PROMPT = {
       'Beende deine Antwort dann mit genau einem Codeblock, eingerahmt von drei Backticks, und schreib nichts hinein außer einem JSON-Array dieser Schritte, genau so:\n\n```\n[{"step": "Am Montag in der Praxis anrufen", "substeps": ["Nach dem frühesten Termin fragen", "Das Datum an den Kühlschrank schreiben"]}]\n```\n\n"substeps" ist optional - ein Schritt ohne etwas darunter ist einfach {"step": "..."}. Kein Kommentar im Block, kein zweiter Block, nichts danach. Das ist die Abmachung: was du sonst auch schreibst, hör mit diesem einen Codeblock auf.',
       "Und wenn wir danach weiterreden, gilt das für jede weitere Antwort genauso: jede endet wieder mit der vollständigen, aktualisierten Liste in genau diesem Block - der ganzen Liste, nicht nur dem, was sich geändert hat.",
     ],
+    tree: {
+      open: "Ich führe eine Liste von Zielen in einer ehrlichen Reihenfolge, und ich hätte gern, dass du dir das Ganze ansiehst und nicht ein einzelnes davon.",
+      here: "Hier ist sie, mit den Geschichten und dem Stand.",
+      labels: {
+        list: "DIE LISTE",
+        story: "GESCHICHTE",
+        due: "DRUCK",
+        progress: "STAND",
+        cards: "MENSCHEN UND ORTE",
+        withheld: "BEWUSST WEGGELASSEN",
+      },
+      marks: {
+        noStory: "noch nichts aufgeschrieben",
+        more: "(die Geschichte geht weiter)",
+        noSteps: "noch keine Schritte",
+      },
+      due: { overdue: "{n} überfällig", today: "{n} heute fällig", none: "nichts fällig" },
+      progress: "{done} von {total} Schritten erledigt",
+      excerpt: "Die längeren Geschichten sind nach etwa {n} Zeichen abgeschnitten und markiert. Frag mich nach dem Rest, wenn er etwas an deiner Antwort ändern würde.",
+      ask: [
+        "Lies das Ganze, bevor du zu einer einzelnen Zeile etwas sagst.",
+        "Zuerst: stell mir bis zu drei Fragen, und nur die, deren Antworten wirklich etwas daran ändern, wie du diese Liste liest. Dann halt an und warte auf mich.",
+        "Wenn ich geantwortet habe, geh die Liste als Liste durch und sag mir: wo zwei Ziele sich in die Quere kommen oder dasselbe Ziel zweimal dasteht; welche so vage sind, dass man sie gar nicht in Schritte zerlegen könnte; welche noch keine Geschichte haben und ohne sie wenig bedeuten; ob die Reihenfolge ehrlich ist, oder ob weiter unten still das steht, worauf es eigentlich ankommt; und welches EINE davon die kommende Woche verdient.",
+        "Hör mit einem kurzen Urteil auf, mit dem ich etwas anfangen kann. Fließtext, in meinen Worten und meiner Lage, kein allgemeiner Rat, und ich verlange keine Liste von dir. Nichts davon geht zurück in die App - ich lese das, ich importiere es nicht.",
+      ],
+    },
   },
   es: {
     open: "Estoy desplegando un objetivo en pasos que pueda hacer de verdad, y me vendría bien tu ayuda con los siguientes.",
@@ -220,6 +413,32 @@ export const PROMPT = {
       'Y termina tu respuesta con un único bloque de código, delimitado por tres acentos graves, sin nada dentro más que un array JSON de esos pasos, exactamente así:\n\n```\n[{"step": "Llamar a la consulta el lunes", "substeps": ["Pedir la cita más temprana", "Apuntar la fecha en la nevera"]}]\n```\n\n"substeps" es opcional - un paso sin nada debajo es simplemente {"step": "..."}. Sin comentarios dentro del bloque, sin un segundo bloque, nada después. Ese es el trato: escribas lo que escribas, acaba con ese único bloque de código.',
       "Y si seguimos hablando después, lo mismo vale para cada respuesta siguiente: cada una termina otra vez con la lista completa y actualizada en ese mismo bloque - la lista entera, no solo lo que ha cambiado.",
     ],
+    tree: {
+      open: "Llevo una sola lista de objetivos en un orden honesto, y me gustaría que miraras el conjunto y no uno solo de ellos.",
+      here: "Aquí está, con sus historias y por dónde va cada uno.",
+      labels: {
+        list: "LA LISTA",
+        story: "HISTORIA",
+        due: "PRESIÓN",
+        progress: "AVANCE",
+        cards: "PERSONAS Y LUGARES",
+        withheld: "OMITIDO A PROPÓSITO",
+      },
+      marks: {
+        noStory: "todavía sin escribir",
+        more: "(la historia sigue)",
+        noSteps: "todavía sin pasos",
+      },
+      due: { overdue: "{n} fuera de plazo", today: "{n} para hoy", none: "nada pendiente" },
+      progress: "{done} de {total} pasos hechos",
+      excerpt: "Las historias más largas se cortan sobre los {n} caracteres y quedan marcadas. Pídeme el resto de alguna si cambiaría lo que vas a decir.",
+      ask: [
+        "Lee el conjunto antes de decir nada sobre una sola línea.",
+        "Primero: hazme hasta tres preguntas, solo aquellas cuya respuesta cambiaría de verdad cómo lees esta lista. Luego para y espera.",
+        "Cuando te haya respondido, repasa la lista como lista y dime: dónde dos objetivos chocan, o son el mismo escrito dos veces; cuáles son tan vagos que no podrían desplegarse en pasos; cuáles no tienen historia todavía y sin ella significan poco; si el orden es honesto, o si más abajo está en silencio lo que de verdad importa; y cuál de ellos merece la semana que viene.",
+        "Termina con un veredicto corto con el que pueda hacer algo. En prosa, con mis palabras y mi situación, no consejo general, y no te pido ninguna lista. Nada de lo que escribas vuelve a la aplicación: esto lo voy a leer, no importar.",
+      ],
+    },
   },
 };
 
@@ -292,6 +511,95 @@ export function buildPrompt(doc, nodeId, locale) {
   const context = buildCopyContext(doc, nodeId);
   if (!context) return null;
   return { text: renderPrompt(context, locale), context };
+}
+
+/** `{n}`, `{done}`, `{total}` in a prompt template. */
+function fill(template, values) {
+  return String(template).replace(/\{(\w+)\}/g, (whole, key) =>
+    values[key] === undefined ? whole : String(values[key]),
+  );
+}
+
+/**
+ * The whole list as one block, then the review it asks for.
+ *
+ * Deliberately WITHOUT a format contract at the end. The leaf prompt closes on
+ * a fenced JSON block because its answer comes back into the document; this one
+ * closes on "I am going to read this, not import it", and a spec pins that no
+ * code fence, no schema and no JSON word ever creeps in. Two prompts that ask
+ * for two shapes is the point - one that asked for both would get neither.
+ *
+ * @param {Object} context the object buildTreeContext returned
+ * @param {string} locale
+ * @returns {string}
+ */
+export function renderTreePrompt(context, locale) {
+  const w = wordsFor(locale);
+  const T = w.tree;
+  const L = T.labels;
+  const out = [`${T.open}\n${T.here}`];
+
+  const rows = [];
+  for (const goal of context.goals) {
+    rows.push(`${goal.rank}. ${goal.title} (${w.status[goal.status] || goal.status})`);
+    const story = goal.hasStory ? `${goal.story}${goal.storyCut ? ` ${T.marks.more}` : ""}` : T.marks.noStory;
+    rows.push(`   ${L.story}: ${story}`);
+    const pressure = [];
+    if (goal.overdue) pressure.push(fill(T.due.overdue, { n: goal.overdue }));
+    if (goal.today) pressure.push(fill(T.due.today, { n: goal.today }));
+    rows.push(`   ${L.due}: ${pressure.length ? pressure.join(", ") : T.due.none}`);
+    rows.push(
+      `   ${L.progress}: ${
+        goal.steps ? fill(T.progress, { done: goal.done, total: goal.steps }) : T.marks.noSteps
+      }`,
+    );
+    rows.push("");
+  }
+
+  const block = [`${L.list}:\n${rows.join("\n").trimEnd()}`];
+  if (context.entities.length) {
+    const cards = context.entities
+      .map((e) => `- ${e.name} (${e.kind}${e.relation ? `, ${e.relation}` : ""})`)
+      .join("\n");
+    block.push(`${L.cards}:\n${cards}`);
+  }
+  // Said out loud, because a model that does not know a story was cut will read
+  // the cut as the whole of it and call a considered goal thin.
+  if (context.cutStories) block.push(fill(T.excerpt, { n: MAX_STORY_EXCERPT }));
+
+  const kept = [];
+  if (context.omitted.optout) kept.push(w.withheld.optout);
+  if (context.omitted.sensitive) kept.push(w.withheld.sensitive);
+  if (context.omitted.notes) kept.push(w.withheld.notes);
+  if (kept.length) block.push(`${L.withheld}: ${kept.join(", ")}. ${w.withheld.tail}`);
+
+  out.push(block.join("\n\n"));
+  out.push(T.ask.join("\n\n"));
+  return out.join("\n\n");
+}
+
+/**
+ * The review prompt for the whole list, or null when there is nothing to review
+ * - an empty list, or one whose every goal is kept away from models.
+ *
+ * @param {Object} doc
+ * @param {string} locale
+ * @param {{now?: number}} [opts]
+ * @returns {{text: string, context: Object}|null}
+ */
+export function buildTreePrompt(doc, locale, opts = {}) {
+  const context = buildTreeContext(doc, opts);
+  if (!context) return null;
+  return { text: renderTreePrompt(context, locale), context };
+}
+
+/**
+ * Whether the outline title is worth making tappable. The screen asks this on
+ * every paint, so it stops at the context and never renders a prompt nobody
+ * asked for.
+ */
+export function treeReviewAvailable(doc) {
+  return !!buildTreeContext(doc);
 }
 
 // ---------------------------------------------------------- reading an answer

@@ -1384,6 +1384,16 @@ const ctx = {
   },
 
   /**
+   * The same loop with only one half: the WHOLE list as a review prompt, from
+   * the outline title. What comes back is prose to read, so there is no way
+   * back in - the sheet carries no paste row and this context no importer for
+   * it.
+   */
+  aiHelpTree() {
+    aihelp.openAiHelpTree(layerEl, ctx);
+  },
+
+  /**
    * Whether a node is kept away from the model, and whether that decision was
    * made here or further up. An inherited state is shown, never toggled: the
    * switch belongs where it was thrown.

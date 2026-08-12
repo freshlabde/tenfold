@@ -617,6 +617,13 @@ export const de = {
   "aihelp.preview.apply": "Anlegen",
   "aihelp.applied": "{n} übernommen.",
 
+  // Dieselbe Schleife, aber für die ganze Liste auf einmal: eine Durchsicht
+  // zum Lesen, nie Schritte zum Übernehmen. Über den Titel der Übersicht.
+  "aihelp.tree.title": "Die ganze Liste mit einer KI ansehen",
+  "aihelp.tree.scope": "Was mitgeht: deine {n} Ziele in ihrer Reihenfolge, mit Status, einem kurzen Stück jeder Geschichte, was darunter fällig ist und wie weit jedes gekommen ist. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.tree.scopeOne": "Was mitgeht: dein eines Ziel mit Status, einem kurzen Stück seiner Geschichte, was darunter fällig ist und wie weit es gekommen ist. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.tree.noPaste": "Das hier kommt als Text zum Lesen zurück, nicht als Schritte. Nichts aus der Antwort wird in deine Liste eingefügt.",
+
   // ------------------------------------------------------------------- share
   "share.title": "Mit tenfold geteilt",
   "share.body": "Das kam aus einer anderen App. Es liegt unverschlüsselt auf diesem Gerät, bis du es einsortierst oder verwirfst.",
@@ -651,6 +658,7 @@ export const de = {
   "a11y.onlyHere": "Diese Liste liegt nur in diesem Browser. Sicherung einrichten.",
   "a11y.back": "Eine Ebene zurück",
   "a11y.dueHint": "{what}. Heute öffnen.",
+  "a11y.treeReview": "Die Zehn. Die ganze Liste mit einer KI ansehen.",
 
   // -------------------------------------------------------------------- time
   "time.justNow": "gerade eben",

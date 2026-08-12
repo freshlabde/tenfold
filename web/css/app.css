@@ -190,6 +190,30 @@ input[type="search"]::-webkit-search-decoration {
   color: var(--text);
 }
 
+/* The title of the ten, tappable: it opens the review prompt for the whole
+   list. The same treatment button.h-sub gets one rule below - the heading keeps
+   its role, the button inside it takes back every default it does not want, and
+   it looks like the word it always was. A press dims it; there is no chevron,
+   no underline and no colour, because a control that shouts on the largest type
+   on the screen would make the screen about itself. */
+.h-title-btn {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.h-title-btn:active { opacity: .55; }
+
 .h-sub {
   margin: 7px 0 0;
   font-family: var(--font-mono);
