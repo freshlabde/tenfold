@@ -866,7 +866,7 @@ export function render(ctx) {
     ]),
     group("settings.group.app", [
       row("settings.about", "settings.aboutDesc", null, () => ctx.go("about")),
-      row("settings.version", null, ctx.version, null, { disabled: true }),
+      row("settings.version", null, `${ctx.version} \u00b7 ${ctx.cacheVersion}`, null, { disabled: true }),
     ]),
   ]);
 

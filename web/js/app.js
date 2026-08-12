@@ -71,6 +71,12 @@ const AUTOSAVE_MS = 600;
 const MAX_ROOTS = 10;
 const UI_PREF_KEY = "tenfold.ui";
 export const APP_VERSION = "1.0.0";
+// The cache generation, mirrored from web/sw.js VERSION and shown in the
+// settings foot - the one answer to "which build is this phone actually
+// running?" that survives a stale service worker debate. A drift guard in
+// tests/regressions.spec.js keeps the two strings identical; the bump command
+// rewrites both.
+export const CACHE_VERSION = "tenfold-v53";
 
 const appEl = document.getElementById("app");
 const layerEl = document.getElementById("layer");
@@ -599,6 +605,7 @@ const ctx = {
     return !!state.undo;
   },
   version: APP_VERSION,
+  cacheVersion: CACHE_VERSION,
   idleMinutes: Math.round(IDLE_LOCK_MS / 60000),
   now: () => Date.now(),
   t,

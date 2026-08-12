@@ -482,3 +482,15 @@ test("the welcome headline sets as two lines in every language, on small phones 
     }
   }
 });
+
+test("the settings foot names the cache generation, and it matches the worker", async ({ page }) => {
+  // Owner debugging session: "is the new version on my phone yet?" was
+  // unanswerable - APP_VERSION alone reads 1.0.0 across every cache bump.
+  // The settings foot now carries both, and this guard keeps the mirrored
+  // constant in app.js identical to the worker's VERSION.
+  const sw = await readFile(join(ROOT, "web", "sw.js"), "utf8");
+  const app = await readFile(join(ROOT, "web", "js", "app.js"), "utf8");
+  const swVersion = sw.match(/const VERSION = "(tenfold-v\d+)"/)[1];
+  const appVersion = app.match(/CACHE_VERSION = "(tenfold-v\d+)"/)[1];
+  expect(appVersion).toBe(swVersion);
+});
