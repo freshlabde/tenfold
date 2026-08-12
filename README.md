@@ -44,10 +44,10 @@ and it is the view that carries the context cards, one hollow diamond per person
 organisation or topic, threaded to every step it touches. A card is selected first and
 opened second, so a fingertip on a small glyph cannot skip a screen ahead.
 
-Things get in and out without typing. A photograph of a handwritten list or a printed
-outline comes back as an indented checklist, accepted line by line. A note shared from
-another Android app lands in a sheet at the next unlock that asks the only question that
-matters: which goal does this belong to. A second device is paired by scanning a QR
+Things get in and out without typing. An answer pasted back from whatever AI you already
+use comes back as an indented checklist, shown in full before a single line is written. A
+note shared from another Android app lands in a sheet at the next unlock that asks the only
+question that matters: which goal does this belong to. A second device is paired by scanning a QR
 code, or by photographing it where the browser has no barcode detector of its own. The
 recovery key can be printed as a one-page emergency sheet during setup. The app icon
 carries the number of steps due, and nothing else. On a desktop or an iPad the whole
@@ -82,16 +82,13 @@ that could decrypt one: no key material, no cipher, no decrypt call anywhere in
 
    push.js ── endpoint URL + hour ──► POST /api/push/subscribe ──► push.json
                                       (server sends an EMPTY notification once a day)
-
-   llm.js  ── {upstream, model, apiKey?, messages} ──► POST /api/llm ──► allowlisted
-                                                        (pipe, stores nothing)   provider
 ```
 
 **What the server can see:** the ciphertext, its size, a monotonic version counter, the
 SHA-256 hash of a write token, the `syncId` it is filed under, the browser-issued push
-endpoint and one hour of the day. While a model request is in flight it also handles the
-plaintext of that one request as it passes through the relay. Access log lines carry at
-most the first six characters of a `syncId`.
+endpoint and one hour of the day. Nothing else passes through it: until v1.1 a model relay
+also handled the plaintext of one request while it was in flight, and that is gone. Access
+log lines carry at most the first six characters of a `syncId`.
 
 **What the server cannot see:** any title, note, story, entity card, setting or
 passphrase; who owns which `syncId`; how many goals a vault holds. It cannot merge two
@@ -187,41 +184,6 @@ filed into the sealed vault or dropped and the bucket is deleted either way. If 
 worker is in control, the POST reaches `tools/serve.js`, which drains the body unread,
 not parsed, not buffered, not written, not logged, and redirects to the app.
 
-### The model relay
-
-`POST /api/llm` exists because a browser cannot reach most providers directly (CORS) and
-a phone outside the flat cannot reach a model on the home network. It is a pipe, not a
-store: nothing that passes through is written to disk, kept past the request, counted or
-logged.
-
-- **SSRF wall.** `upstream` must either be on the built-in cloud host list
-  (`api.openai.com`, `api.anthropic.com`, `openrouter.ai`, `api.mistral.ai`,
-  `api.groq.com`, https only) or match one of the operator-configured base URLs in
-  `TENFOLD_LLM_UPSTREAMS` exactly. Anything else is refused with 403 before a socket is
-  opened. Redirects are never followed, no caller header is passed on, and only four
-  fields of the body travel onward.
-- **Auth.** The relay requires a valid `X-Sync-Token` for a vault that exists on this
-  server, or a loopback caller with no `cf-connecting-ip`. Without that, strangers could
-  burn the operator's local models through the tunnel.
-- **Caller gate for local models.** The wall above says where a request may go; this says
-  who may send it to the operator's own machine. A cloud target is never gated (the caller
-  pays with their own key). For a LOCAL upstream the caller's sync id must stand in
-  `DATA_DIR/llm_access.json`, which starts empty: nobody is grandfathered in. A caller who
-  is not on it gets `403 {"error": "llm-approval"}`, the app says so in plain words, and the
-  id lands in a pending list the operator works through at `/stats#llm` (allow, deny,
-  revoke) or by clicking a link. With `TENFOLD_NOTIFY_URL` set, the first time a new id asks
-  one JSON POST goes to that address so the operator hears about it; what stores the id is a
-  doorbell, not a log, and holds nothing but the id, two timestamps and a counter.
-- Caps: 1 MB request body, 8 MB when an image part travels with it, 1 MB response,
-  120 s timeout, non-streaming. The per-IP rate limiter covers it like every other API
-  path.
-- **Reasoning models are handled rather than hoped for.** A `<think>` block is stripped
-  before anything tries to read the answer, including one left unclosed because the
-  budget ran out mid-thought. A model that spends its whole budget reasoning and returns
-  nothing produces one distinct error, not a parse failure, and that error buys exactly
-  one retry with twice the budget, capped. Local requests are asked for low reasoning
-  effort up front. If the second attempt is empty too, the app says so in one line.
-
 ### Offline, and how an update arrives
 
 The app is a service worker plus a precached shell, so it opens without a network. A new
@@ -253,10 +215,11 @@ banner, no prompt and no "reload to update" button anywhere.
 
 **Not protected against**
 
-- **Whoever runs the model sees plaintext while it thinks.** In cloud mode the goal you
-  are working on, its title, story and linked cards, is processed by the provider you
-  chose. In local mode it is processed by whatever runs on that machine. This is the
-  price of assistance, which is why it is off by default and switched on per vault.
+- **Whatever you carry to an AI yourself.** The app never connects to one, but the prompt
+  it writes is meant to be taken somewhere, and wherever you paste it - a chat window, a
+  provider, a model on your own machine - that place sees the goal you are working on, its
+  story and the names on its cards, under its terms and not ours. The scope is narrow and
+  named on screen before you copy, and the decision is a deliberate act each time.
 - **A note shared in from another app is plaintext until you unlock.** The worker that
   catches it has no key. The window is short and the bucket is emptied at the next
   unlock either way, but it is a window.
@@ -318,33 +281,31 @@ and offers to delete only this device rather than half-deleting quietly.
 
 ---
 
-## Assistance: three modes, off by default
+## Assistance: you are the transport
 
-`doc.settings.llm` lives inside the sealed vault; the server never stores any of it,
-including the API key.
+There is no model integration to configure, because there is none. tenfold writes the
+prompt for one goal - where it sits, its story, the steps under it, the names on the cards
+linked to it - and you carry it to whatever AI you already use and paste the answer back.
+No key, no provider address, no relay, nothing to switch on and nothing that can be on by
+accident. It works offline, in a browser with no server behind it, and inside the native
+shell.
 
-- **off**, the default. Not a single AI control exists in the DOM. Not hidden, absent.
-- **local**, an OpenAI-compatible server on your own machine (LM Studio, llama.cpp,
-  Ollama's compatible endpoint). Nothing leaves the network you are on. The operator
-  has to name the address in `TENFOLD_LLM_UPSTREAMS` and, if you are reaching that server
-  from outside their machine, allow your vault (see the caller gate above). This is the
-  recommended mode, and the app says so where the choice is made.
-- **cloud**, a provider from the allowlist. Switching to it requires a one-time consent
-  sheet that states plainly what leaves the device.
+What enters that text is scoped and the scope is strict: only the goal being worked on,
+the goals it hangs under, its direct steps and the linked cards by name and relation.
+Never the whole tree. A subtree marked "keep away from the model" produces no prompt at
+all - not a reduced one. Cards marked sensitive and the notes on ANY card never travel;
+there is no per-call release, because a text on the clipboard has no single call to
+release it for. What was held back is named in the prompt, so the model does not fill the
+gap with a guess, and the sheet says the same thing in one line before anything is copied.
 
-In every mode the rules are the same: only the goal being worked on travels, its chain,
-its immediate neighbours and its linked cards, never the whole tree. A subtree marked
-"keep away from the model" never appears in any request. Cards marked sensitive stay on
-the device unless released for one single call, and in cloud mode the notes on a card
-stay behind as well. Every answer is a proposal: it is rendered as an acceptable diff
-and applied item by item through the normal mutation path, with `origin: "llm"` on
-everything it creates. Nothing a model says writes itself.
+Coming back, the answer is parsed as an indented outline, shown in full with its levels,
+and only Apply writes anything - as ordinary nodes through the normal mutation path, with
+`origin: "llm"` on everything it creates. Nothing a model says writes itself.
 
-The same applies to importing a photographed list. The picture is resized on the device
-to 1600 pixels on the long edge and re-encoded as JPEG before anything is sent, read
-once, and comes back as an indented checklist you correct and accept line by line.
-Unchecking a parent unchecks its subtree. If the model cannot read the image, one calm
-line says so; a half-read photograph is never imported in pieces.
+**1.1 removed the built-in relay and the photo import in favour of this loop; v1.0.0 keeps
+them in git history.** What went: `POST /api/llm` with its SSRF wall and caller gate, the
+three-mode settings group with provider and API key, the seven model operations, and the
+camera button that read a photographed list through the same relay.
 
 ---
 
@@ -362,10 +323,7 @@ from `web/`.
 | `PORT` | `7710` | Listen port; bound to `127.0.0.1` only |
 | `TENFOLD_DATA` | `~/.tenfold-data` | Where vaults, VAPID pair and push records live. Never inside the repository |
 | `TENFOLD_MAX_VAULTS` | `500` | Global cap on stored vaults; the next `PUT` for a new id gets 507 |
-| `TENFOLD_LLM_UPSTREAMS` | *(empty)* | Comma-separated base URLs of local model servers the relay may reach, matched exactly, e.g. `http://127.0.0.1:1234/v1` |
 | `TENFOLD_PUSH_SUBJECT` | `mailto:tenfold@localhost` | Contact address in the VAPID claim; operator data, never user data |
-| `TENFOLD_NOTIFY_URL` | *(empty = off)* | Where one JSON POST goes the first time a new sync id asks to use a local model: `{event, syncId, allowUrl, denyUrl, statsUrl}`, fire and forget. Turn it into a mail with whatever you already run; no mail code and no dependency lives here |
-| `TENFOLD_PUBLIC_URL` | *(empty)* | Public address of this deployment, e.g. `https://tenfold.example.org`. Only used to build the links in that POST; without it (or without a stats key) the POST carries the id alone |
 | `TENFOLD_STATS_KEY` | *(empty = off)* | Opt-in visitor counters. Unset: nothing is counted and `/stats` 404s. Set: aggregate per-day counts (loads, visitors, referrer hosts, countries, mobile/desktop, bots) in `stats.json`, readable at `/stats?k=<key>`; no IP or identifier is ever stored ([contracts](docs/CONTRACTS.md)) |
 
 Keeping it alive on macOS (`tools/com.tenfold.serve.plist`):
@@ -396,15 +354,15 @@ npx playwright test                    # the whole suite, headless Chromium
 npx playwright test tests/crypto.spec.js
 ```
 
-309 tests in 24 spec files, run against the app's own server instance on port 7711 with
+359 tests in 28 spec files, run against the app's own server instance on port 7711 with
 a throwaway data directory, never against a running production server. They cover the
 crypto round trip, every envelope on its own including WebAuthn PRF, tamper detection,
 the merge rules, the plaintext-leak guarantee of the store, both readings of the map,
 the row gestures, the QR encoder and the hand-written photo decoder, sync, pairing and
-delete-everywhere, the relay's SSRF wall and the photo import, the visitor counters
+delete-everywhere, the copy loop and what may never enter its prompt, the visitor counters
 including the proof that they stay absent unless switched on, i18n key-set equality
 across all three locales, the wide viewport tier, the source rules (no `innerHTML`, no
-`eval`, no fetch outside the three modules allowed to have it, no emoji), and the full
+`eval`, no fetch outside the two modules allowed to have it, no emoji), and the full
 chain from setup to sync.
 
 ---
@@ -418,12 +376,12 @@ web/            the app: index.html, sw.js, css/, js/ (pure ES modules, no bundl
   js/model.js   pure tree functions, merge, schema upgrade
   js/sync.js    the only module allowed to talk to /api/vault
   js/push.js    the only module allowed to talk to /api/push
-  js/llm.js     the only module allowed to talk to /api/llm
+  js/aihelp.js  the copy loop: the prompt builder and the answer parser, both pure
   js/qr.js      QR encoder, and js/qrread.js the decoder for a photographed code
   js/badge.js   the count on the app icon, js/shareinbox.js what another app hands in
   js/locales/   en, de, es, with identical key sets
   js/ui/        one file per screen and per sheet
-tools/serve.js  the whole server: static files, vault mailbox, push, relay
+tools/serve.js  the whole server: static files, vault mailbox, push
 docs/CONTRACTS.md  the binding interface contract between all of the above
 design/         the three skins as static pages, plus screenshots
 tests/          Playwright specs

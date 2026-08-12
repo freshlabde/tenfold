@@ -315,23 +315,33 @@ test("an indented answer becomes levels, whatever it was indented with", async (
   expect(r.many).toHaveLength(100);
 });
 
-test("the outline shaper is one function, shared by both ways in", async ({ page }) => {
+// The outline shaper used to be shared by two ways in - a photographed list and
+// a pasted answer - and this test proved they were literally the same function.
+// The photo import went with the relay in v1.1, so there is one way in now and
+// nothing to compare it against. What is left is the shaper itself: the clamps
+// it applies to a level nobody controls, and the tree it builds out of them.
+test("the outline shaper clamps every level and finds every parent", async ({ page }) => {
   await page.goto("/tests/fixture.html");
   const r = await page.evaluate(async () => {
     const aihelp = await import("/web/js/aihelp.js");
-    const imageimport = await import("/web/js/ui/imageimport.js");
-    const prompts = await import("/web/js/prompts.js");
     return {
-      // The photo flow no longer owns these: it imports them from the same
-      // module the pasted answer uses, and identity is the proof.
-      sameParents: imageimport.parentIndexes === aihelp.parentIndexes,
-      sameCap: imageimport.blockedByRootCap === aihelp.blockedByRootCap,
-      sameLimits: [
-        prompts.MAX_IMPORT_LEVEL === aihelp.MAX_OUTLINE_LEVEL,
-        prompts.MAX_IMPORT_ITEMS === aihelp.MAX_OUTLINE_ITEMS,
-        prompts.MAX_IMPORT_TITLE === aihelp.MAX_OUTLINE_TITLE,
-      ],
-      // And it still behaves exactly as it did when it lived there.
+      // A first line further in than the margin, a jump of two, a level past
+      // four, a negative one, a missing one - all corrected, none refused.
+      clamped: aihelp.normalizeOutlineItems([
+        { title: "a", level: 3 },
+        { title: "b", level: 9 },
+        { title: "c", level: -4 },
+        { title: "d" },
+        { title: "e", level: 2 },
+      ]),
+      long: aihelp.normalizeOutlineItems([{ title: "x".repeat(500), level: 0 }]),
+      many: aihelp.normalizeOutlineItems(
+        Array.from({ length: 140 }, (_, i) => ({ title: `t${i}`, level: 0 })),
+      ),
+      empty: aihelp.normalizeOutlineItems([]),
+      blank: aihelp.normalizeOutlineItems([{ title: "   " }]),
+      wrong: aihelp.normalizeOutlineItems({ nope: 1 }),
+      numeric: aihelp.normalizeOutlineItems([{ title: 42, level: 0 }]),
       parents: aihelp.parentIndexes([
         { level: 0 }, { level: 1 }, { level: 2 }, { level: 2 }, { level: 3 }, { level: 0 }, { level: 1 },
       ]),
@@ -339,18 +349,30 @@ test("the outline shaper is one function, shared by both ways in", async ({ page
         [{ level: 0 }, { level: 1 }, { level: 0 }, { level: 0 }, { level: 1 }],
         2,
       ),
-      // Both ways in clamp a level the same way, because it is one function.
-      viaJson: prompts.parseImportItems({ items: [{ title: "a", level: 0 }, { title: "b", level: 9 }] }).items,
+      // And the text path lands on the same clamp, because it ends in the same
+      // function: ten spaces of indent is still one level down, never nine.
       viaText: aihelp.parseOutlineText("a\n          b").items,
     };
   });
 
-  expect(r.sameParents).toBe(true);
-  expect(r.sameCap).toBe(true);
-  expect(r.sameLimits).toEqual([true, true, true]);
+  expect(r.clamped).toEqual([
+    { title: "a", level: 0 },
+    { title: "b", level: 1 },
+    { title: "c", level: 0 },
+    { title: "d", level: 0 },
+    { title: "e", level: 1 },
+  ]);
+  expect(r.long[0].title).toHaveLength(200);
+  expect(r.many).toHaveLength(100);
+  // Nothing usable in, nothing out - and never a throw: a shaper that raises
+  // would take the preview down with it, and the preview is the safety rail.
+  expect(r.empty).toEqual([]);
+  expect(r.blank).toEqual([]);
+  expect(r.wrong).toEqual([]);
+  // A title that is a number is a broken entry, not a title with a number in it.
+  expect(r.numeric).toEqual([]);
   expect(r.parents).toEqual([-1, 0, 1, 1, 3, -1, 5]);
   expect(r.capped).toEqual([false, false, false, true, true]);
-  expect(r.viaJson).toEqual([{ title: "a", level: 0 }, { title: "b", level: 1 }]);
   expect(r.viaText).toEqual([{ title: "a", level: 0 }, { title: "b", level: 1 }]);
 });
 
@@ -454,6 +476,88 @@ test("applying writes the pasted outline as steps, marked as model-made", async 
     "Call the practice on Monday",
     "Take the referral out of the drawer",
   ]);
+});
+
+// Carried over from the photo import when that was removed in v1.1. The rule it
+// guards has nothing to do with how an outline arrives: a model answer is
+// untrusted text, exactly like a note, and it reaches the screen as text nodes
+// or not at all. The paste path is now the only way model-authored text enters
+// this app, so this is the only place the canary can still stand.
+test("a pasted title that tries to be markup stays a title", async ({ page }) => {
+  await goalWithSteps(page);
+  await openLoop(page);
+
+  const canary = '<img src=x onerror="window.XSS=1">';
+  await page.locator('[data-ai="paste-open"]').click();
+  await page.locator('[data-ai="answer"]').fill([canary, "  <script>window.XSS=2</script>"].join("\n"));
+  await page.locator('[data-ai="look"]').click();
+
+  // In the preview: the characters, not an element.
+  await expect(page.locator('[data-ai="preview-item"]')).toHaveCount(2);
+  await expect(page.locator(".assist-title").first()).toHaveText(canary);
+  expect(await page.locator(".sheet img, .sheet script").count()).toBe(0);
+  expect(await page.evaluate(() => window.XSS)).toBeUndefined();
+
+  // And after applying, on the screen and in the document.
+  await page.locator('[data-ai="apply"]').click();
+  await page.locator(".crumb-back").click();
+  await expect(page.locator(".list.is-kids .row-title").nth(2)).toHaveText(canary);
+  expect(await page.evaluate(() => window.XSS)).toBeUndefined();
+  expect(await page.locator("#app img, #app script").count()).toBe(0);
+
+  const nodes = await nodesOf(page);
+  const outer = nodes.find((n) => n.title === canary);
+  const inner = nodes.find((n) => n.title === "<script>window.XSS=2</script>");
+  expect(inner.parentId).toBe(outer.id);
+  expect(outer.origin).toBe("llm");
+});
+
+// What replaced the old "in off mode not one assistance control exists in the
+// DOM" test. There is no off mode any more, because there is nothing to switch:
+// what that test proved conditionally is now unconditional and permanent, so
+// this asserts the ABSENCE of the whole removed apparatus rather than its
+// absence in one setting.
+test("nothing of the removed relay is left on any screen", async ({ page }) => {
+  await goalWithSteps(page);
+
+  // The relay surface marked itself with data-llm - the assist entry on the
+  // leaf screen, its sheet, the row-menu entries, the camera in the bar and the
+  // proposal rows. Not one of those attributes exists anywhere any more.
+  await expect(page.locator("[data-llm]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Assist" })).toHaveCount(0);
+
+  // The bottom bar is back to two controls on a focus screen, and two on the
+  // outline: no camera between them.
+  await page.locator(".crumb-back").click();
+  await expect(page.locator(".bar > *")).toHaveCount(2);
+  await expect(page.locator(".bar").getByRole("button", { name: /photo|camera/i })).toHaveCount(0);
+  await page.locator(".crumb-pill").first().click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await expect(page.locator(".bar > *")).toHaveCount(2);
+
+  // The row menu offers the keep-away switch and nothing else about models -
+  // and it offers it without anything having been switched on, which is the
+  // point: the switch guards the copy loop now.
+  await page.locator(".row").first().click();
+  await page.locator(".crumb .iconbtn").last().click();
+  await expect(page.locator(".sheet").getByText("Keep away from the model")).toHaveCount(1);
+  await expect(page.locator(".sheet [data-llm]")).toHaveCount(0);
+  await page.locator(".sheet-head").getByRole("button", { name: "Close" }).click();
+
+  // And the settings screen has no assistance group at all: no mode segment,
+  // no local model, no provider, no key, no connection test. The group that
+  // used to sit between the widget group and the security group is simply not
+  // there - the security group follows the widget group now.
+  await page.locator(".crumb-pill").first().click();
+  await page.locator(".head-actions .iconbtn").last().click();
+  await expect(page.locator(".h-title")).toHaveText("Settings");
+  const groups = await page.locator(".group-key").allTextContents();
+  expect(groups).toContain("Security");
+  expect(groups).not.toContain("Assistance");
+  for (const gone of ["Assistance", "Local model", "Provider", "API key", "Test connection"]) {
+    await expect(page.getByText(gone, { exact: true })).toHaveCount(0);
+  }
+  await expect(page.getByRole("button", { name: "Import from a photo" })).toHaveCount(0);
 });
 
 test("a step kept away from models has no way into the copy loop", async ({ page }) => {

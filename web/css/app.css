@@ -723,7 +723,6 @@ button.h-sub {
 
 /* A bar with the camera in it names its first two columns; the third, where
    there is one, falls to grid-auto-columns and is a flexible word again. */
-.bar.has-cam { grid-template-columns: 1fr var(--tap); }
 
 .btn-ghost {
   border: 0; background: none; box-shadow: none;
@@ -1209,7 +1208,6 @@ button.h-sub {
 /* ---------------------------------------------------------------- assistance */
 
 .assist { padding-top: 2px; }
-.assist-wait { margin: 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
 .assist-error { margin: 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--accent); }
 
 .assist-item {
@@ -1218,9 +1216,7 @@ button.h-sub {
   border-top: 1px solid var(--line);
 }
 .assist-item:first-child { border-top: 0; }
-.assist-item.is-off { opacity: .4; }
 .assist-item-body { flex: 1 1 auto; min-width: 0; }
-.assist-item .row-chip { margin-top: 1px; }
 
 .assist-title {
   appearance: none; border: 0; background: none; margin: 0; padding: 0;
@@ -1228,12 +1224,8 @@ button.h-sub {
   font-family: var(--font-body); font-size: 14px; font-weight: var(--weight-title);
   letter-spacing: -.012em; line-height: 1.35; color: var(--text);
 }
+/* In the copy-loop preview a line is read, never edited: no text cursor. */
 .assist-title.is-static { cursor: default; }
-.assist-why { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
-
-.assist-before, .assist-after { margin: 6px 0 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-.assist-before { color: var(--text-4); }
-.assist-after { color: var(--text); min-height: 1.5em; }
 
 .assist-foot {
   margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line);
@@ -1258,23 +1250,9 @@ button.h-sub {
   letter-spacing: 0;
 }
 
-/* A bare checkbox: the label carries no text, the line next to it does. */
-.check.is-bare { min-height: 0; padding: 1px 0 0; }
-
-/* ------------------------------------------------------- import from a photo */
-
-/* An indented line of a read outline. Four levels, and the indent is the
+/* An indented line of a pasted outline. Four levels, and the indent is the
    only thing that says which is which - no bullets, no guide lines. */
 .assist-item.is-level { padding-left: calc(var(--lvl, 0) * 16px); }
-/* Blocked by the ten-root rule: shown, readable, and out of reach. */
-.assist-item.is-blocked { opacity: .38; }
-.import-blocked { margin-top: 12px; }
-
-/* The sheet foot of the picture flow: the buttons, and under them the weight
-   of what would travel - in the mono rail, like every other machine number. */
-.import-foot { flex: none; }
-.import-size { margin: 9px 0 0; text-align: center; }
-.chip[aria-pressed="true"] { color: var(--accent); }
 
 /* --------------------------------------------------------------- prose blocks */
 

@@ -613,10 +613,11 @@ test("the push channel can never carry content", async () => {
 
   const serve = await readFile(new URL("../tools/serve.js", import.meta.url), "utf8");
   const stripped = stripComments(serve);
-  // Still exactly one outbound fetch in the whole server, and it carries no
-  // body. The model relay added in stage 3 is deliberately NOT a second one:
-  // it uses node's http/https request directly, because it has to cap and
-  // destroy the response stream, and that keeps this count meaningful.
+  // Exactly one outbound fetch in the whole server, and it carries no body.
+  // The count used to be meaningful in spite of the model relay - that relay
+  // used node's http/https request directly rather than fetch. Since v1.1 it
+  // is meaningful because there is nothing else left: the relay is gone, and
+  // this push POST is the only socket this server opens on its own.
   const calls = [...stripped.matchAll(/fetch\(/g)];
   expect(calls).toHaveLength(1);
   expect(stripped).not.toMatch(/fetch\([\s\S]{0,400}body:/);

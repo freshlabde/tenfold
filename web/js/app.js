@@ -42,7 +42,6 @@ import * as push from "./push.js";
 import { setBadge, clearBadge, clearWidgetState } from "./badge.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import * as webauthn from "./webauthn.js";
-import { llmEnabled, llmMode, bindContext as bindLlmContext } from "./llm.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
 import { el, clear, text, icon } from "./ui/dom.js";
@@ -61,8 +60,6 @@ import * as entityScreen from "./ui/entity.js";
 import { openSheet, closeSheet, isSheetOpen, onSheetChange } from "./ui/sheet.js";
 import { openEditor } from "./ui/editor.js";
 import { openStoryGuide } from "./ui/storyguide.js";
-import * as assist from "./ui/assist.js";
-import * as imageImport from "./ui/imageimport.js";
 import * as aihelp from "./ui/aihelp.js";
 import { openShareImport } from "./ui/shareimport.js";
 import { openPushOffer } from "./ui/pushoffer.js";
@@ -1044,24 +1041,22 @@ const ctx = {
     const nodes = state.doc.nodes;
     const siblings = childrenOf(nodes, node.parentId);
     const i = siblings.findIndex((n) => n.id === node.id);
-    // Everything the model touches is gathered here, and in "off" mode none
-    // of it is built - not hidden, not disabled: absent.
+    // The keep-away switch, and nothing else that has to do with a model. It is
+    // no longer gated on assistance being configured: since v1.1 the only route
+    // to a model is the copy loop, which has nothing to switch on, so the
+    // control that holds a branch back from it must exist unconditionally -
+    // the same rule the leaf screen follows. An inherited state is shown there,
+    // never toggled here: the switch belongs where it was thrown.
     const keep = ctx.optout(node.id);
-    const assistActions = !llmEnabled(state.doc)
+    const keepAwayAction = keep.inherited
       ? []
       : [
-          keep.own || keep.inherited
-            ? null
-            : { label: t("llm.assist"), icon: "target", llm: true, run: () => ctx.assist(node) },
-          keep.inherited
-            ? null
-            : {
-                label: keep.own ? t("llm.optoutOff") : t("llm.optout"),
-                icon: "lock",
-                llm: true,
-                run: () => ctx.toggleOptout(node),
-              },
-        ].filter(Boolean);
+          {
+            label: keep.own ? t("llm.optoutOff") : t("llm.optout"),
+            icon: "lock",
+            run: () => ctx.toggleOptout(node),
+          },
+        ];
     const actions = [
       { label: t("common.edit"), icon: "pencil", run: () => ctx.editNode(node) },
       {
@@ -1081,7 +1076,7 @@ const ctx = {
         disabled: i < 0 || i >= siblings.length - 1,
         run: () => ctx.moveWithinSiblings(node, 1),
       },
-      ...assistActions,
+      ...keepAwayAction,
       { label: t("common.delete"), icon: "trash", danger: true, run: () => ctx.deleteNode(node) },
     ];
     openSheet(layerEl, {
@@ -1095,7 +1090,6 @@ const ctx = {
             {
               class: `setrow${a.danger ? " is-danger" : ""}`,
               attrs: { type: "button", "aria-disabled": a.disabled ? "true" : "false" },
-              dataset: a.llm ? { llm: "menu" } : null,
               on: {
                 click: () => {
                   if (a.disabled) return;
@@ -1133,41 +1127,18 @@ const ctx = {
 
   // --- assistance ----------------------------------------------------------
   //
-  // The screens ask three things of this: is it on, may this node be shown to
-  // a model, and please apply what the person accepted. Nothing here talks to
-  // a model itself - that is llm.js, reached from ui/assist.js.
-
-  get llmOn() {
-    return llmEnabled(state.doc);
-  },
-
-  get llmMode() {
-    return llmMode(state.doc);
-  },
-
-  /** Patch doc.settings.llm. The whole block lives inside the sealed vault. */
-  setLlm(patch) {
-    const current = (state.doc && state.doc.settings && state.doc.settings.llm) || {};
-    setSettings({ llm: { ...current, ...patch } });
-  },
-
-  assist(node) {
-    assist.openAssist(layerEl, ctx, node);
-  },
+  // Two things, and no third: open the copy loop, and say whether a node is
+  // kept away from models at all. Nothing here talks to a model, because since
+  // v1.1 nothing in this app does - the person carries the prompt out and the
+  // answer back by hand. There is no mode, no key, no address and nothing to
+  // switch on, which is why none of this asks whether assistance is enabled.
 
   /**
    * The copy loop: a prompt to carry to whatever AI the person already uses,
-   * and a field to paste the answer back into. It has no settings, no key and
-   * no address, so unlike everything else in this block it does not ask
-   * whether assistance is switched on.
+   * and a field to paste the answer back into.
    */
   aiHelp(node) {
     aihelp.openAiHelp(layerEl, ctx, node);
-  },
-
-  /** The one-time cloud consent; the caller decides what accepting means. */
-  llmConsent(onAccept) {
-    assist.openConsent(layerEl, ctx, onAccept);
   },
 
   /**
@@ -1186,34 +1157,6 @@ const ctx = {
     const on = !node.llmOptout;
     ctx.updateNode(node.id, { llmOptout: on });
     toast(on ? t("llm.optoutSet") : t("llm.optoutCleared"));
-  },
-
-  /**
-   * Proposals the person accepted. They are ordinary nodes in every respect
-   * but one: origin says where they came from, and it stays with them.
-   */
-  addChildren(parentId, items) {
-    const now = Date.now();
-    mutate((list) => {
-      const base = childrenOf(list, parentId).length;
-      const made = items.map((item, i) =>
-        createNode({
-          title: item.title,
-          parentId,
-          rank: base + i,
-          origin: "llm",
-          effortMinutes: typeof item.effortMinutes === "number" ? item.effortMinutes : null,
-          createdAt: now,
-          updatedAt: now,
-        }),
-      );
-      return [...list, ...made];
-    });
-  },
-
-  /** An accepted order for the parts of one goal. */
-  reorderChildren(parentId, orderedIds) {
-    mutate((list) => reorder(list, parentId, orderedIds));
   },
 
   /**
@@ -1246,16 +1189,12 @@ const ctx = {
     return node.id;
   },
 
-  /** The picture flow. Absent in "off" mode - the screens do not build it. */
-  importImage(parentId) {
-    imageImport.openImageImport(layerEl, ctx, parentId);
-  },
-
   /**
-   * A hierarchy somebody accepted off a photograph. The levels become parents:
-   * a line at the outer margin hangs under `parentId` (null = the ten), every
-   * deeper line under the last line one level above it. Ordinary nodes, one
-   * mutation, origin "llm" on all of them.
+   * A hierarchy somebody accepted out of a pasted answer. The levels become
+   * parents: a line at the outer margin hangs under `parentId` (null = the
+   * ten), every deeper line under the last line one level above it. Ordinary
+   * nodes, one mutation, origin "llm" on all of them - the answer did come
+   * from a model, and the provenance mark says so however it arrived.
    *
    * The ten-root rule is enforced here as well, not only in the sheet that
    * offered the lines: a line that would be the eleventh goal is dropped, and
@@ -1521,9 +1460,6 @@ const syncCtx = {
 };
 
 sync.bindContext(syncCtx);
-// The relay wants the same write token the sync PUT uses, so llm.js gets the
-// same narrow context - and, like sync, never the screens' ctx.
-bindLlmContext(syncCtx);
 // A status change only matters while the settings screen is on screen; the
 // outline stays calm on purpose.
 sync.onSyncChange(() => {

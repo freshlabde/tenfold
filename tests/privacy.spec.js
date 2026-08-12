@@ -83,10 +83,11 @@ test("the page is served, and it carries all three languages", async ({ request 
   expect((html.match(/info@freshlab\.es/g) || []).length).toBeGreaterThanOrEqual(6);
   expect(html).toContain("mailto:info@freshlab.es");
 
-  // The date stamp, in each language's own way of writing it.
-  expect(html).toContain("13 August 2026");
-  expect(html).toContain("13. August 2026");
-  expect(html).toContain("13 de agosto de 2026");
+  // The date stamp, in each language's own way of writing it. It moves when the
+  // page does: v1.1 rewrote the model-assistance section, so it says 14 August.
+  expect(html).toContain("14 August 2026");
+  expect(html).toContain("14. August 2026");
+  expect(html).toContain("14 de agosto de 2026");
 
   // This is the one page in the project that SHOULD be indexed.
   expect(html).not.toMatch(/noindex/i);

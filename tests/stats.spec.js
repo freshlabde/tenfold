@@ -8,8 +8,7 @@
 // the key, because the default-off claim is only worth anything if it is the
 // default the rest of the suite runs under. Everything that needs the feature
 // switched on therefore gets its own serve.js child on its own port with its
-// own throwaway data directory - the same shape tests/llm.spec.js uses for its
-// sink, one process further.
+// own throwaway data directory.
 import { test, expect } from "@playwright/test";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";

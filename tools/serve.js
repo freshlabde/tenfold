@@ -35,47 +35,23 @@
 // If a future change gives this key material anything to do with vault data,
 // the design is broken, not improved.
 //
-// THE SECOND EXCEPTION - THE MODEL RELAY, AND WHAT IT IS NOT: /api/llm below
-// hands a request on to a language model and hands the answer back. Read this
-// before you take it as a hole in the rule either:
-//   - It is a PIPE, not a store. Nothing that passes through is written to
-//     disk, kept in memory past the request, counted, or logged - not the
-//     messages, not the key, not the answer, not who asked.
-//   - It exists only because a browser cannot reach most providers directly
-//     (CORS) and because a phone outside the flat cannot reach a model on the
-//     home network.
-//   - It is NOT an open proxy. The target must be on the built-in cloud host
-//     list (https only) or match an operator-configured upstream exactly.
-//     Anything else is refused before a socket is opened. Redirects are never
-//     followed, no header of the caller is passed on, and only four fields of
-//     the body travel. That allowlist is the SSRF wall; widening it to "any
-//     URL the client sends" is never an improvement.
-//   - It adds NO cryptography. It forwards a key it does not keep and cannot
-//     use for anything else. The drift guard in tests/sync.spec.js pins the
-//     complete list of WebCrypto operations this file may perform, and the
-//     relay is not on it.
-// If a future change makes this relay remember a single message, the design is
-// broken, not improved.
-//
-// THE SECOND WALL IN FRONT OF THE RELAY - THE CALLER GATE: the upstream
-// allowlist above says WHERE a request may go. This says WHO may send it there,
-// and only for the operator's own LOCAL models:
-//   - A cloud target is never gated. The caller sends their own API key and
-//     pays their own bill; there is nothing of the operator's to protect.
-//   - A LOCAL target is the operator's machine, their electricity, their GPU.
-//     A caller who proved a vault (X-Sync-Token) may use it only when that sync
-//     id stands in the operator's allowlist. Without the gate, everybody who
-//     ever set up a vault here would be holding a free model server.
-//   - Loopback without a sync id keeps the older allowance unchanged: that is
-//     this machine (dev server, test suite, the operator's own browser).
-//   - A refusal is 403 {"error":"llm-approval"} and the id is put in a pending
-//     list so the operator can allow it. THIS IS THE ONE PLACE WHERE THE RELAY
-//     WRITES ANYTHING DOWN, and what it writes is a sync id, a first and last
-//     timestamp and a counter. Never a message, never a key, never an upstream,
-//     never an IP, never a user agent. The pending list is a doorbell, not a
-//     log. If a future change makes it hold what was ASKED, the design is
-//     broken, not improved.
-//   - The decision itself lives in tools/llm_gate.js, pure and testable.
+// THE SECOND EXCEPTION, REMOVED IN v1.1 - THE MODEL RELAY: there used to be a
+// second exception here, and this note stands in its place rather than the
+// numbering being closed up, because a rule that quietly loses an exception
+// reads as if it never had one. Until v1.1 this file also served POST /api/llm:
+// a pipe that handed a request on to a language model and handed the answer
+// back, with an upstream allowlist in front of it (the SSRF wall), a caller
+// gate for the operator's own local models, and a doorbell file of sync ids
+// waiting for that operator's decision. It was the only place this server ever
+// touched the plaintext of anything, and the only place it wrote down who had
+// asked for something.
+// It is gone. The app no longer talks to a model at all: it writes a prompt,
+// the person carries it to whatever AI they already use and pastes the answer
+// back, so there is nothing left for a server to forward. What went with the
+// relay: LLM_CLOUD_HOSTS, TENFOLD_LLM_UPSTREAMS, llm_access.json,
+// TENFOLD_NOTIFY_URL, tools/llm_gate.js and the "Local model access" section of
+// the stats page. The mailbox rule below is therefore stricter than it was, not
+// looser. The full relay lives in git history, at the v1.0.0 tag.
 //
 // THE THIRD EXCEPTION - THE STATS PAGE, AND WHAT IT IS NOT: with the env var
 // TENFOLD_STATS_KEY set, and ONLY then, this server counts document loads.
@@ -102,12 +78,10 @@
 //     tomorrow is a new one, because yesterday's salt is gone.
 // If a future change makes this file able to say WHO was here, the design is
 // broken, not improved.
-import { createServer, request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
+import { createServer } from "node:http";
 import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { homedir } from "node:os";
-import { gateDecision, notePending } from "./llm_gate.js";
 
 const ROOT = resolve(new URL("..", import.meta.url).pathname);
 const WEB = join(ROOT, "web");
@@ -145,59 +119,6 @@ const PUSH_SUBJECT = process.env.TENFOLD_PUSH_SUBJECT || "mailto:tenfold@localho
  */
 const ALLOW_INSECURE_PUSH = process.env.TENFOLD_PUSH_ALLOW_INSECURE === "1";
 
-// -------------------------------------------------------------- model relay
-/**
- * The built-in cloud allowlist. Hosts, not URLs: a provider moves its path
- * around ("/v1", "/api/v1", "/openai/v1") and the host is the part that says
- * who is being talked to. https only - a plain-http cloud target would send an
- * API key across the wire in the open.
- */
-const LLM_CLOUD_HOSTS = new Set([
-  "api.openai.com",
-  "api.anthropic.com",
-  "openrouter.ai",
-  "api.mistral.ai",
-  "api.groq.com",
-]);
-
-/**
- * Local upstreams the operator allows, comma separated, matched EXACTLY as
- * base URLs (e.g. "http://127.0.0.1:1234/v1"). Not a host list: on a home
- * network an approximate match would let a caller aim the server at any port
- * of any machine on that network.
- */
-const LLM_LOCAL_UPSTREAMS = String(process.env.TENFOLD_LLM_UPSTREAMS || "")
-  .split(",")
-  .map((value) => value.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
-
-/**
- * Who may reach those local models. Beside the vaults, in the data directory,
- * so an update cannot hand out access by accident. Shape:
- *   { allowed: ["<syncId>"], pending: { "<syncId>": { first, last, count } } }
- * Created lazily on the first refusal; absent means an EMPTY allowlist, never
- * an open one. There is no grandfathering: the operator allows ids by hand,
- * starting with their own.
- */
-const LLM_ACCESS_FILE = join(DATA_DIR, "llm_access.json");
-
-/** How many ids may wait for a decision. Past it the oldest first-seen go. */
-const MAX_PENDING_IDS = 500;
-
-/**
- * Optional operator hook. When set, the FIRST time a new id asks, one JSON POST
- * goes here - fire and forget, short timeout, every failure swallowed. What the
- * operator does with it (a mail, a chat message, a log line) is their business:
- * no SMTP code lives in this repository, and no dependency is added for one.
- */
-const NOTIFY_URL = String(process.env.TENFOLD_NOTIFY_URL || "");
-
-/** The public address of this deployment, for the links in that POST. */
-const PUBLIC_URL = String(process.env.TENFOLD_PUBLIC_URL || "");
-
-/** The notification is a courtesy, not a step in the request. Five seconds. */
-const NOTIFY_TIMEOUT_MS = 5 * 1000;
-
 // -------------------------------------------------------------------- stats
 /**
  * The switch. Absent or empty means the whole feature does not exist: nothing
@@ -231,24 +152,6 @@ const STATS_MAX_DAYS = 400;
  * could not hold.
  */
 const STATS_MAX_VISITORS = 100_000;
-
-/** A prompt is kilobytes of text. One megabyte is already generous. */
-const MAX_LLM_BODY_BYTES = 1024 * 1024;
-
-/** Except when a photograph travels with it: a resized JPEG as a data URL. */
-const MAX_LLM_IMAGE_BODY_BYTES = 8 * 1024 * 1024;
-
-/** What may come back. A completion that needs more than this is not one. */
-const MAX_LLM_RESPONSE_BYTES = 1024 * 1024;
-
-/** A slow local model on a laptop is normal; two minutes is the ceiling. */
-const LLM_TIMEOUT_MS = 120 * 1000;
-
-/** How long the set of known write-token hashes may be reused. */
-const TOKEN_CACHE_MS = 30 * 1000;
-
-/** Floor between two rescans caused by a token that is not in the cache. */
-const TOKEN_RESCAN_MS = 2 * 1000;
 
 /** A sync id is 26 symbols of a confusable-free base32 alphabet, lower case. */
 const SYNC_ID_RE = /^[a-z0-9]{26}$/;
@@ -604,9 +507,6 @@ async function handleDeleteVault(req, res, id) {
     }
     await rm(parked, { recursive: true, force: true }).catch(() => {});
     if (vaultCount !== null) vaultCount = Math.max(0, vaultCount - 1);
-    // The relay's cache of known write tokens may still vouch for the one that
-    // just lost its vault. Drop it, so the next relayed request rescans.
-    tokenCache = { at: 0, owners: [] };
     sendEmpty(res, 204);
   });
 }
@@ -697,11 +597,11 @@ async function vapidAuthorization(endpoint) {
 /**
  * THE ONE OUTBOUND CALL THAT NOBODY ASKED FOR.
  *
- * The relay opens a socket because a caller asked it to, and the operator's
- * notification hook fires because the operator configured one. This is the
- * single place where the server reaches out ON ITS OWN, on a timer, and it
- * reaches exactly one kind of host: the push service the browser named in its
- * own subscription. The request has NO BODY.
+ * Since v1.1 it is also the only outbound call there is: the relay that opened
+ * a socket because a caller asked it to, and the operator's notification hook,
+ * are both gone. This is the single place where the server reaches out at all,
+ * on a timer, and it reaches exactly one kind of host: the push service the
+ * browser named in its own subscription. The request has NO BODY.
  * There is nothing in it about the person, the vault or the list - the push
  * service sees a URL it issued itself and a signature proving who is poking it.
  *
@@ -918,468 +818,6 @@ async function handlePushApi(req, res, rest) {
     return;
   }
   sendJson(res, 404, { error: "not found" });
-}
-
-// ---------------------------------------------------------------- model relay
-//
-// Everything from here to the router is the pipe described at the top of this
-// file. It reads a request, checks that the target is allowed and that the
-// caller may use it, opens exactly one connection, and copies the answer back.
-// It keeps nothing.
-
-/**
- * The full URL to talk to, or null when the target is not allowed.
- * Query strings, fragments and URL credentials are refused outright: none of
- * them belong in a base URL, and all three are classic ways to make a checked
- * string point somewhere else.
- */
-function upstreamTarget(value) {
-  if (typeof value !== "string" || value.length < 8 || value.length > 300) return null;
-  const cleaned = value.trim().replace(/\/+$/, "");
-  let url;
-  try {
-    url = new URL(cleaned);
-  } catch {
-    return null;
-  }
-  if (url.search || url.hash || url.username || url.password) return null;
-  if (url.protocol === "https:" && LLM_CLOUD_HOSTS.has(url.hostname)) {
-    return { url: `${cleaned}/chat/completions`, local: false, host: url.hostname };
-  }
-  if (LLM_LOCAL_UPSTREAMS.includes(cleaned)) {
-    return { url: `${cleaned}/chat/completions`, local: true, host: url.hostname };
-  }
-  return null;
-}
-
-/**
- * Providers that expect the token cap as max_completion_tokens - their
- * reasoning models reject the older max_tokens outright. The others still
- * reject unknown fields, so the name is chosen per host, never sent twice.
- */
-const MAX_COMPLETION_HOSTS = new Set(["api.openai.com", "api.groq.com", "openrouter.ai"]);
-
-/** True when the messages carry an image part - the only reason for 8 MB. */
-function carriesImage(messages) {
-  if (!Array.isArray(messages)) return false;
-  for (const message of messages) {
-    const content = message && message.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (part && typeof part === "object" && part.type === "image_url") return true;
-    }
-  }
-  return false;
-}
-
-/**
- * The write-token hash of every registered vault, with the id beside it.
- * Cached, because the alternative is a directory walk per relayed request.
- *
- * The id is in this table for ONE reason: the caller gate for local models
- * needs a name to compare against the operator's allowlist. relayAuthorised
- * below still does not read it - a request that is on its way to a cloud
- * provider is answered without this server ever asking who is calling, exactly
- * as before. Only the local branch calls callerSyncId.
- */
-let tokenCache = { at: 0, owners: [] };
-let lastRescanAt = 0;
-
-async function loadTokenOwners() {
-  const owners = [];
-  let ids;
-  try {
-    ids = await readdir(VAULT_DIR);
-  } catch {
-    ids = [];
-  }
-  for (const id of ids) {
-    if (!SYNC_ID_RE.test(id)) continue;
-    const record = await readRecord(id);
-    if (record && typeof record.tokenHash === "string") owners.push({ hash: record.tokenHash, id });
-  }
-  tokenCache = { at: Date.now(), owners };
-  return owners;
-}
-
-/**
- * Who may use the relay: a local caller (this machine - the dev server, the
- * test suite, the operator's own browser), or anybody holding the write token
- * of a vault that exists here. Without that rule a stranger who found the
- * tunnel could burn the operator's local model, or their cloud budget.
- */
-async function relayAuthorised(req) {
-  if (isLocal(req)) return true;
-  const token = req.headers["x-sync-token"];
-  if (typeof token !== "string" || token.length < 16 || token.length > 512) return false;
-  const hash = await sha256Hex(token);
-  const matches = (list) => {
-    let found = false;
-    for (const known of list) if (sameHex(known.hash, hash)) found = true;
-    return found;
-  };
-  const fresh = Date.now() - tokenCache.at < TOKEN_CACHE_MS;
-  if (matches(fresh ? tokenCache.owners : await loadTokenOwners())) return true;
-  // A vault registered seconds ago is not in the cache yet. One rescan, rate
-  // limited, so a wrong token cannot be turned into a directory walk per try.
-  if (fresh && Date.now() - lastRescanAt > TOKEN_RESCAN_MS) {
-    lastRescanAt = Date.now();
-    return matches(await loadTokenOwners());
-  }
-  return false;
-}
-
-/**
- * WHICH vault is calling, or "" when the caller showed no usable token. Called
- * ONLY when the target is a local upstream, because that is the one decision
- * that needs a name; a cloud request never reaches this function.
- *
- * The answer lives for the length of the request. It reaches the disk in
- * exactly one case: the gate refuses, and the id goes into the pending list so
- * the operator can allow it.
- */
-async function callerSyncId(req) {
-  const token = req.headers["x-sync-token"];
-  if (typeof token !== "string" || token.length < 16 || token.length > 512) return "";
-  const hash = await sha256Hex(token);
-  const pick = (list) => {
-    let found = "";
-    for (const owner of list) if (sameHex(owner.hash, hash)) found = owner.id;
-    return found;
-  };
-  const fresh = Date.now() - tokenCache.at < TOKEN_CACHE_MS;
-  const hit = pick(fresh ? tokenCache.owners : await loadTokenOwners());
-  if (hit) return hit;
-  if (fresh && Date.now() - lastRescanAt > TOKEN_RESCAN_MS) {
-    lastRescanAt = Date.now();
-    return pick(await loadTokenOwners());
-  }
-  return "";
-}
-
-// ----------------------------------------------------------- the caller gate
-
-let accessPromise = null; // the one load of the file, kept for the process lifetime
-
-/**
- * Reads the allowlist back, or starts EMPTY. A missing file, a broken file and
- * an unreadable disk all mean the same thing here: nobody is allowed yet. The
- * shape is validated on the way in, so a hand-edited file cannot put anything
- * into the state that is not a sync id.
- */
-async function loadAccess() {
-  try {
-    const parsed = JSON.parse(await readFile(LLM_ACCESS_FILE, "utf8"));
-    const allowed = Array.isArray(parsed.allowed) ? parsed.allowed.filter((id) => SYNC_ID_RE.test(id)) : [];
-    const pending = {};
-    if (parsed.pending && typeof parsed.pending === "object") {
-      for (const [id, value] of Object.entries(parsed.pending)) {
-        if (!SYNC_ID_RE.test(id) || !value || typeof value !== "object") continue;
-        pending[id] = {
-          first: Number(value.first) || 0,
-          last: Number(value.last) || 0,
-          count: Number(value.count) || 0,
-        };
-      }
-    }
-    // Operator-entered labels ("Michael's iPhone") so an allowed id has a face.
-    // Plain text, capped, only ever rendered on the key-gated page - a note is
-    // for the operator's memory and never travels to any caller.
-    const notes = {};
-    if (parsed.notes && typeof parsed.notes === "object") {
-      for (const [id, value] of Object.entries(parsed.notes)) {
-        if (!SYNC_ID_RE.test(id) || typeof value !== "string") continue;
-        const trimmed = value.trim().slice(0, NOTE_MAX_CHARS);
-        if (trimmed) notes[id] = trimmed;
-      }
-    }
-    return { allowed: [...new Set(allowed)], pending, notes };
-  } catch {
-    return { allowed: [], pending: {}, notes: {} };
-  }
-}
-
-/** A note is a label, not a document. */
-const NOTE_MAX_CHARS = 120;
-
-function access() {
-  if (!accessPromise) accessPromise = loadAccess();
-  return accessPromise;
-}
-
-/** Same atomic write as the vault records: a temp file, then a rename. */
-async function saveAccess(data) {
-  await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
-  await writeAtomic(LLM_ACCESS_FILE, JSON.stringify(data));
-}
-
-/**
- * The links the operator's notification carries. They exist only when there is
- * a public address to build them from AND a stats key to authorise them with -
- * without the key the page they point at is a 404 for everybody, so a link
- * would be a lie. No key set, or no public URL: the POST carries the id alone.
- */
-function notifyLinks(syncId) {
-  if (!PUBLIC_URL || !STATS_KEY) return {};
-  let base;
-  try {
-    base = new URL(PUBLIC_URL).toString().replace(/\/+$/, "");
-  } catch {
-    return {};
-  }
-  const k = encodeURIComponent(STATS_KEY);
-  return {
-    allowUrl: `${base}/stats?k=${k}&allow=${syncId}`,
-    denyUrl: `${base}/stats?k=${k}&deny=${syncId}`,
-    statsUrl: `${base}/stats?k=${k}#llm`,
-  };
-}
-
-/**
- * One POST to the operator's own hook, and then this server forgets about it.
- * It is not awaited by the request, nothing is retried, no answer is read, and
- * every failure is swallowed: a doorbell that breaks must not break the door.
- *
- * It uses node's http/https request rather than fetch on purpose - the one
- * fetch() in this file is the push round, and tests/today.spec.js counts it.
- */
-function notifyOperator(syncId) {
-  if (!NOTIFY_URL) return;
-  let url;
-  try {
-    url = new URL(NOTIFY_URL);
-  } catch {
-    return;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return;
-  const body = Buffer.from(
-    JSON.stringify({ event: "llm-approval-request", syncId, ...notifyLinks(syncId) }),
-    "utf8",
-  );
-  const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-  try {
-    const call = send(
-      {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port,
-        path: `${url.pathname}${url.search}`,
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Content-Length": String(body.length) },
-      },
-      (answer) => answer.resume(), // drained, never read
-    );
-    call.setTimeout(NOTIFY_TIMEOUT_MS, () => call.destroy());
-    call.on("error", () => {});
-    call.end(body);
-  } catch {
-    // A hook that is unreachable, misconfigured or gone is not an error the
-    // person waiting for a model answer should ever hear about.
-  }
-}
-
-/** Records that an id asked, and says whether the operator should be poked. */
-async function recordPending(syncId) {
-  let isNew = false;
-  await withIdLock("llm-access", async () => {
-    const data = await access();
-    isNew = notePending(data.pending, syncId, Date.now(), MAX_PENDING_IDS).isNew;
-    await saveAccess(data);
-  });
-  return isNew;
-}
-
-/**
- * The operator's three decisions, all idempotent: allowing an allowed id,
- * denying an unknown one and revoking one that is not there all end in the
- * state the name promises. That is what makes a link in a mail safe to click
- * twice, and what makes a double POST harmless.
- */
-async function applyAccessAction(action, syncId, note) {
-  if (!SYNC_ID_RE.test(syncId)) return;
-  await withIdLock("llm-access", async () => {
-    const data = await access();
-    if (!data.notes || typeof data.notes !== "object") data.notes = {};
-    if (action === "allow") {
-      if (!data.allowed.includes(syncId)) data.allowed.push(syncId);
-      delete data.pending[syncId];
-    } else if (action === "deny") {
-      // Denying forgets the request. It is not a blocklist: an id that asks
-      // again lands in the pending list again, which is the honest behaviour
-      // for something the operator may simply not have decided yet.
-      delete data.pending[syncId];
-    } else if (action === "revoke") {
-      data.allowed = data.allowed.filter((id) => id !== syncId);
-    } else if (action === "note") {
-      // The operator's label for an id. An empty note takes the label away;
-      // saving the same note twice is a no-op - the link/button rules of the
-      // other three actions hold here too.
-      const trimmed = typeof note === "string" ? note.trim().slice(0, NOTE_MAX_CHARS) : "";
-      if (trimmed) data.notes[syncId] = trimmed;
-      else delete data.notes[syncId];
-    } else {
-      return;
-    }
-    await saveAccess(data);
-  });
-}
-
-/** The answer, byte for byte, with the content type this API always sends. */
-function sendRaw(res, status, body) {
-  res.writeHead(status, { ...API_HEADERS, "Content-Length": body.length });
-  res.end(body);
-}
-
-/**
- * One request to the model. No caller header is passed on, no redirect is
- * followed (node does not follow them and nothing here adds it), and the
- * response is read with a hard cap so a hostile or broken upstream cannot
- * push this process into swap.
- * @returns {Promise<{status?: number, body?: Buffer, error?: string}>}
- */
-function askUpstream(target, payload, apiKey) {
-  return new Promise((done) => {
-    const url = new URL(target.url);
-    const body = Buffer.from(JSON.stringify(payload), "utf8");
-    const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-    const headers = {
-      "Content-Type": "application/json",
-      "Content-Length": String(body.length),
-      Accept: "application/json",
-    };
-    // The key belongs to the caller, travels once, and is not kept anywhere.
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-    const call = send(
-      {
-        protocol: url.protocol,
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname,
-        method: "POST",
-        headers,
-      },
-      (answer) => {
-        const chunks = [];
-        let size = 0;
-        answer.on("data", (chunk) => {
-          size += chunk.length;
-          if (size > MAX_LLM_RESPONSE_BYTES) {
-            answer.destroy();
-            call.destroy();
-            done({ error: "tooLarge" });
-            return;
-          }
-          chunks.push(chunk);
-        });
-        answer.on("end", () => done({ status: answer.statusCode || 502, body: Buffer.concat(chunks) }));
-        answer.on("error", () => done({ error: "upstream" }));
-      },
-    );
-    call.setTimeout(LLM_TIMEOUT_MS, () => {
-      call.destroy();
-      done({ error: "timeout" });
-    });
-    call.on("error", () => done({ error: "upstream" }));
-    call.end(body);
-  });
-}
-
-async function handleLlm(req, res) {
-  if (req.method !== "POST") {
-    sendJson(res, 405, { error: "method not allowed" });
-    return;
-  }
-  // The hard ceiling is read off the stream; the ordinary one megabyte is
-  // applied below, once it is clear whether an image is really part of this.
-  const read = await readBody(req, MAX_LLM_IMAGE_BODY_BYTES);
-  if (read.tooLarge) {
-    sendJson(res, 413, { error: "too large" });
-    return;
-  }
-  if (!(await relayAuthorised(req))) {
-    sendJson(res, 401, { error: "unauthorised" });
-    return;
-  }
-  let payload;
-  try {
-    payload = JSON.parse(read.body.toString("utf8"));
-  } catch {
-    sendJson(res, 400, { error: "bad request" });
-    return;
-  }
-  if (!payload || typeof payload !== "object" || !Array.isArray(payload.messages)) {
-    sendJson(res, 400, { error: "bad request" });
-    return;
-  }
-  const target = upstreamTarget(payload.upstream);
-  if (!target) {
-    sendJson(res, 403, { error: "upstream not allowed" });
-    return;
-  }
-
-  // The second wall: WHO may use the operator's own machine as a model server.
-  // A cloud target never gets here - it is the caller's key and the caller's
-  // bill, and this branch is skipped before any identity is looked up.
-  if (target.local) {
-    const store = await access();
-    const decision = gateDecision({
-      targetLocal: true,
-      localRequest: isLocal(req),
-      syncId: await callerSyncId(req),
-      allowed: store.allowed,
-    });
-    if (!decision.pass) {
-      if (decision.syncId) {
-        const isNew = await recordPending(decision.syncId).catch(() => false);
-        if (isNew) notifyOperator(decision.syncId);
-      }
-      // The answer is one machine-readable word. It carries no id, no list, no
-      // count and no hint about who else may use this server - the caller
-      // learns only that a decision is owed, which is what they sent in.
-      sendJson(res, 403, { error: "llm-approval" });
-      return;
-    }
-  }
-
-  if (!carriesImage(payload.messages) && read.body.length > MAX_LLM_BODY_BYTES) {
-    sendJson(res, 413, { error: "too large" });
-    return;
-  }
-  if (typeof payload.model !== "string" || !payload.model || payload.model.length > 200) {
-    sendJson(res, 400, { error: "bad request" });
-    return;
-  }
-
-  // A fixed, tiny set of fields travels. Anything else the client might have
-  // sent - and anything a future client might send by accident - stops here.
-  const forwarded = { model: payload.model, messages: payload.messages };
-  if (Number.isFinite(payload.maxTokens)) {
-    const cap = Math.trunc(payload.maxTokens);
-    if (MAX_COMPLETION_HOSTS.has(target.host)) forwarded.max_completion_tokens = cap;
-    else forwarded.max_tokens = cap;
-  }
-  if (Number.isFinite(payload.temperature)) forwarded.temperature = payload.temperature;
-  // Reasoning throttle, LOCAL upstreams only: LM Studio honours it (verified
-  // live: gemma's thinking shrinks to a third and the answer arrives), and
-  // servers that do not know it ignore it. Cloud providers instead reject
-  // unknown parameters, so it never travels to the allowlist hosts.
-  if (target.local && (payload.reasoningEffort === "low" || payload.reasoningEffort === "none")) {
-    forwarded.reasoning_effort = payload.reasoningEffort;
-  }
-
-  const answer = await askUpstream(target, forwarded, typeof payload.apiKey === "string" ? payload.apiKey : "");
-  if (answer.error === "timeout") {
-    sendJson(res, 504, { error: "timeout" });
-    return;
-  }
-  if (answer.error) {
-    sendJson(res, 502, { error: "upstream" });
-    return;
-  }
-  // Verbatim: whatever the model said, including its own error shape. This
-  // server does not interpret, rewrite, summarise or remember any of it.
-  sendRaw(res, answer.status, answer.body);
 }
 
 // -------------------------------------------------------------------- stats
@@ -1655,80 +1093,7 @@ function sparkline(data, days) {
   return `<svg class="spark" viewBox="0 0 ${values.length * w} 58" preserveAspectRatio="none" role="img" aria-label="Document loads per day, last ${values.length} days">${bars}</svg>`;
 }
 
-/** A moment, in UTC, to the minute. No locale, no timezone guessing. */
-function stamp(ts) {
-  const value = Number(ts) || 0;
-  if (!value) return "-";
-  return new Date(value).toISOString().replace("T", " ").slice(0, 16);
-}
-
-/**
- * The operator's console for the caller gate: who may use the local models,
- * and who is waiting for an answer.
- *
- * Showing sync ids here is deliberate and bounded. An id is a capability for
- * the MAILBOX (it grants a read of one ciphertext blob), so it belongs behind
- * the key - which this page already is, rate limited and unlisted. The operator
- * holds the data directory anyway; the requester never sees any of it.
- */
-function gateSection(gate, key) {
-  const action = `?k=${esc(encodeURIComponent(key))}`;
-  const button = (name, id, label) =>
-    `<form class="act" method="post" action="${action}"><input type="hidden" name="action" value="${name}"><input type="hidden" name="id" value="${esc(
-      id,
-    )}"><button type="submit">${esc(label)}</button></form>`;
-
-  // The note gives an allowed id a face ("Michael's iPhone") - operator's
-  // memory only, rendered nowhere but here, never sent to any caller.
-  const noteForm = (id, current) =>
-    `<form class="act note" method="post" action="${action}"><input type="hidden" name="action" value="llm-note"><input type="hidden" name="id" value="${esc(
-      id,
-    )}"><input class="note-input" type="text" name="note" maxlength="120" placeholder="Note" value="${esc(
-      current || "",
-    )}"><button type="submit">Save</button></form>`;
-
-  const allowedRows = gate.allowed
-    .map(
-      (id) =>
-        `<tr><td class="id">${esc(id)}${
-          gate.notes && gate.notes[id] ? `<div class="note-label">${esc(gate.notes[id])}</div>` : ""
-        }</td><td class="act-cell">${noteForm(id, gate.notes && gate.notes[id])}${button(
-          "llm-revoke",
-          id,
-          "Revoke",
-        )}</td></tr>`,
-    )
-    .join("");
-
-  const waiting = Object.entries(gate.pending).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
-  const pendingRows = waiting
-    .map(
-      ([id, entry]) =>
-        `<tr><td class="id">${esc(id)}</td><td>${esc(stamp(entry.first))}</td><td>${esc(
-          stamp(entry.last),
-        )}</td><td class="n">${num(entry.count)}</td><td class="act-cell">${button(
-          "llm-allow",
-          id,
-          "Allow",
-        )}${button("llm-deny", id, "Deny")}</td></tr>`,
-    )
-    .join("");
-
-  return `<h2 id="llm">Local model access</h2>
-<p class="lede">Who may send a request to the model servers named in TENFOLD_LLM_UPSTREAMS. Cloud targets are
-not affected: those run on the caller's own key. A caller who is not allowed gets a refusal and lands in the
-list below; what is stored per waiting id is the id, when it first and last asked, and how often. Nothing else.</p>
-<h3>Allowed</h3>
-${allowedRows ? `<div class="wrap"><table><tbody>${allowedRows}</tbody></table></div>` : '<p class="none">Nobody yet. Local models are reachable from this machine only.</p>'}
-<h3>Waiting for a decision</h3>
-${
-  pendingRows
-    ? `<div class="wrap"><table><thead><tr><th>Sync id</th><th>First asked</th><th>Last asked</th><th class="n">Tries</th><th></th></tr></thead><tbody>${pendingRows}</tbody></table></div>`
-    : '<p class="none">Nobody is waiting.</p>'
-}`;
-}
-
-function statsPage(data, key, gate) {
+function statsPage(data, key) {
   const last30 = recentDays(30);
   const last7 = recentDays(7);
   const allDays = Object.keys(data.days).sort().reverse();
@@ -1812,7 +1177,7 @@ function statsPage(data, key, gate) {
 <h1>tenfold &middot; stats</h1>
 <p class="lede">Document loads only, counted per UTC day. No IP, no cookie, no identifier is stored -
 the visitor number is a daily count of salted hashes that never leave memory.</p>
-<nav><a href="#visitors">Visitors</a><a href="#referrers">Referrers</a><a href="#countries">Countries</a><a href="#platform">Platform</a><a href="#llm">Local model access</a></nav>
+<nav><a href="#visitors">Visitors</a><a href="#referrers">Referrers</a><a href="#countries">Countries</a><a href="#platform">Platform</a></nav>
 
 <div class="cards">
   <div class="card"><div class="k">Loads, all time</div><div class="v">${num(totalHits)}</div></div>
@@ -1845,8 +1210,6 @@ on this page.</p>
 <tr><td>Mobile</td><td class="n">${num(platform.mobile)}</td><td class="n">${share(platform.mobile)}</td></tr>
 <tr><td>Desktop</td><td class="n">${num(platform.desktop)}</td><td class="n">${share(platform.desktop)}</td></tr>
 </tbody></table>
-
-${gateSection(gate, key)}
 
 <form class="clear" method="post" action="?k=${esc(encodeURIComponent(key))}">
   <input type="hidden" name="action" value="clear">
@@ -1884,15 +1247,13 @@ async function handleStats(req, res, rel, query) {
   // key's length nor the position of the first wrong character leaks.
   if (!sameHex(await sha256Hex(given), await sha256Hex(STATS_KEY))) return false;
 
-  // The admin surface: the button that throws the counters away, and the three
-  // decisions of the caller gate. All of them POST, so no prefetch, no crawler
-  // and no history entry can trigger them, and all of them need the same key
-  // the page needs.
+  // The admin surface: one button, the one that throws the counters away. It
+  // POSTs, so no prefetch, no crawler and no history entry can trigger it, and
+  // it needs the same key the page needs.
   if (req.method === "POST") {
     const read = await readBody(req, 4096);
     const form = new URLSearchParams(read.tooLarge ? "" : read.body.toString("utf8"));
     const action = form.get("action") || "";
-    let fragment = "";
     if (action === "clear") {
       statsData = { days: {} };
       statsPromise = Promise.resolve(statsData);
@@ -1901,33 +1262,10 @@ async function handleStats(req, res, rel, query) {
       visitorSeen = new Set();
       statsDirty = true;
       await flushStats().catch(() => {});
-    } else if (action.startsWith("llm-")) {
-      await applyAccessAction(action.slice("llm-".length), form.get("id") || "", form.get("note") || "").catch(
-        () => {},
-      );
-      fragment = "#llm";
     }
     // Back to the page itself, so a refresh does not repeat the action.
     res.writeHead(303, {
-      Location: `${rel}?k=${encodeURIComponent(given)}${fragment}`,
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
-    });
-    res.end();
-    return true;
-  }
-
-  // The clickable half of the same three decisions: /stats?k=KEY&allow=<id>.
-  // The operator's notification is a mail, and a mail carries links, not forms.
-  // THE KEY IN THE LINK IS THE AUTHENTICATION - it was checked above, exactly
-  // as for the page itself - and the action is IDEMPOTENT, because a link gets
-  // clicked twice, prefetched by a mail client and opened again from history.
-  const allowId = query.get("allow") || "";
-  const denyId = query.get("deny") || "";
-  if (allowId || denyId) {
-    await applyAccessAction(allowId ? "allow" : "deny", allowId || denyId).catch(() => {});
-    res.writeHead(303, {
-      Location: `${rel}?k=${encodeURIComponent(given)}#llm`,
+      Location: `${rel}?k=${encodeURIComponent(given)}`,
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
     });
@@ -1940,8 +1278,7 @@ async function handleStats(req, res, rel, query) {
   // The operator looking is a good moment to put the counters on disk; the
   // interval does the same every five minutes.
   await flushStats().catch(() => {});
-  const gate = await access();
-  const body = Buffer.from(statsPage(data, given, gate), "utf8");
+  const body = Buffer.from(statsPage(data, given), "utf8");
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
@@ -1967,16 +1304,12 @@ async function handleStats(req, res, rel, query) {
 async function handleApi(req, res, rel) {
   if (!rel.startsWith("/api/")) return false;
   const rest = rel.slice("/api/".length);
-  if (!rest.startsWith("vault/") && !rest.startsWith("push/") && rest !== "llm") {
+  if (!rest.startsWith("vault/") && !rest.startsWith("push/")) {
     sendJson(res, 404, { error: "not found" });
     return true;
   }
   if (!isLocal(req) && overLimit(rateHits, clientIp(req), RATE_WINDOW_MS, RATE_MAX_PER_WINDOW)) {
     sendJson(res, 429, { error: "slow down" });
-    return true;
-  }
-  if (rest === "llm") {
-    await handleLlm(req, res);
     return true;
   }
   if (rest.startsWith("push/")) {

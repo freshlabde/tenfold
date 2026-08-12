@@ -24,11 +24,10 @@
   <string>/path/to/tenfold</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <!-- The model relay's allowlist: exact OpenAI-compatible base URLs the
-         relay may forward to (comma-separated). Empty or absent = the relay
-         only accepts the built-in cloud hosts. -->
-    <key>TENFOLD_LLM_UPSTREAMS</key>
-    <string>http://127.0.0.1:1234/v1</string>
+    <!-- TENFOLD_LLM_UPSTREAMS stood here until v1.1. It named the model
+         servers the built-in relay was allowed to forward to; the relay was
+         removed with that release and the variable is read nowhere any more.
+         An existing LaunchAgent may still carry it - it is simply ignored. -->
     <!-- Operator contact in the Web-Push VAPID claim. Operator data, never
          user data. -->
     <key>TENFOLD_PUSH_SUBJECT</key>

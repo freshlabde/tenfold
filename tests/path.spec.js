@@ -56,15 +56,19 @@ async function addRoots(page, titles) {
   await page.locator(".composer input").press("Escape");
 }
 
-/** Hang `titles` under the node with that title, through the normal mutate path. */
+/**
+ * Hang `titles` under the node with that title, through the normal mutate path.
+ * `importTree` is that path since v1.1: it is what the copy loop applies with,
+ * and a flat list of level-0 lines is exactly "these become children of this".
+ */
 async function addUnder(page, parentTitle, titles) {
   await page.evaluate(
     async ({ parentTitle: parent, titles: kids }) => {
       const { ctx } = await import("/web/js/app.js");
       const node = ctx.doc.nodes.find((n) => n.title === parent && !n.deletedAt);
-      ctx.addChildren(
+      ctx.importTree(
         node.id,
-        kids.map((title) => ({ title })),
+        kids.map((title) => ({ title, level: 0 })),
       );
     },
     { parentTitle, titles },

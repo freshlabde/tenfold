@@ -16,7 +16,6 @@ import { t, localizeStoryLabels } from "../i18n.js";
 import { storyDepth } from "../model.js";
 import { progressOf, relativeTime } from "./format.js";
 import { nameTransition, clearTransition } from "../motion.js";
-import { importEntry } from "./imageimport.js";
 
 function crumb(ctx, node) {
   const chain = ctx.ancestors(node.id);
@@ -158,16 +157,14 @@ export function render(ctx, id) {
         [icon("dots", 16), text(t("focus.openLeaf"))],
       );
 
-  // A picture of a list read into THIS goal: the outer margin of the paper
-  // becomes the level below this node, and everything shifts down with it. The
-  // target stays exactly what it was - only the entry point moved into the bar.
-  const cam = importEntry(ctx, node.id);
-
   return el("section", { class: "screen" }, [
     crumb(ctx, node),
     el("div", { class: "peek", attrs: { "aria-hidden": "true" } }, [el("i", {}), el("i", {})]),
     hero(ctx, node),
     body,
-    el("div", { class: `bar${cam ? " has-cam" : ""}` }, [add, cam, second]),
+    // Two controls. A camera stood between them until v1.1, when the built-in
+    // model relay it fed was removed; an outline now arrives through the copy
+    // loop on the leaf screen instead.
+    el("div", { class: "bar" }, [add, second]),
   ]);
 }

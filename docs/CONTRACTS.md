@@ -245,7 +245,7 @@ answer is a step the eye can name.
 and parked still hold their place until the next paper ritual) the outline's "New entry"
 button carries the real `disabled` attribute and the ordinary `.btn[disabled]` styling.
 Anything that brings the count back under ten enables it on the next repaint. This is the
-**only** gate: a photo import, a shared note filed from another app and a merge from another
+**only** gate: a pasted outline, a shared note filed from another app and a merge from another
 device can each still land an eleventh entry. A list longer than ten renders correctly: it
 scrolls, which is exactly what the fit budget stops being able to promise beyond ten.
 
@@ -1011,122 +1011,41 @@ export async function adopt(syncId): Promise<VaultFile>   // fetch + store, then
   now points at the bigger action ("unlock first, Settings, Delete the vault everywhere"),
   because a locked device cannot derive the token that deletion requires.
 
-## Stage 3: the model (assistance is an accessory, never the foundation)
+## Stage 3: the model, and its removal in v1.1
 
-**Three modes, default OFF.** `doc.settings.llm = { mode: "off"|"local"|"cloud", provider,
-baseUrl, model, apiKey }` lives INSIDE the sealed vault; the server never stores any of it.
-In `off` mode not a single AI control exists in the DOM (absent, not hidden). Switching to
-`cloud` requires a one-time explicit consent sheet stating plainly what leaves the device.
+**What stage 3 built, and what is left of it.** Until v1.1 this app spoke to a language
+model itself: `doc.settings.llm` held a mode (`off` / `local` / `cloud`), a provider, a base
+URL, a model name and an API key inside the sealed vault; `web/js/llm.js` scoped a context
+and posted it to a same-origin relay, `POST /api/llm` in `tools/serve.js`, which forwarded
+it to an allowlisted upstream (the SSRF wall) behind a caller gate for the operator's own
+local models (`tools/llm_gate.js`, `DATA_DIR/llm_access.json`, the `/stats#llm` console and
+the `TENFOLD_NOTIFY_URL` doorbell). `web/js/prompts.js` held seven operations behind an
+interview gate, `web/js/ui/assist.js` showed them as proposals, and `web/js/ui/imageimport.js`
+read a photographed list through the same relay from a camera button in the bottom bar.
 
-**Server relay (`POST /api/llm`)** exists only because browsers cannot reach most
-providers directly (CORS) and because the phone cannot reach the home LAN from outside:
-- Body: `{ upstream, model, apiKey?, messages, maxTokens?, temperature? }`. The server
-  forwards to `<upstream>/chat/completions` (OpenAI-compatible), returns the JSON verbatim,
-  **stores nothing, logs nothing**, the same rule as the vault mailbox.
-- **No open proxy.** `upstream` must be EITHER on the built-in cloud allowlist
-  (api.openai.com, api.anthropic.com, openrouter.ai, api.mistral.ai, api.groq.com, https
-  only) OR exactly match one of the operator-configured local upstreams in the env var
-  `TENFOLD_LLM_UPSTREAMS` (comma-separated base URLs, e.g. `http://127.0.0.1:1234/v1`).
-  Anything else -> 403. This is the SSRF wall; weakening it is never an improvement.
-- **Auth:** the relay requires a valid `X-Sync-Token` for an existing vault on this server,
-  or a local (loopback, no cf-connecting-ip) caller. Without that, strangers would burn the
-  operator's local models through the tunnel.
-- Abuse limits apply (the existing per-IP rate limiter covers /api/llm too).
+**All of it is gone.** Not deprecated, not disabled: deleted, together with the settings
+group that configured it, the three-mode switch, the cloud consent sheet, the connection
+test, the camera button and 91 i18n keys. The app makes no model request of any kind, and
+`tools/serve.js` has no route that forwards anything anywhere. **The full apparatus lives
+in git history at the `v1.0.0` tag** - read it there rather than reconstructing it from
+this paragraph.
 
-**Two walls, not one.** The upstream allowlist above says WHERE a request may go. The caller
-gate (`tools/llm_gate.js`, pure and unit-tested) says WHO may send it to a LOCAL upstream:
-- **Cloud targets are never gated.** The caller sends their own API key and pays their own
-  bill; there is nothing of the operator's to protect. `gateDecision` returns early for them
-  and the server does not even look up who is calling.
-- **A local upstream is the operator's own machine.** A caller who proved a vault
-  (`X-Sync-Token`) may use it only when THAT sync id stands in the operator's allowlist -
-  through the tunnel and on loopback alike. Otherwise every person who ever created a vault
-  here would be holding a free GPU.
-- **Loopback without a sync id keeps the older allowance** (dev server, test suite, the
-  operator's own browser), and only when the request is genuinely local: loopback address AND
-  no `cf-connecting-ip`, the same test the abuse limits use.
-- **Refusal:** `403 {"error": "llm-approval"}` - a distinct, machine-readable code, separate
-  from the target refusal `403 {"error": "upstream not allowed"}`. The client maps it to
-  `LlmError("approval")` and shows `llm.error.approval` (settings connection test and every
-  assist path use the same code-to-sentence mapping). The answer carries the word and nothing
-  else: no id, no list, no count, nothing about who else may use this server.
-- **State: `DATA_DIR/llm_access.json`**, created lazily, written atomically like the vault
-  records, never inside the repository:
-  ```json
-  { "allowed": ["<syncId>"], "pending": { "<syncId>": { "first": 0, "last": 0, "count": 0 } }, "notes": { "<syncId>": "operator label" } }
-  ```
-  A missing, broken or unreadable file means an EMPTY allowlist, never an open one. **No
-  grandfathering:** a fresh gate starts empty and the operator allows ids by hand, their own
-  first. A refused request records or increments its id in `pending` (cap 500, oldest
-  first-seen dropped). **What is stored is the id, two timestamps and a counter. Never a
-  message, a model name, an upstream, an API key, an IP or a user agent** - it is a doorbell,
-  not a log, and it is the ONLY thing the relay ever writes down.
-- **Notes** are operator-entered labels for allowed ids (POST `action=llm-note&id=&note=`,
-  capped at 120 characters, empty clears). They render only on the key-gated stats page and
-  never travel to any caller.
-- **Operator UI: `/stats#llm`** (section "Local model access"), behind the same
-  `TENFOLD_STATS_KEY`, the same constant-time key check and the same rate limiter as the
-  counters. Allowed ids with a revoke button, pending ids with first/last/count and
-  allow/deny buttons. POST `action=llm-allow|llm-deny|llm-revoke` + `id=<syncId>`, answering
-  303 to `?k=KEY#llm`. Without a stats key there is no page and the file is the only surface.
-- **GET links: `/stats?k=KEY&allow=<syncId>` and `&deny=<syncId>`.** The operator's
-  notification is a mail and a mail carries links, not forms, so: **the key in the URL IS the
-  authentication** (checked exactly as for the page, wrong or missing key -> the same plain
-  404 every unknown path gets), and **the action is idempotent** - allowing an allowed id,
-  denying an unknown one and revoking one that is not there all end in the state the name
-  promises, because links get clicked twice, prefetched and reopened from history. Both
-  redirect 303 to `?k=KEY#llm`.
-- **Notification hook (optional): `TENFOLD_NOTIFY_URL`.** When a NEW id appears in `pending`
-  (first time only, never per request), one JSON POST goes out, fire and forget, 5 s timeout,
-  answer never read, every failure swallowed:
-  ```json
-  { "event": "llm-approval-request", "syncId": "...", "allowUrl": "...", "denyUrl": "...", "statsUrl": "..." }
-  ```
-  The three URLs are built from `TENFOLD_PUBLIC_URL` and carry the stats key; they are OMITTED
-  when either that or `TENFOLD_STATS_KEY` is unset, because a link to a page that 404s is a
-  lie. **No mail code lives in this repository** - no dependency, and SMTP is the operator's
-  business. Allow/deny/revoke are idempotent precisely so this mail is safe.
-- Denying is not a blocklist: it forgets the request, and an id that asks again is waiting
-  again. That is the honest behaviour for something the operator may simply not have decided.
-- Timeout ~120 s, response size cap 1 MB, non-streaming in v1 (the UI animates the text in;
-  no spinner anywhere).
+**What replaced it: the copy loop**, specified below under "The copy loop". The person is
+the transport. This is a smaller promise honestly kept rather than a larger one hedged:
+there is no key to store, no address to trust, no relay to audit and nothing that can be
+switched on by accident.
 
-**Client (`web/js/llm.js`, the third and last module allowed to fetch, `/api/llm` only):**
-- Context scoping per request: the target node, its ancestor chain, direct siblings and
-  children, the stories along that chain, and the LINKED entity cards. Never the whole tree.
-- Filters enforced at prompt build (with tests): `llm_optout` subtrees never appear;
-  `sensitivity: "high"` cards only after an explicit per-call release; in cloud mode entity
-  NOTES are omitted unless released (name/relation may go).
-- Every result is a PROPOSAL: rendered as an acceptable diff, applied item by item through
-  the normal mutate path with `origin: "llm"`. Nothing writes to the doc directly.
-
-**Operations v1** (`web/js/prompts.js`): understand (the interview gate, where step 1 returns
-`{ready:false, questions:[...]}` or `{ready:true}`; answers append to story/entity cards
-with confirmation), then: break down (3-7 substeps), sharpen (vague -> testable), smallest
-next step (<30 min), blockers & preconditions, done-criterion, rank siblings with one-line
-reasons. Break down ALWAYS runs the interview gate first.
-
-**Node opt-out UI:** the `llmOptout` field exists since schema 2; stage 3 must add the
-toggle (row menu + leaf screen, with the inherited state shown), because without UI the field is
-a dead promise.
-
-**Image import (stage 3b):** photograph a handwritten list, a table, or a structured
-outline/mindmap screenshot -> vision model via the same relay (`messages` with image content
-part, base64 data URL, client-side resize to ~1600px JPEG before upload) -> a
-**hierarchical proposal**: items carry indentation levels (the owner's real outlines are
-four levels deep), rendered as an indented checklist where each line is individually
-acceptable/editable and unchecking a parent unchecks its subtree. The user picks the target
-(new roots, or under the currently focused node); accepting creates ordinary nodes with
-`origin: "llm"` through the normal mutate path. Never a silent direct import. Works in
-local mode with a vision model (e.g. qwen2.5-vl) and in cloud mode; absent in off mode like
-every AI control. Honest failure: if the model cannot read the image, one calm line, no
-partial garbage import. **The entry point is the camera button in the bottom bar**, on the
-outline and on a focus screen alike, the middle of three controls (new entry · camera · put
-in order), icon only, carrying `import.entry` as its accessible name, square at one tap width
-while the two words stay flexible; it replaced the text line that used to stand above the bar
-and cost the ten a row of height. It is deliberately NOT closed by the ten-root cap that
-disables "New entry": what a photograph proposes is decided line by line in the sheet, which
-enforces the cap where the lines actually land.
+**What SURVIVED the removal, and is still binding:**
+- **`llmOptout` on a node** (schema 2) and its UI - the toggle in the row menu and on the
+  leaf screen, with the inherited state shown and never toggled where it was inherited. It
+  is no longer conditional on any assistance being configured, because the copy loop needs
+  no configuration: the switch that holds a branch back must exist wherever the loop does.
+- **`origin: "llm"`** on every node a model's words produced, applied through the ordinary
+  mutate path (`ctx.importTree`). The answer did come from a model; how it travelled does
+  not change where it came from.
+- **The scoping rules**, ported into `buildCopyContext` with the two per-call releases
+  removed - a text on the clipboard has no single call to release something for. They are
+  therefore STRICTER than the relay's were, not looser.
 
 **QR pairing (stage 3c):** the pairing sheet shows the pairing URL additionally as a QR
 code, generated by our own encoder (`web/js/qr.js`, byte mode, EC level M, no third-party
@@ -1203,7 +1122,8 @@ seen, so two spaces, four spaces and a tab all mean the same thing as long as on
 consistent with itself. Bullets, numbers, letters, checkboxes, heading hashes and emphasis marks
 are stripped; a trailing colon goes with them. Levels are then clamped by
 `normalizeOutlineItems`, the ONE place the three limits of an outline live (four levels, 100
-lines, 200 characters per line), shared with the photo import so the two ways in cannot drift.
+lines, 200 characters per line). It was shared with the photo import so the two ways in could
+not drift; since v1.1 there is one way in, and it is still the only place those limits exist.
 Nothing is dropped for looking like prose: a sentence in front of the list becomes a line the
 person sees and cancels on, which is honest where silent swallowing would not be.
 
@@ -1220,11 +1140,14 @@ promise above would have no control behind it.
 
 ## Visitor counters (`TENFOLD_STATS_KEY`, off by default)
 
-The server logs nothing. This is the **fourth explicit exception** to that rule, after the VAPID
-signing key, the model relay and the share-target fallback, and it is written down here for the
-same reason as the other three: an exception that is not named is a hole. (The header of
-`tools/serve.js` labels it the third, because it numbers only the exceptions declared in that
-header - the share-target fallback is documented at its branch in the router.)
+The server logs nothing. This is the **third explicit exception** to that rule, after the VAPID
+signing key and the share-target fallback, and it is written down here for the same reason as
+the other two: an exception that is not named is a hole. It was the fourth until v1.1, when the
+model relay - the second - was removed. (The header of `tools/serve.js` still labels this one
+the third: it numbers only the exceptions declared in that header, and the second slot now
+holds a history note about the relay rather than being closed up, because a rule that quietly
+loses an exception reads as if it never had one. The share-target fallback is documented at its
+branch in the router.)
 
 **It does not exist unless the operator switches it on.** With `TENFOLD_STATS_KEY` absent or
 empty nothing is counted, no file is written, and `/stats` answers the same plain 404 as any

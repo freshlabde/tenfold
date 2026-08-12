@@ -13,7 +13,6 @@ import { nodeList, composer } from "./rows.js";
 import { dueCounts } from "../model.js";
 import { t } from "../i18n.js";
 import { relativeTime } from "./format.js";
-import { importEntry } from "./imageimport.js";
 
 function headerSub(ctx) {
   const roots = ctx.childrenOf(null);
@@ -160,7 +159,7 @@ export function render(ctx) {
   // and not the act of finishing something. The button takes the ordinary
   // disabled styling (.btn[disabled]) the ordering button already uses.
   //
-  // Honestly scoped: this is the only gate. A photo import, a shared note
+  // Honestly scoped: this is the only gate. A pasted outline, a shared note
   // filed from another app or a merge from another device can still land an
   // eleventh entry, and a list longer than ten renders correctly - it simply
   // scrolls, which is what the fit budget stops being able to promise there.
@@ -194,21 +193,12 @@ export function render(ctx) {
     [icon("scales", 16), text(t("outline.order"))],
   );
 
-  // The way in from paper sits between the two words, as a camera. It exists
-  // only when assistance is switched on at all, and it is NOT closed by the
-  // ten-root rule: what a photograph proposes is decided line by line in the
-  // sheet, which enforces the cap where the lines actually land.
-  const cam = importEntry(ctx, null);
-  // Three controls, and only the middle one keeps its edges: the template
-  // names the first two columns, the third falls to grid-auto-columns (1fr),
-  // so the same rule serves [add, camera] on an empty list as well.
+  // Two controls, and until v1.1 a third between them: a camera that read a
+  // photographed list through this app's own model relay. The relay is gone
+  // and the bar is what it was before it - one word, and one word.
   const bar = roots.length
-    ? el("div", { class: `bar${cam ? " has-cam" : ""}` }, [add, cam, order])
-    : el(
-        "div",
-        cam ? { class: "bar has-cam" } : { class: "bar", style: { gridAutoFlow: "row" } },
-        [add, cam],
-      );
+    ? el("div", { class: "bar" }, [add, order])
+    : el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [add]);
 
   return el("section", { class: "screen" }, [head, body, bar]);
 }

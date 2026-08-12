@@ -149,20 +149,22 @@ function nameHint(ctx, node) {
 }
 
 /**
- * The assistance block. Three things can stand here, and each one has its own
- * condition:
+ * The assistance block. Two things stand here, and both are unconditional:
  *
- *   - the copy loop, always. It needs no relay, no key and no address, so it
- *     is not tied to whether assistance is switched on.
- *   - the built-in assist, only when assistance is switched on at all - in
- *     "off" mode not one of ITS elements is built.
- *   - the keep-away switch, which guards both of the above and therefore
- *     exists whenever either of them could.
+ *   - the copy loop. It needs no relay, no key and no address, so there is
+ *     nothing it could be tied to - it is either offered or the node is kept
+ *     away from models altogether.
+ *   - the keep-away switch, which guards it and therefore exists wherever it
+ *     could.
  *
- * A step that is kept away has neither entry; a step that inherits that
- * decision says where it came from and offers no switch, because the switch
- * belongs to the goal it was thrown on. Ghost throughout: the accent on this
- * screen belongs to the one cast action in the bar.
+ * There was a third until v1.1: the built-in assist, which spoke to a model
+ * through this app's own relay and only appeared when that was switched on.
+ * The relay is gone and so is the condition; what is left needs no mode.
+ *
+ * A step that is kept away has no entry; a step that inherits that decision
+ * says where it came from and offers no switch, because the switch belongs to
+ * the goal it was thrown on. Ghost throughout: the accent on this screen
+ * belongs to the one cast action in the bar.
  */
 function assistBlock(ctx, node) {
   const keep = ctx.optout(node.id);
@@ -170,21 +172,6 @@ function assistBlock(ctx, node) {
 
   const carry = aihelpEntry(ctx, node);
   if (carry) box.appendChild(carry);
-
-  if (ctx.llmOn && !keep.own && !keep.inherited) {
-    box.appendChild(
-      el(
-        "button",
-        {
-          class: "leaf-act",
-          attrs: { type: "button" },
-          dataset: { llm: "leaf" },
-          on: { click: () => ctx.assist(node) },
-        },
-        [icon("target", 15), text(t("llm.assist"))],
-      ),
-    );
-  }
 
   if (keep.inherited) {
     box.appendChild(

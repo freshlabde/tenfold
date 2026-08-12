@@ -438,7 +438,7 @@ test("an oversized blob is refused", async ({ request }) => {
 
 // --------------------------------------------------------------- source rules
 
-test("only sync.js, push.js and llm.js reach the network", async () => {
+test("only sync.js and push.js reach the network", async () => {
   const dir = join(ROOT, "web", "js");
   const walk = async (base) => {
     const out = [];
@@ -452,12 +452,12 @@ test("only sync.js, push.js and llm.js reach the network", async () => {
   const strip = (source) =>
     source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
-  // Contract rule 7, as of stage 3: three named modules, nothing else.
-  const allowed = [
-    join("web", "js", "sync.js"),
-    join("web", "js", "push.js"),
-    join("web", "js", "llm.js"),
-  ];
+  // Contract rule 7. It named three modules from stage 3 until v1.1, when the
+  // third - llm.js, the client of this app's own model relay - was removed with
+  // the relay itself. TWO named modules now, and the list only ever shrinks:
+  // the copy loop that replaced the relay reaches nothing at all, which is why
+  // web/js/aihelp.js and web/js/ui/aihelp.js are not on it and must never be.
+  const allowed = [join("web", "js", "sync.js"), join("web", "js", "push.js")];
   const offenders = [];
   for (const file of await walk(dir)) {
     const code = strip(await readFile(file, "utf8"));
@@ -484,16 +484,45 @@ test("only sync.js, push.js and llm.js reach the network", async () => {
   expect(pushSource).toMatch(/API_BASE\s*=\s*location\.pathname/);
   expect(pushSource).not.toMatch(/https?:\/\//);
 
-  // And the model client: same-origin builder, /api/llm only. The provider
-  // address is a field of the sealed settings and travels in the body - it is
-  // never built, defaulted or hard-coded in this module, so no foreign URL
-  // appears in its source either.
-  const llmSource = strip(await readFile(join(dir, "llm.js"), "utf8"));
-  const llmUrls = [...llmSource.matchAll(/fetch\s*\(\s*([^,)]+)/g)].map((m) => m[1].trim());
-  expect(llmUrls.length).toBeGreaterThan(0);
-  for (const url of llmUrls) expect(url).toMatch(/endpointUrl\(/);
-  expect(llmSource).toMatch(/API_BASE\s*=\s*location\.pathname/);
-  expect(llmSource).not.toMatch(/https?:\/\//);
+  // There was a third block here: the model client, same-origin builder,
+  // /api/llm only, no foreign URL in its source. It is gone with the module.
+  // What replaced it is checked by its absence instead - the copy loop is two
+  // pure files, and the walk above would have caught a fetch in either.
+  const carriers = ["aihelp.js", join("ui", "aihelp.js")];
+  for (const name of carriers) {
+    const source = strip(await readFile(join(dir, name), "utf8"));
+    expect(source).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|navigator\.sendBeacon/);
+    expect(source).not.toMatch(/https?:\/\//);
+  }
+});
+
+// The relay's own grave marker. The four client modules are gone from the
+// walk above, but a server that still answered the route would be the more
+// dangerous half of a half-finished removal - so this asks it directly.
+test("the model relay is gone: /api/llm is an unknown path", async ({ request }) => {
+  const post = await request.post("/api/llm", {
+    data: { upstream: "https://api.openai.com/v1", model: "gpt-4o", messages: [] },
+  });
+  expect(post.status()).toBe(404);
+  expect(await post.json()).toEqual({ error: "not found" });
+
+  const get = await request.get("/api/llm");
+  expect(get.status()).toBe(404);
+
+  // And the server source carries none of the apparatus any more: no upstream
+  // allowlist, no caller gate, no access file, no operator hook.
+  const serve = await readFile(join(ROOT, "tools", "serve.js"), "utf8");
+  const stripped = serve.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  for (const rx of [
+    /LLM_CLOUD_HOSTS/,
+    /TENFOLD_LLM_UPSTREAMS/,
+    /llm_access\.json/,
+    /TENFOLD_NOTIFY_URL/,
+    /llm_gate/,
+    /chat\/completions/,
+  ]) {
+    expect(stripped).not.toMatch(rx);
+  }
 });
 
 test("the server has no key material, no cipher and no decrypt path", async () => {
@@ -521,6 +550,11 @@ test("the server has no key material, no cipher and no decrypt path", async () =
   // P-256). That is a SIGNING key - ECDSA has no decrypt operation at all -
   // and the pushes it authorises carry no payload, so there is not even a
   // message it could be pointed at. Anything beyond this list is drift.
+  //
+  // Removing the model relay in v1.1 did NOT shorten this list, and that is
+  // the interesting part: the relay's header always claimed it added no
+  // cryptography, and the list being identical before and after is the proof.
+  // The digest below still belongs to the write token and to nothing else.
   const ops = [...new Set([...stripped.matchAll(/subtle\.(\w+)/g)].map((m) => m[1]))].sort();
   expect(ops).toEqual(["digest", "exportKey", "generateKey", "importKey", "sign"]);
   // The one-way digest of the write token is still the only hashing there is.
