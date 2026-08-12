@@ -1702,13 +1702,17 @@ a.btn { text-decoration: none; }
   transition: transform var(--dur) var(--ease-out), opacity var(--dur) var(--ease);
 }
 .toast.is-open { transform: translateY(0); opacity: 1; pointer-events: auto; }
-/* One line. A message too long for the pill is cut, not wrapped: the toast is
-   a receipt, and the screen behind it is the actual answer. */
+/* Short receipts stay one line; a sentence that needs more may take a second
+   ("Vault imported. Unlock it with its own passphrase." carries instructions,
+   and an ellipsis would eat exactly the half that matters). Two lines is the
+   ceiling - beyond that the message belongs on the screen, not in a pill. */
 .toast > span {
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 /* While a finger owns the transform, the transition must not fight it. */
 .toast.is-dragging { transition: none; }
