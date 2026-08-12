@@ -111,6 +111,7 @@ const SHELL = [
   "./js/ui/search.js",
   "./js/ui/settings.js",
   "./js/ui/about.js",
+  "./js/ui/support.js",
   "./icons/icon.svg",
   "./icons/icon-maskable.svg",
   "./icons/favicon-32.png",

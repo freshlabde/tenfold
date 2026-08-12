@@ -28,6 +28,7 @@ import { qrCard } from "./qrview.js";
 import { relativeTime } from "./format.js";
 import { call, llmSettings } from "../llm.js";
 import { widgetSupported } from "../badge.js";
+import { supportAvailable, openSupportSheet } from "./support.js";
 
 const SKINS = ["slate", "register", "breath"];
 const LLM_MODES = ["off", "local", "cloud"];
@@ -909,6 +910,10 @@ export function render(ctx) {
     ]),
     group("settings.group.app", [
       row("settings.about", "settings.aboutDesc", null, () => ctx.go("about")),
+      // The tip jar, next to the version rather than anywhere near the data:
+      // it is a fact about the app, not a switch. Absent inside the native
+      // shell, where an external payment link is not allowed to exist.
+      supportAvailable() ? row("support.row", "support.rowDesc", null, () => openSupportSheet(ctx)) : null,
       row("settings.version", null, `${ctx.version} \u00b7 ${ctx.cacheVersion}`, null, { disabled: true }),
     ]),
   ]);

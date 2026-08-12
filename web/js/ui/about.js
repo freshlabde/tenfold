@@ -15,6 +15,7 @@
 
 import { el, text, icon, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
+import { supportAboutLine } from "./support.js";
 
 const INTRO = ["about.intro.p1", "about.intro.p2", "about.intro.p3"];
 const WALK_TOP = ["about.walk.p1", "about.walk.p2"];
@@ -104,6 +105,12 @@ export function render(ctx) {
 
     el("p", {}, [text(t("about.close.p1"))]),
     el("p", { class: "claim" }, [text(t("about.claim.p1"))]),
+
+    // The tip jar, after the claim and in the quietest tone on the screen.
+    // Not during the intro: the first run is somebody deciding whether to
+    // trust this app with their goals, and that is not the moment to ask them
+    // for money. Absent in the native shell, where it may not exist at all.
+    intro ? null : supportAboutLine(ctx),
   ]);
 
   const children = [head, prose];

@@ -568,6 +568,23 @@ export const en = {
   "about.close.p1": "None of this is new. And that is exactly the strength. tenfold does not invent a method; it keeps a proven one and takes over the logistics.",
   "about.claim.p1": "tenfold - get what you want.",
 
+  // ----------------------------------------------------------- the tip jar
+  "support.row": "Buy me an espresso",
+  "support.rowDesc": "One or two euros, if this is worth it to you.",
+  "support.title": "Buy me an espresso",
+  "support.body": "tenfold costs nothing, asks for no account and runs no subscription. If it helps you get what you want, one or two euros keep it going.",
+  "support.about": "If tenfold helps you get what you want, you can buy me an espresso.",
+  "support.paypal": "Pay with PayPal",
+  "support.paypalHint": "Opens PayPal in a new tab and leaves the app.",
+  "support.btc": "Bitcoin",
+  "support.evm": "USDT / USDC (ERC-20)",
+  "support.evmHint": "This address is on Ethereum. Coins sent over another chain arrive nowhere and cannot be recovered.",
+  "support.copy": "Copy address",
+  "support.copied": "Address copied.",
+  "support.qrBtc": "Bitcoin address as a QR code",
+  "support.qrEvm": "USDT and USDC address as a QR code",
+  "support.privacy": "PayPal is a page outside this app. The two addresses are fixed text on this screen: nothing is loaded, nothing is counted, and this app never learns whether anybody paid.",
+
   // ------------------------------------------------------------- assistance
   "settings.group.llm": "Assistance",
   "llm.mode": "Mode",

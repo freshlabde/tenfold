@@ -1475,6 +1475,71 @@ button.h-sub {
 .qr path { fill: black; }
 .qrhint { margin: 10px 0 0; text-align: center; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 
+/* ------------------------------------------------------------- the tip jar */
+
+/* One way to pay: heading, symbol, address, button. The blocks are told apart
+   by space and a hairline, not by a box - the sheet is a short read, not a
+   checkout. */
+.support-block { margin-top: 18px; }
+.support-block + .support-block { padding-top: 18px; border-top: 1px solid var(--line); }
+.support-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+/* PayPal is an anchor wearing the primary button: everything .btn gives it,
+   minus the underline a link brings with it. */
+a.btn { text-decoration: none; }
+
+/* Two symbols in one scrolling sheet, not one symbol on a screen of its own:
+   at the pairing size this sheet reads as a crypto page rather than as an
+   aside. A tip is scanned from arm's length off a phone already in the hand,
+   and 45 modules across 200px still lands four device pixels per module on
+   any phone worth the name.
+
+   The card hugs the symbol here instead of spanning the sheet: at this size a
+   full-width plate is mostly white margin, which reads as a banner. A stamp is
+   what an aside wants. */
+.support-block .qrcard {
+  margin: 12px auto 0;
+  padding: 11px;
+  width: max-content; max-width: 100%;
+}
+.support-block .qr { width: min(52vw, 200px); }
+
+/* The address itself. Mono, selectable, wrapping anywhere - forty-two
+   characters do not break at a word boundary, because they have none, and one
+   orphaned character on a second line is what centring is for. The case is
+   left exactly as written: it carries the EIP-55 checksum. */
+.addr {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border-radius: var(--radius-m);
+  background: var(--sunk); box-shadow: var(--shadow-sunk);
+  font-family: var(--font-mono);
+  font-size: 11.5px; line-height: 1.5; letter-spacing: 0;
+  color: var(--text);
+  text-align: center;
+  overflow-wrap: anywhere; word-break: break-all;
+  user-select: text; -webkit-user-select: text;
+}
+.support-block .addr + .btn { margin-top: 10px; width: 100%; }
+.support-privacy { margin-top: 20px; }
+
+/* The closing line of the About screen. A sentence, not a button: the whole
+   look of it is the muted prose around it, and only the tap target is real. */
+.support-line {
+  display: block; width: 100%;
+  margin-top: 26px; padding: 14px 0 2px;
+  border: 0; border-top: 1px solid var(--line); background: none;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 13.5px; line-height: 1.55; font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+.support-line:active { color: var(--text-2); }
+
 /* Input plus its one side action - the scan button next to the typed code. */
 .field-row { display: flex; align-items: center; gap: 8px; }
 .field-row .input { flex: 1; min-width: 0; }

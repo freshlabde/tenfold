@@ -757,6 +757,57 @@ paragraph.
 No marketing tone, no self-praise, no AI-tell phrasing. Short paragraphs, generous type.
 Every factual claim on this screen must match what the code actually does.
 
+## The tip jar (`web/js/ui/support.js`, WEB ONLY)
+
+tenfold costs nothing and has nothing to sell, so the one place it asks for
+anything is a sheet with three ways to buy the author a coffee. It is
+deliberately the quietest surface in the app, and it is specified here because
+it is the only screen that names an address the owner cannot afford to have
+wrong.
+
+- **Two entry points, one sheet.** A row in the settings "About this app" group,
+  between About and the version, and one closing line at the end of the About
+  screen, after the claim and in the muted tone. Both call
+  `openSupportSheet(ctx)`. The About line is **absent during the first-run
+  intro**: that screen is somebody deciding whether to trust the app with their
+  goals, which is not the moment to ask them for money.
+- **It does not exist inside the native shell.** `supportAvailable()` is
+  `!inShell()`, and an external payment link for a tip is an App Store
+  rejection. In the shell the row and the line are **absent from the DOM**, not
+  disabled, and `openSupportSheet` returns null on its own, so an entry point
+  added later cannot reopen the hole. The shell gets an in-app purchase of its
+  own; that is a different feature and it is not this one. `tests/support.spec.js`
+  asserts all three absences against a shell stub.
+- **Three ways, in this order.** PayPal (`https://www.paypal.me/freshlab`) as a
+  real anchor with `target="_blank"` and `rel="noopener noreferrer"`: the
+  destination is visible before it is tapped, it needs no script, and `noopener`
+  denies the payment page a handle on the window holding a decrypted vault.
+  Then Bitcoin, then one EVM address labelled `USDT / USDC (ERC-20)`, each as a
+  QR code and as selectable mono text with a copy button. The strict CSP allows
+  the navigation: it governs what this document may LOAD, and a top-level
+  navigation to another origin loads nothing into this page.
+- **The addresses live in exactly one module**, as string constants, and are
+  pinned literally by the spec, which states them a second time and
+  independently. A wrong character in a crypto address is money handed to
+  nobody, and it is not a mistake a diff review catches. The EVM address keeps
+  its EIP-55 mixed case, which is why the address is rendered as `.addr` text
+  and never as `.input.is-mono` (that class upper-cases what it is given).
+- **The QR codes carry wallet URIs**, `bitcoin:<address>` (BIP-21) and
+  `ethereum:<address>` (EIP-681), so a phone opens a send screen instead of
+  handing back a string to paste. Both are about fifty bytes and land at version
+  4 of the ten the house encoder reaches (byte mode, level M, 62 data bytes at
+  that version). `qrFor` falls back to the bare address if a payload ever stops
+  fitting, so the symbol is never the thing that breaks.
+- **The chain warning is one sentence**, in all three catalogues: the address is
+  on Ethereum, and coins sent over another chain arrive nowhere.
+- **No external script, image, font or request of any kind.** The QR symbols are
+  drawn locally by `web/js/qr.js`; the addresses are static text. Nothing here
+  counts a visit and nothing here can tell whether anybody ever paid, which is
+  the one line the privacy note in the sheet makes. The module reads no document
+  content, so the sheet works with the vault sealed, which is what the About
+  entry point on the lock screen needs.
+- Strings live under the `support.` prefix in all three catalogues.
+
 ## Zero-knowledge sync (stage 2)
 
 The server is a dumb ciphertext mailbox. It stores the encrypted VaultFile, a version
