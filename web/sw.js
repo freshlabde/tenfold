@@ -71,6 +71,7 @@ const SHELL = [
   "./js/push.js",
   "./js/shell.js",
   "./js/webauthn.js",
+  "./js/bio.js",
   "./js/aihelp.js",
   "./js/qr.js",
   "./js/qrread.js",

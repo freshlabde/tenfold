@@ -4,8 +4,12 @@
  * What this file does:
  *   - Creates a vault: one random 256-bit master key that encrypts the document,
  *     stored several times over as independent "wrappers". Every wrapper alone
- *     can release the master key: a passphrase, a recovery key, or a raw 32-byte
- *     key (prepared for WebAuthn PRF / Face ID, which does not exist yet).
+ *     can release the master key: a passphrase, a recovery key, a raw 32-byte
+ *     key (WebAuthn PRF, in a browser), or a 32-byte key the native shell keeps
+ *     behind the device's own biometry (shell-bio-v1).
+ *   - Gives the vault file a stable identifier of its own (`vid`), because the
+ *     shell has to be able to name WHICH vault a Keychain key belongs to, with
+ *     the vault still locked and whether or not sync was ever switched on.
  *   - Seals and opens the document with AES-256-GCM, fresh 12-byte nonce per call.
  *   - Produces a JSON-serialisable VaultFile (binary parts base64url) so it fits
  *     into IndexedDB and into an export file unchanged.
@@ -64,10 +68,42 @@ const KIND_PASSPHRASE = "passphrase";
 const KIND_RECOVERY = "recovery";
 const KIND_RAW = "raw";
 
+/**
+ * The fourth wrapper: a 32-byte key-encryption key the native shell minted and
+ * keeps in the Keychain behind the current biometric enrolment. Its own kind
+ * rather than a raw wrapper with a special label, so that a `raw` wrapper can
+ * never be read as a shell one or the other way round - the kind travels inside
+ * the AAD (see wrapperAad), which makes that rewrite a failed tag rather than a
+ * successful downgrade.
+ *
+ * It is convenience on ONE device. Passphrase and recovery key remain the only
+ * ways back into a vault; see docs/CONTRACTS.md, which says so in the same words.
+ */
+const KIND_SHELL_BIO = "shell-bio-v1";
+
 const LABEL_PASSPHRASE = "passphrase";
 const LABEL_RECOVERY = "recovery";
 
 const RAW_HKDF_INFO = "tenfold/raw-wrap/v1";
+/** Distinct info string, so the same 32 bytes derive a different KEK here. */
+const SHELL_BIO_HKDF_INFO = "tenfold/shell-bio/v1";
+
+/**
+ * The vault's own identifier: 16 random bytes, base64url, 22 characters. It
+ * names one vault FILE, is readable while the vault is locked, and is not a
+ * secret - it wraps nothing and derives nothing.
+ *
+ * Deliberately NOT the sync id: that one exists only where sync was switched on
+ * and changes when a vault is paired somewhere else, and the shell needs a name
+ * for a vault that may never have talked to a server.
+ */
+const VAULT_ID_BYTES = 16;
+
+/** The shape the native shell accepts, from tenfold-ios/docs/BRIDGE.md. */
+export const VAULT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** The wrapper kind the shell's biometric key produces. Pinned by a test. */
+export const SHELL_BIO_KIND = KIND_SHELL_BIO;
 
 const TEXT = new TextEncoder();
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
@@ -288,12 +324,12 @@ function newPbkdf2Kdf() {
   };
 }
 
-function newHkdfKdf() {
+function newHkdfKdf(info = RAW_HKDF_INFO) {
   return {
     name: "HKDF",
     hash: PBKDF2_HASH,
     salt: b64uEncode(randomBytes(SALT_BYTES)),
-    info: RAW_HKDF_INFO,
+    info,
   };
 }
 
@@ -382,6 +418,42 @@ function emptyDoc() {
   return { schema: 1, nodes: [], settings: {} };
 }
 
+/* ---------------------------------------------------------- public: vault id */
+
+/** A fresh vault identifier. Random, non-secret, 22 base64url characters. */
+export function newVaultId() {
+  return b64uEncode(randomBytes(VAULT_ID_BYTES));
+}
+
+/**
+ * The identifier of this vault file, or null when it has none.
+ *
+ * Vaults created before the fourth wrapper existed have none, which is why this
+ * answers null instead of inventing one: minting an id is a change to the vault
+ * that somebody has to SAVE, and this function does not save anything.
+ * @param {Object} vault
+ * @returns {string|null}
+ */
+export function vaultId(vault) {
+  const id = vault && vault.vid;
+  return typeof id === "string" && VAULT_ID_PATTERN.test(id) ? id : null;
+}
+
+/**
+ * The same vault with an identifier, minting one only if it had none. Returns
+ * the input unchanged when it already has one, so a caller can compare by
+ * identity to find out whether there is anything to persist.
+ * @param {Object} vault
+ * @returns {Object} VaultFile
+ */
+export function withVaultId(vault) {
+  assertVault(vault);
+  if (vaultId(vault)) return vault;
+  const next = cloneVault(vault);
+  next.vid = newVaultId();
+  return next;
+}
+
 async function generateMasterKey() {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: MASTER_KEY_BITS }, true, [
     "encrypt",
@@ -430,7 +502,7 @@ export async function createVault({ passphrase }) {
     }),
   ];
 
-  const vault = { magic: MAGIC, version: VERSION, wrappers, payload: null };
+  const vault = { magic: MAGIC, version: VERSION, vid: newVaultId(), wrappers, payload: null };
   vault.payload = payloadFromBlob(await seal(masterKey, emptyDoc()));
   return { vault, recoveryKey, masterKey };
 }
@@ -485,6 +557,23 @@ export async function unlockWithRawKey(vault, wrapKey) {
   return unlockWithKind(vault, KIND_RAW, (w) => deriveHkdfKek(raw, w.kdf));
 }
 
+/**
+ * For the key the native shell keeps behind Face ID / Touch ID. Same 32 bytes,
+ * same HKDF, same AEAD as the raw wrapper - and a different kind and a
+ * different info string, so neither wrapper can be made to stand in for the
+ * other.
+ */
+export async function unlockWithShellBioKey(vault, wrapKey) {
+  let raw;
+  try {
+    raw = toBytes(wrapKey);
+  } catch {
+    throw new VaultUnlockError();
+  }
+  if (raw.length !== RAW_WRAP_KEY_BYTES) throw new VaultUnlockError();
+  return unlockWithKind(vault, KIND_SHELL_BIO, (w) => deriveHkdfKek(raw, w.kdf));
+}
+
 function labelMatches(wrapper, label) {
   return wrapper.label === label || `${wrapper.kind}:${wrapper.label}` === label;
 }
@@ -495,6 +584,25 @@ function labelMatches(wrapper, label) {
  * created by someone who already holds the secret.
  */
 export async function addRawKeyWrapper(vault, masterKey, wrapKey, label) {
+  return addKeyWrapper(vault, masterKey, wrapKey, label, KIND_RAW, RAW_HKDF_INFO);
+}
+
+/**
+ * Adds the shell's biometric wrapper: the same operation one wrapper kind
+ * further along. The 32 bytes came from the native shell's Keychain
+ * (`bio.createKey`), the master key is already open, and the page forgets the
+ * bytes as soon as this returns.
+ *
+ * This is NOT a fourth way back into a vault. It is one device's shortcut past
+ * one passphrase field; the passphrase and the recovery key stay the only
+ * things that recover a vault, and a new device starts with them.
+ */
+export async function addShellBioWrapper(vault, masterKey, wrapKey, label) {
+  return addKeyWrapper(vault, masterKey, wrapKey, label, KIND_SHELL_BIO, SHELL_BIO_HKDF_INFO);
+}
+
+/** The shared body of the two key wrappers above. Kind and info are what differ. */
+async function addKeyWrapper(vault, masterKey, wrapKey, label, kind, info) {
   assertVault(vault);
   if (typeof label !== "string" || label.trim().length === 0) {
     throw new TenfoldCryptoError("wrapper label required");
@@ -507,11 +615,11 @@ export async function addRawKeyWrapper(vault, masterKey, wrapKey, label) {
   if (next.wrappers.some((w) => labelMatches(w, label))) {
     throw new TenfoldCryptoError("wrapper label already in use");
   }
-  const kdf = newHkdfKdf();
+  const kdf = newHkdfKdf(info);
   const kek = await deriveHkdfKek(raw, kdf);
   next.wrappers.push(
     await buildWrapper(masterKey, kek, {
-      kind: KIND_RAW,
+      kind,
       label,
       kdf,
       magic: next.magic,
@@ -727,10 +835,15 @@ export async function deriveSyncAuthToken(masterKey, authSalt) {
  * re-encrypted under it, passphrase and recovery wrappers rebuilt from scratch
  * with fresh salts and a fresh recovery key.
  *
- * Every raw wrapper is dropped. That is the point of the operation - a stolen
- * phone still holds a WebAuthn PRF secret, and only re-enrolment on a device
- * the owner still controls can restore access. Keeping them would rotate
- * nothing.
+ * Every raw wrapper is dropped, and so is every shell-bio wrapper. That is the
+ * point of the operation - a stolen phone still holds a WebAuthn PRF secret or
+ * a Keychain key, and only re-enrolment on a device the owner still controls
+ * can restore access. Keeping them would rotate nothing.
+ *
+ * The vault's identifier is carried over: the FILE is the same file, it is only
+ * its key that changed. Keeping it means the shell's `bio.createKey` replaces
+ * the now-useless Keychain item on re-enrolment instead of leaving it behind
+ * under a name nothing refers to any more.
  */
 export async function rotateMasterKey(vault, oldMasterKey, { passphrase }) {
   assertVault(vault);
@@ -751,6 +864,7 @@ export async function rotateMasterKey(vault, oldMasterKey, { passphrase }) {
   const next = {
     magic: MAGIC,
     version: VERSION,
+    vid: vaultId(vault) || newVaultId(),
     wrappers: [
       await buildWrapper(masterKey, passKek, {
         kind: KIND_PASSPHRASE,

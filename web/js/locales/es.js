@@ -454,6 +454,14 @@ export const es = {
   "webauthn.removeTitle": "¿Desactivarlo?",
   "webauthn.removeBody": "La frase de paso y la clave de recuperación siguen funcionando. Los demás dispositivos conservan su propia configuración: esto solo quita la de este.",
   "webauthn.removed": "Desactivado en este dispositivo.",
+
+  // ------------------------------- biometric unlock inside the native shell
+  "bio.reason": "Abre tu lista.",
+  "bio.lockedOut": "Demasiados intentos. El dispositivo pide su código una vez antes de que la cara o la huella vuelvan a funcionar. Mientras tanto, la frase de paso abre la lista.",
+  "bio.invalidated": "La cara o la huella de este dispositivo han cambiado, así que esta entrada ya no existe. Abre una vez con la frase de paso y vuelve a configurarla en Ajustes.",
+  "bio.notEnrolled": "Configura primero la cara o la huella en este dispositivo y luego podrás activarlo aquí.",
+  "bio.setupAgain": "Configurar de nuevo la cara o la huella",
+  "bio.setupAgainDesc": "La configuración de este dispositivo ha cambiado y la entrada anterior ha dejado de funcionar. Esto crea una clave nueva. La frase de paso y la clave de recuperación nunca se han visto afectadas.",
   "settings.about": "Acerca de tenfold",
   "settings.aboutDesc": "El método y qué pasa con tus datos.",
   "settings.version": "Versión",

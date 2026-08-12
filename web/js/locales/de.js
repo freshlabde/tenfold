@@ -454,6 +454,14 @@ export const de = {
   "webauthn.removeTitle": "Ausschalten?",
   "webauthn.removeBody": "Passphrase und Wiederherstellungsschlüssel funktionieren weiter. Andere Geräte behalten ihre eigene Einrichtung. Das hier entfernt nur die auf diesem Gerät.",
   "webauthn.removed": "Auf diesem Gerät ausgeschaltet.",
+
+  // ------------------------------- biometric unlock inside the native shell
+  "bio.reason": "Öffne deine Liste.",
+  "bio.lockedOut": "Zu viele Versuche. Das Gerät will einmal seinen Code, bevor Gesicht oder Fingerabdruck wieder funktionieren. Bis dahin öffnet die Passphrase die Liste.",
+  "bio.invalidated": "Gesicht oder Fingerabdruck auf diesem Gerät haben sich geändert, damit ist dieser Weg hinein weg. Öffne einmal mit der Passphrase und richte es danach in den Einstellungen neu ein.",
+  "bio.notEnrolled": "Richte auf diesem Gerät zuerst Gesicht oder Fingerabdruck ein, dann lässt sich das hier einschalten.",
+  "bio.setupAgain": "Gesicht oder Fingerabdruck neu einrichten",
+  "bio.setupAgainDesc": "Die Einrichtung auf diesem Gerät hat sich geändert, der alte Weg hinein funktioniert nicht mehr. Das hier legt einen neuen Schlüssel dafür an. Passphrase und Wiederherstellungsschlüssel waren nie betroffen.",
   "settings.about": "Über tenfold",
   "settings.aboutDesc": "Die Methode, und was mit deinen Daten passiert.",
   "settings.version": "Version",

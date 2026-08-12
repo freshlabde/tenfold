@@ -654,3 +654,238 @@ test("12 PBKDF2 really runs 600000 rounds and the parameters are sound", async (
   expect(r.costRatio).toBeGreaterThan(20);
   expect(r.recoveryEntropyBits).toBeGreaterThanOrEqual(128);
 });
+
+test("13 the shell-bio wrapper: roundtrip, wrong key, flipped byte, and the others survive", async ({
+  page,
+}) => {
+  // The fourth envelope, put through the same battery as the third. The key
+  // does not come from an authenticator here but from the native shell's
+  // Keychain - which, to this module, is nothing but 32 bytes somebody handed
+  // it, and that is exactly the point of testing it without one.
+  const r = await page.evaluate(async () => {
+    const c = await import("/web/js/crypto.js");
+    const { doc, caught } = window.tf;
+    const pass = "pw";
+    const { vault, recoveryKey, masterKey } = await c.createVault({ passphrase: pass });
+    // The stand-in for the shell: 32 bytes, base64url, 43 characters - the
+    // encoding bio.createKey answers in.
+    const kek = crypto.getRandomValues(new Uint8Array(32));
+    const encoded = c.b64uEncode(kek);
+    const other = crypto.getRandomValues(new Uint8Array(32));
+
+    let next = await c.addShellBioWrapper(vault, masterKey, kek, "shell-bio:testdevice");
+    next = await c.sealIntoVault(next, masterKey, doc("behind a face"));
+
+    const opened = await c.unlockWithShellBioKey(next, kek);
+    const roundtrip = (await c.openFromVault(next, opened)).nodes[0].title === "behind a face";
+
+    // One flipped byte in the wrapper's own ciphertext.
+    const flipped = JSON.parse(JSON.stringify(next));
+    const idx = flipped.wrappers.findIndex((w) => w.kind === c.SHELL_BIO_KIND);
+    const bytes = c.b64uDecode(flipped.wrappers[idx].ct);
+    bytes[Math.floor(bytes.length / 2)] ^= 0x01;
+    flipped.wrappers[idx].ct = c.b64uEncode(bytes);
+
+    // Removing it leaves the other three ways in exactly where they were.
+    const without = await c.removeWrapper(next, "shell-bio:testdevice");
+
+    return {
+      roundtrip,
+      encodedLength: encoded.length,
+      kind: next.wrappers[idx].kind,
+      kdf: next.wrappers[idx].kdf.name,
+      info: next.wrappers[idx].kdf.info,
+      kinds: next.wrappers.map((w) => w.kind).sort(),
+      // Wrong key, wrong length, not bytes at all: one constant refusal.
+      wrongKek: await caught(() => c.unlockWithShellBioKey(next, other)),
+      shortKek: await caught(() => c.unlockWithShellBioKey(next, new Uint8Array(16))),
+      notBytes: await caught(() => c.unlockWithShellBioKey(next, "not bytes")),
+      flipped: await caught(() => c.unlockWithShellBioKey(flipped, kek)),
+      // A vault that never had one answers the same way, in the same time.
+      absent: await caught(() => c.unlockWithShellBioKey(without, kek)),
+      // And the other three still open it.
+      passStillWorks: !!(await c.unlockWithPassphrase(without, pass)),
+      recoveryStillWorks: !!(await c.unlockWithRecoveryKey(without, recoveryKey)),
+      contentAfterRemoval:
+        (await c.openFromVault(without, await c.unlockWithPassphrase(without, pass))).nodes[0]
+          .title === "behind a face",
+      kindsAfterRemoval: without.wrappers.map((w) => w.kind).sort(),
+    };
+  });
+  expect(r.roundtrip).toBe(true);
+  expect(r.encodedLength).toBe(43);
+  expect(r.kind).toBe("shell-bio-v1");
+  expect(r.kdf).toBe("HKDF");
+  expect(r.info).toBe("tenfold/shell-bio/v1");
+  expect(r.kinds).toEqual(["passphrase", "recovery", "shell-bio-v1"]);
+  expect(r.wrongKek.threw).toBe(true);
+  expect(r.wrongKek.name).toBe("VaultUnlockError");
+  expect(r.shortKek.threw).toBe(true);
+  expect(r.notBytes.threw).toBe(true);
+  expect(r.flipped.threw).toBe(true);
+  expect(r.flipped.name).toBe("VaultUnlockError");
+  expect(r.absent.threw).toBe(true);
+  expect(r.passStillWorks).toBe(true);
+  expect(r.recoveryStillWorks).toBe(true);
+  expect(r.contentAfterRemoval).toBe(true);
+  expect(r.kindsAfterRemoval).toEqual(["passphrase", "recovery"]);
+});
+
+test("14 the shell-bio wrapper holds no key material, and cannot be downgraded", async ({
+  page,
+}) => {
+  const r = await page.evaluate(async (canary) => {
+    const c = await import("/web/js/crypto.js");
+    const { doc, caught, latin1 } = window.tf;
+    const pass = "PASSPHRASE-CANARY-8831";
+    const { vault, masterKey } = await c.createVault({ passphrase: pass });
+    const kek = crypto.getRandomValues(new Uint8Array(32));
+    let next = await c.addShellBioWrapper(vault, masterKey, kek, "shell-bio:testdevice");
+    next = await c.sealIntoVault(next, masterKey, doc(canary));
+    const idx = next.wrappers.findIndex((w) => w.kind === c.SHELL_BIO_KIND);
+    const wrapper = next.wrappers[idx];
+
+    // The master key in the clear, to search the wrapper's bytes for it. This
+    // is the only place it is ever exported, and only so that a test can prove
+    // it is not in the file.
+    const masterRaw = new Uint8Array(await crypto.subtle.exportKey("raw", masterKey));
+    const hay = [];
+    const walk = (value) => {
+      if (typeof value === "string") {
+        hay.push(new TextEncoder().encode(value));
+        try {
+          hay.push(c.b64uDecode(value));
+        } catch {
+          // Not base64url; the text itself is already in the haystack.
+        }
+      } else if (value && typeof value === "object") {
+        for (const v of Object.values(value)) walk(v);
+      }
+    };
+    walk(wrapper);
+    const contains = (needle) =>
+      hay.some((bytes) => {
+        if (needle.length > bytes.length) return false;
+        outer: for (let i = 0; i <= bytes.length - needle.length; i += 1) {
+          for (let j = 0; j < needle.length; j += 1) {
+            if (bytes[i + j] !== needle[j]) continue outer;
+          }
+          return true;
+        }
+        return false;
+      });
+
+    const json = JSON.stringify(wrapper);
+
+    // The downgrade: rewrite the wrapper as an ordinary raw one, info and all,
+    // and hand the same 32 bytes to the raw unlock path. Nothing but the AAD
+    // can catch this - the derived key of the rewritten wrapper is a real key,
+    // it is the wrapper's own metadata that no longer matches what was sealed.
+    const downgraded = JSON.parse(JSON.stringify(next));
+    downgraded.wrappers[idx].kind = "raw";
+    downgraded.wrappers[idx].kdf.info = "tenfold/raw-wrap/v1";
+
+    // The same rewrite the other way round: a raw wrapper claiming to be one of
+    // ours. It must not open through the shell path either. Built on a vault
+    // that has no genuine shell-bio wrapper, or the unlock loop would simply
+    // succeed on the real one and prove nothing about the forged one.
+    const rawOnly = await c.addRawKeyWrapper(vault, masterKey, kek, "iphone");
+    const promoted = JSON.parse(JSON.stringify(rawOnly));
+    const rawIdx = promoted.wrappers.findIndex((w) => w.label === "iphone");
+    promoted.wrappers[rawIdx].kind = c.SHELL_BIO_KIND;
+    promoted.wrappers[rawIdx].kdf.info = "tenfold/shell-bio/v1";
+
+    // Label and id rewrites, which change no derived byte at all.
+    const relabelled = JSON.parse(JSON.stringify(next));
+    relabelled.wrappers[idx].label = "shell-bio:someone-else";
+    const reidentified = JSON.parse(JSON.stringify(next));
+    reidentified.wrappers[idx].id = crypto.randomUUID();
+    const resalted = JSON.parse(JSON.stringify(next));
+    resalted.wrappers[idx].kdf.salt = c.b64uEncode(crypto.getRandomValues(new Uint8Array(16)));
+
+    return {
+      holdsMasterKey: contains(masterRaw),
+      holdsKek: contains(kek),
+      holdsPassphrase: json.includes(pass) || latin1(new TextEncoder().encode(json)).includes(pass),
+      holdsCanary: json.includes(canary),
+      // The KEK is 32 bytes of the shell's own randomness; a wrapper that
+      // carried it would make the Keychain pointless.
+      downgradeToRaw: await caught(() => c.unlockWithRawKey(downgraded, kek)),
+      downgradeStillFailsOwnPath: await caught(() => c.unlockWithShellBioKey(downgraded, kek)),
+      promotedRaw: await caught(() => c.unlockWithShellBioKey(promoted, kek)),
+      relabelled: await caught(() => c.unlockWithShellBioKey(relabelled, kek)),
+      reidentified: await caught(() => c.unlockWithShellBioKey(reidentified, kek)),
+      resalted: await caught(() => c.unlockWithShellBioKey(resalted, kek)),
+      // Control: untouched, it still opens.
+      control: !!(await c.unlockWithShellBioKey(next, kek)),
+    };
+  }, CANARY);
+  expect(r.holdsMasterKey).toBe(false);
+  expect(r.holdsKek).toBe(false);
+  expect(r.holdsPassphrase).toBe(false);
+  expect(r.holdsCanary).toBe(false);
+  expect(r.downgradeToRaw.threw).toBe(true);
+  expect(r.downgradeStillFailsOwnPath.threw).toBe(true);
+  expect(r.promotedRaw.threw).toBe(true);
+  expect(r.relabelled.threw).toBe(true);
+  expect(r.reidentified.threw).toBe(true);
+  expect(r.resalted.threw).toBe(true);
+  expect(r.control).toBe(true);
+});
+
+test("15 the vault carries an identifier of its own, and keeps it", async ({ page }) => {
+  // The name the shell uses for a Keychain item. It has to exist for a vault
+  // that never met a server (so: not the sync id), it has to be readable with
+  // the vault locked (so: not inside the payload), and it has to survive a
+  // rotation (so: carried, not regenerated).
+  const r = await page.evaluate(async () => {
+    const c = await import("/web/js/crypto.js");
+    const { doc } = window.tf;
+    const { vault, masterKey } = await c.createVault({ passphrase: "pw" });
+    const id = c.vaultId(vault);
+
+    const sealed = await c.sealIntoVault(vault, masterKey, doc("keeps its name"));
+    const rotated = await c.rotateMasterKey(sealed, masterKey, { passphrase: "pw2" });
+
+    // A vault from before this existed: no id, and one is minted on demand
+    // rather than silently on read.
+    const legacy = JSON.parse(JSON.stringify(vault));
+    delete legacy.vid;
+    const adopted = c.withVaultId(legacy);
+
+    // An id that is not one is not accepted just because it is a string.
+    const forged = JSON.parse(JSON.stringify(vault));
+    forged.vid = "not/a/valid id";
+
+    return {
+      id,
+      shape: c.VAULT_ID_PATTERN.source,
+      matches: c.VAULT_ID_PATTERN.test(id),
+      length: id.length,
+      survivesSave: c.vaultId(sealed) === id,
+      survivesRotation: c.vaultId(rotated.vault) === id,
+      survivesJson: c.vaultId(JSON.parse(JSON.stringify(sealed))) === id,
+      legacyHasNone: c.vaultId(legacy),
+      mintedForLegacy: c.VAULT_ID_PATTERN.test(c.vaultId(adopted)),
+      mintedIsDifferent: c.vaultId(adopted) !== id,
+      idempotent: c.withVaultId(sealed) === sealed,
+      forgedRejected: c.vaultId(forged),
+      distinctPerVault:
+        c.vaultId((await c.createVault({ passphrase: "pw" })).vault) !== id,
+      // It is metadata, not a secret, and it is not derived from anything.
+      notInPayload: !JSON.stringify(sealed.payload).includes(id),
+    };
+  });
+  expect(r.matches).toBe(true);
+  expect(r.length).toBe(22);
+  expect(r.survivesSave).toBe(true);
+  expect(r.survivesRotation).toBe(true);
+  expect(r.survivesJson).toBe(true);
+  expect(r.legacyHasNone).toBe(null);
+  expect(r.mintedForLegacy).toBe(true);
+  expect(r.mintedIsDifferent).toBe(true);
+  expect(r.idempotent).toBe(true);
+  expect(r.forgedRejected).toBe(null);
+  expect(r.distinctPerVault).toBe(true);
+  expect(r.notInPayload).toBe(true);
+});

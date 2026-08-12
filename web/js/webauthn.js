@@ -30,6 +30,7 @@ import {
   b64uEncode,
   b64uDecode,
 } from "./crypto.js";
+import { inShell } from "./shell.js";
 
 /** Where the two device-local pointers live. Nothing secret is written here. */
 const PREF_KEY = "tenfold.webauthn";
@@ -73,8 +74,18 @@ function randomBytes(n) {
 
 /* ------------------------------------------------------------- support checks */
 
-/** The API surface exists. Says nothing about PRF - see the note on evaluate(). */
+/**
+ * The API surface exists. Says nothing about PRF - see the note on evaluate().
+ *
+ * False inside the native shell, and stated rather than inferred. A WKWebView
+ * that is not Safari gets no WebAuthn: `navigator.credentials.create` either is
+ * not there or rejects, so every enrolment would fail after the person had
+ * already been promised a switch. The shell has its own path for exactly this
+ * (bio.js, wrapper kind shell-bio-v1), and the two must never offer themselves
+ * at the same time - one screen, one biometric row, whichever one can work.
+ */
 export function supported() {
+  if (inShell()) return false;
   return (
     typeof PublicKeyCredential === "function" &&
     typeof navigator !== "undefined" &&

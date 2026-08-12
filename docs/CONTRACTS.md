@@ -429,9 +429,11 @@ Two details that are not decoration:
 the next unlock, with one extra leg at the front: the App Group slot is plaintext too (an
 extension holds no key and cannot be given one), and the shell wipes that slot the moment the
 page confirms it has the item - and only then, so a page that has not finished booting costs a
-retry rather than somebody's note. The shell cannot observe a vault wipe, so the slot is not
-cleared by one; what bounds it instead is that it only ever holds a single share somebody made
-deliberately, and the next share overwrites it.
+retry rather than somebody's note. A vault wipe clears the slot as well, since the wave that
+brought the fourth wrapper: `vault.wiped` (below) is the first message that tells the shell the
+vault is gone, and clearing the share slot is one of the three things it does. What bounds the
+slot in between is that it only ever holds a single share somebody made deliberately, and the
+next share overwrites it.
 
 ## `web/js/crypto.js` (BUILT, do not change without updating its tests)
 
@@ -447,9 +449,17 @@ export async function unlockWithPassphrase(vault, passphrase): Promise<CryptoKey
 export async function unlockWithRecoveryKey(vault, recoveryKey): Promise<CryptoKey>
 export async function unlockWithRawKey(vault, wrapKey /* ArrayBuffer */): Promise<CryptoKey>
 
+export async function unlockWithShellBioKey(vault, wrapKey /* 32 bytes from the shell */): Promise<CryptoKey>
+
 // Add/remove envelopes later (enrol Face ID, revoke a device)
 export async function addRawKeyWrapper(vault, masterKey, wrapKey, label): Promise<VaultFile>
+export async function addShellBioWrapper(vault, masterKey, wrapKey, label): Promise<VaultFile>
 export async function removeWrapper(vault, label): Promise<VaultFile>
+
+// The vault file's own name, for anything outside the vault that has to point at it.
+export function newVaultId(): string                  // 16 random bytes, base64url, 22 chars
+export function vaultId(vault): string|null           // null for a vault made before this existed
+export function withVaultId(vault): VaultFile         // mints one only if there is none
 
 // Content <-> blob. seal() frames MAGIC|version|alg|nonce|ct with the header as AAD.
 export async function seal(masterKey, doc): Promise<Uint8Array>
@@ -467,8 +477,42 @@ export async function rotateMasterKey(vault, oldMasterKey, { passphrase }): Prom
 - Cipher: AES-256-GCM, 12-byte nonce, never reused, fresh per seal().
 - Per-wrapper AAD: the wrapper's own metadata (magic, version, id, kind, label, kdf, nonce), so
   parameter tampering fails the GCM tag check.
-- `VaultFile` is JSON-serialisable: `{ magic, version, wrappers[], payload }`, with binary parts
-  base64url. No top-level `settings`/`nodes`/`doc` key, ever (store.js rejects those).
+- `VaultFile` is JSON-serialisable: `{ magic, version, vid, wrappers[], payload }`, with binary
+  parts base64url. No top-level `settings`/`nodes`/`doc` key, ever (store.js rejects those).
+
+### The wrapper registry
+
+Four kinds, and every one of them alone releases the master key. The `kind` string travels
+inside the AAD, so a wrapper cannot be rewritten as another kind and still open.
+
+| `kind` | secret behind it | KDF | HKDF `info` | label | dropped by `rotateMasterKey` |
+|---|---|---|---|---|---|
+| `passphrase` | what somebody types | PBKDF2-SHA256, 600000 | - | `passphrase` | rebuilt |
+| `recovery` | the printed key, 137 bits | PBKDF2-SHA256, 600000 | - | `recovery` | rebuilt |
+| `raw` | WebAuthn PRF output, `SHA-256`-reduced to 32 bytes | HKDF-SHA256 | `tenfold/raw-wrap/v1` | `webauthn:<credIdPrefix>` | yes |
+| `shell-bio-v1` | 32 bytes the native shell keeps in the Keychain behind the current biometric enrolment | HKDF-SHA256 | `tenfold/shell-bio/v1` | `shell-bio:<12 random chars>` | yes |
+
+**Biometry is never a fourth way *back* in.** Neither of the two biometric wrappers is a
+recovery path: both are a shortcut past one passphrase field on one device that is already in
+somebody's hand. The Keychain item behind `shell-bio-v1` is `WhenUnlockedThisDeviceOnly`, is
+never synchronisable, has no export and no backup path, and dies when the enrolled face
+changes. A new phone starts with the passphrase or the recovery key, exactly as on the web -
+and those two remain the only things that recover a vault.
+
+### The vault's own identifier (`vault.vid`)
+
+16 random bytes, base64url, 22 characters, matching `[A-Za-z0-9_-]{1,64}` because that is what
+the native shell accepts. Written at `createVault`, carried through every save and through
+`rotateMasterKey` (the file is the same file; only its key changed), minted on demand by
+`withVaultId` for a vault that predates it.
+
+- **Not the sync id.** That one exists only where sync was switched on, and the shell has to be
+  able to name a vault that has never talked to a server.
+- **Not inside the payload.** It is read with the vault still locked - the lock screen needs it
+  before anything is decrypted.
+- **Not a secret**, and not derived from anything: it wraps nothing, unlocks nothing, and is
+  worth exactly as much as a filename. It is metadata beside the wrappers, so a sync server sees
+  it in the same way it already sees the sync id.
 - Recovery key: 7 groups of 4 from a confusable-free base32 alphabet (137 bits), input
   normalisation tolerates case, hyphens, spaces.
 
@@ -518,6 +562,96 @@ export function forget(): void
   authenticator. The lock screen shows the biometric button **above** the passphrase field
   whenever this device is enrolled, and fires it once automatically on arrival. A cancelled or
   failed prompt is silent (no banner, no counter) and leaves the passphrase field focused.
+
+### Biometric unlock in the native shell: `web/js/bio.js`
+
+There is no WebAuthn in a `WKWebView`, so on iOS the section above does not exist and somebody
+types their passphrase every single time. The shell answers that with a key of its own, and
+this module is the web half of it. `webauthn.supported()` returns **false inside the shell** by
+an explicit branch, so the two paths can never both be on offer: one screen, one biometric row,
+whichever one can work.
+
+```js
+export const MSG_AVAILABLE = "bio.available";   // pinned literally; see the bridge
+export const MSG_CREATE    = "bio.createKey";
+export const MSG_UNWRAP    = "bio.unwrapKey";
+export const MSG_DELETE    = "bio.deleteKey";
+export const MSG_WIPED     = "vault.wiped";
+export const CODES = ["cancelled", "lockedOut", "invalidated", "missing", "failed"];
+
+export function supported(): boolean              // a shell that advertises the `bio` capability
+export async function available(): {available, enrolled, biometryType}   // the device, right now
+export function availableCached(): Object|null    // null = not asked yet
+export function enabled(vault): boolean           // local pointer AND matching wrapper in the vault
+export function wrapperLabel(vault): string|null
+export async function enable(vault, masterKey): Promise<VaultFile>   // caller saves
+export async function unlock(vault, reason): Promise<CryptoKey>      // throws BioError{code}
+export async function reconcile(vault): Promise<VaultFile>           // caller saves if it changed
+export async function disable(vault): Promise<VaultFile>             // caller saves
+export async function announceWipe(vault): Promise<boolean>
+export function forget(): void
+```
+
+- **The capability is a property of the device, not of the build.** The shell advertises `bio`
+  only where it found biometric hardware, so a row is never drawn that can never be switched on.
+  Whether anything is *enrolled* is a second question, asked with `bio.available` and answered
+  while the vault is still locked: `available: true, enrolled: false` is a phone whose owner has
+  not set Face ID up, and the honest line there is "do that first", not a button that fails.
+- **Setup is gated on `available && enrolled`.** `bio.createKey` mints a NEW key every time and
+  replaces whatever was there, so `enable()` also removes the wrapper the previous key belonged
+  to - otherwise the vault would keep an envelope nothing can open.
+- **What is stored.** `localStorage["tenfold.shellbio"] = { vaultId, label }`, two device-local,
+  non-secret pointers. The KEK is never written anywhere by this page: it exists in the reply,
+  for the length of one wrap or one unwrap, and is zeroed after use. The label is per device, so
+  disabling on device A cannot revoke the wrapper device B added to the same synced vault.
+- **The reason sentence comes from the page**, ready-localised (`bio.reason`), cut at 300
+  characters. The shell holds no catalogue: the app's words live in one repository in three
+  languages, and a copy on the other side would drift the first time either was touched.
+- **The five refusals**, and what each one does to the screen:
+
+| `code` | what happened | the web app's answer |
+|---|---|---|
+| `cancelled` | the sheet was dismissed, or the device passcode was asked for | nothing at all. The passphrase field is focused; the button stays |
+| `failed` | anything else - no hardware, an authentication that did not succeed, a Keychain that refused, a message this side could not read | the same silence, for the same reason |
+| `lockedOut` | too many failed attempts; biometry needs the device passcode first | one quiet line (`bio.lockedOut`). The button stays: after the passcode, trying again is the right move |
+| `invalidated` | the key was made against an enrolment set that no longer exists | one quiet line (`bio.invalidated`) saying the passphrase is needed once. The button goes, the dead wrapper is cleaned away at the next unlock, and the re-offer is the settings row's own wording (`bio.setupAgain`) - not a sheet, not a nag, and it does not repeat |
+| `missing` | there is no key for this vault | treated as off: the button goes, nothing is said, and the wrapper is cleaned away at the next unlock |
+
+- **Cleaning is lazy and happens where a save is possible.** `reconcile()` runs inside the
+  ordinary unlock path, with a master key present; a lock screen can save nothing, so nothing is
+  cleaned there. It also sends `bio.deleteKey`, which makes the shell forget its "a key existed
+  here" marker - so the next question answers `missing` rather than repeating that a face
+  changed.
+- **UI.** Settings → Security carries the same neutral row as the browser path
+  (`webauthn.title`, "Unlock with face or fingerprint" - naming Face ID would be wrong on half
+  the devices that can do this), and the lock screen shows the same button in the same slot
+  above the passphrase field, firing once automatically on arrival.
+- **The trust note, stated rather than hidden.** The KEK crosses the bridge as bytes. In the
+  `WKWebView` model that is one process and one trust zone: our own document, our own origin, a
+  CSP the shell synthesises, deny-by-default navigation. Anybody who can read those bytes out of
+  the process can already read the unlocked master key sitting in the same process. What it buys
+  is a key at rest in the operating system's key store, released only for a face, bound to the
+  enrolment set that existed when it was made.
+
+#### `vault.wiped`
+
+```js
+window.__tenfoldShell.send({ type: "vault.wiped", vaultId });   // reply: { ok: true }
+```
+
+Sent by `wipeLocalVault()` - and therefore by the delete-everywhere path, which ends in it -
+**before** the vault is cleared, because the message has to name which vault died and that name
+lives in the file. It is the only message that means "the vault is gone" rather than "the vault
+is empty": a badge of zero is an ordinary Tuesday.
+
+- **Not gated on the `bio` capability.** Two of the three things it clears have nothing to do
+  with biometry. It is gated on there being a shell at all.
+- The shell clears three things with it: the Keychain key for that vault, the widget's state
+  together with the badge, and the share slot.
+- The identifier is required - the shell refuses a wipe without one - so a vault that never had
+  one is named with a fresh id. The Keychain delete then finds nothing, which is the outcome
+  asked for, and the widget, the badge and the share slot are cleared regardless, which is the
+  part that could not be skipped.
 
 ## Browser history (wave: session UX)
 

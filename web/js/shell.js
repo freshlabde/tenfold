@@ -42,6 +42,14 @@ export const REPLY_TIMEOUT_MS = 8000;
 export const CAP_REMINDER = "reminder";
 export const CAP_BADGE = "badge";
 export const CAP_WIDGET = "widget";
+/**
+ * The fourth one is different in kind: the first three are properties of the
+ * BUILD and are always advertised, this one is a property of the DEVICE and
+ * appears only where the shell found biometric hardware. It says nothing about
+ * whether a face is enrolled right now - `bio.available` answers that, and it
+ * can be asked with the vault still locked.
+ */
+export const CAP_BIO = "bio";
 
 /**
  * The channel, or null in a plain browser.

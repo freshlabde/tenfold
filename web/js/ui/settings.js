@@ -411,6 +411,82 @@ function biometricRow(ctx) {
 }
 
 /**
+ * Turning the shell's biometric envelope off. The words are the same ones the
+ * browser path uses - the passphrase and the recovery key are untouched, other
+ * devices keep their own - because to the person reading them it is the same
+ * sentence. What differs underneath: the key leaves the device's Keychain too.
+ */
+function shellBioOffSheet(ctx) {
+  const body = el("div", {}, [
+    el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("webauthn.removeBody"))]),
+  ]);
+  const footer = el("div", { class: "sheet-foot" }, [
+    el("button", { class: "btn", attrs: { type: "button" }, on: { click: () => closeSheet() } }, [
+      text(t("common.cancel")),
+    ]),
+    el(
+      "button",
+      {
+        class: "btn is-primary",
+        attrs: { type: "button" },
+        on: {
+          click: async () => {
+            closeSheet();
+            await ctx.shellBio.remove();
+            ctx.toast(t("webauthn.removed"));
+            ctx.render();
+          },
+        },
+      },
+      [text(t("webauthn.remove"))],
+    ),
+  ]);
+  ctx.openSheet({ title: t("webauthn.removeTitle"), body, footer });
+}
+
+/**
+ * The same row, for the shell's own path. It exists only where the shell
+ * advertises the capability, which it does only where the device has the
+ * hardware - so this never draws a switch that can never be turned on.
+ *
+ * Two facts, two answers: no hardware means no row at all; hardware with
+ * nothing enrolled means a row that says so and does nothing, because "set Face
+ * ID up first" is an honest sentence and a dead button is not.
+ *
+ * After an enrolment change the row is the whole re-offer. One line, in the
+ * place somebody goes to look for it, rather than a sheet that interrupts the
+ * unlock they were in the middle of.
+ */
+function shellBioRow(ctx) {
+  if (!ctx.shellBio.supported) return null;
+  const known = ctx.shellBio.availableCached;
+  if (known === null) {
+    // Not asked yet: ask, and repaint once if the answer turns out to be yes.
+    ctx.shellBio.available().then((a) => {
+      if (a && a.available && ctx.view.name === "settings") ctx.repaint();
+    });
+    return null;
+  }
+  if (!known.available) return null;
+  if (ctx.shellBio.enabled) {
+    return row("webauthn.title", "webauthn.onDesc", t("webauthn.on"), () => shellBioOffSheet(ctx));
+  }
+  if (!known.enrolled) {
+    return row("webauthn.title", "bio.notEnrolled", null, null, { disabled: true });
+  }
+  const again = ctx.shellBio.setupAgain;
+  return row(again ? "bio.setupAgain" : "webauthn.title", again ? "bio.setupAgainDesc" : "webauthn.desc", null, async () => {
+    try {
+      await ctx.shellBio.enable();
+      ctx.toast(t("webauthn.enrolled"));
+    } catch {
+      ctx.toast(t("webauthn.failed"));
+    }
+    ctx.render();
+  });
+}
+
+/**
  * What is offered when the server copy could not be removed: nothing has
  * happened yet, and the honest choice is either to try again later or to wipe
  * this device only - knowing that the copy up there stays.
@@ -660,7 +736,10 @@ export function render(ctx) {
     // with the relay it configured. The copy loop that replaced it has nothing
     // to set up, so this screen has nothing to say about it.
     group("settings.group.security", [
+      // Never both: webauthn.supported() is false inside the shell, and the
+      // capability behind the second one does not exist in a browser.
       biometricRow(ctx),
+      shellBioRow(ctx),
       row("settings.lock", "settings.lockDesc", null, () => ctx.lock(false), { danger: true }),
       // The last row of the whole screen that does anything: the way out of
       // this app that leaves nothing behind. It sits at the bottom of the

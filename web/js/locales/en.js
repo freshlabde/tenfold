@@ -460,6 +460,16 @@ export const en = {
   "webauthn.removeTitle": "Turn this off?",
   "webauthn.removeBody": "The passphrase and the recovery key keep working. Other devices keep their own setup - this only removes the one on this device.",
   "webauthn.removed": "Turned off on this device.",
+
+  // ------------------------------- biometric unlock inside the native shell
+  // The sentence the system's own prompt shows. The shell holds no catalogue:
+  // the app's words live here, in three languages, and are handed over per call.
+  "bio.reason": "Unlock your list.",
+  "bio.lockedOut": "Too many tries. The device wants its passcode once before face or fingerprint work again. The passphrase opens the list in the meantime.",
+  "bio.invalidated": "The face or fingerprint on this device changed, so this way in is gone. Open with the passphrase once, then set it up again in Settings.",
+  "bio.notEnrolled": "Set up face or fingerprint on this device first, then this can be switched on.",
+  "bio.setupAgain": "Set up face or fingerprint again",
+  "bio.setupAgainDesc": "The enrolment on this device changed, so the old way in stopped working. This makes a new key for it. The passphrase and the recovery key were never affected.",
   "settings.about": "About tenfold",
   "settings.aboutDesc": "The method, and what happens to your data.",
   "settings.version": "Version",

@@ -42,6 +42,7 @@ import * as push from "./push.js";
 import { setBadge, clearBadge, clearWidgetState } from "./badge.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import * as webauthn from "./webauthn.js";
+import * as bio from "./bio.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
 import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
 import { el, clear, text, icon } from "./ui/dom.js";
@@ -543,6 +544,19 @@ async function openWithMasterKey(key) {
   state.masterKey = key;
   state.doc = upgradeDoc(await openFromVault(state.vault, key));
   state.autoLocked = false;
+  // A biometric wrapper the shell has proved dead (the key is gone, or the
+  // enrolled face changed) leaves here - lazily, now that there is a master key
+  // and a save on the way. On a lock screen nothing can be saved, so nothing is
+  // cleaned there.
+  try {
+    const reconciled = await bio.reconcile(state.vault);
+    if (reconciled !== state.vault) {
+      state.vault = reconciled;
+      await saveVault(state.vault);
+    }
+  } catch {
+    // A vault that would not let go of a dead wrapper is still an open vault.
+  }
   // A fresh unlock is a fresh session for anything that may be offered at most
   // once per unlock.
   state.supportNudgedThisSession = false;
@@ -762,6 +776,11 @@ const ctx = {
    */
   async wipeLocalVault() {
     sync.resetSync();
+    // The shell is told BEFORE the vault goes, because the message has to name
+    // which vault died and that name lives in the file. One message clears
+    // three things the web app cannot reach: the Keychain key behind Face ID,
+    // the widget's state with the badge, and the share slot.
+    await bio.announceWipe(state.vault).catch(() => {});
     await clearAll();
     // Everything this device held about the list goes, including the three
     // things that live outside the vault: the count on the icon, whatever the
@@ -819,6 +838,9 @@ const ctx = {
     } catch {
       // No storage: there was no pointer to forget.
     }
+    // The shell's key, the widget and the share slot go with the wipe below -
+    // wipeLocalVault sends `vault.wiped`, which is the one message that says
+    // the vault is gone rather than merely empty.
     await ctx.wipeLocalVault();
   },
 
@@ -1310,6 +1332,22 @@ const ctx = {
   },
 
   /**
+   * The same thing one layer down, inside the native shell: the shell holds the
+   * key behind Face ID, the page unwraps with it. The sentence the system
+   * prompt shows is handed over from here, in the language the app is showing -
+   * the shell holds no catalogue and must not grow one.
+   *
+   * Errors carry a code (bio.js CODES) and the lock screen decides what, if
+   * anything, to say. Everything after the key arrives is identical to a
+   * passphrase unlock.
+   */
+  async unlockShellBio() {
+    if (!state.vault) throw new VaultUnlockError();
+    const key = await bio.unlock(state.vault, t("bio.reason"));
+    await openWithMasterKey(key);
+  },
+
+  /**
    * Face ID / Touch ID as one more envelope. The wrapper travels inside the
    * vault, so it reaches the other devices through sync - but the credential
    * behind it is device-local, and each device carries its own label, so
@@ -1337,6 +1375,54 @@ const ctx = {
     async remove() {
       if (!state.vault) return;
       state.vault = await webauthn.revoke(state.vault);
+      if (state.masterKey && state.doc) await flushSave();
+      else await saveVault(state.vault);
+    },
+  },
+
+  /**
+   * The shell's own biometric envelope. Same shape as `biometric` above, on
+   * purpose: the two are alternatives, never both on offer, and the screens
+   * that draw them should not have to learn two vocabularies.
+   *
+   * `supported` is the capability, `available()` is the device right now
+   * (hardware and enrolment are two facts), `enabled` is this vault carrying
+   * this device's wrapper. Turning it on writes a wrapper and saves; turning it
+   * off removes the wrapper here and the key over there.
+   */
+  shellBio: {
+    get supported() {
+      return bio.supported();
+    },
+    /** null until the shell has been asked - the screens repaint on the answer. */
+    get availableCached() {
+      return bio.availableCached();
+    },
+    available: () => bio.available(),
+    get enabled() {
+      return bio.enabled(state.vault);
+    },
+    /** The lock screen hides the button after an outcome that cannot improve. */
+    get hidden() {
+      return bio.offerHidden();
+    },
+    get lastCode() {
+      return bio.lastCode();
+    },
+    /** True after an enrolment change, until it is armed again or turned off. */
+    get setupAgain() {
+      return bio.needsSetupAgain();
+    },
+    async enable() {
+      if (!state.vault || !state.masterKey) throw new Error("vault is locked");
+      state.vault = await bio.enable(state.vault, state.masterKey);
+      // flushSave re-seals the payload into the vault we just extended, so the
+      // new wrapper is stored and pushed with the same cycle as any edit.
+      await flushSave();
+    },
+    async remove() {
+      if (!state.vault) return;
+      state.vault = await bio.disable(state.vault);
       if (state.masterKey && state.doc) await flushSave();
       else await saveVault(state.vault);
     },

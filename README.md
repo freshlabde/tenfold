@@ -373,6 +373,9 @@ chain from setup to sync.
 web/            the app: index.html, sw.js, css/, js/ (pure ES modules, no bundler)
   js/crypto.js  the vault: wrappers, seal/open, key rotation
   js/webauthn.js  the biometric envelope: WebAuthn PRF to a raw wrapper
+  js/bio.js     the same one layer down, inside the native shell: the key it keeps
+                behind Face ID, wrapped as shell-bio-v1. Neither is a way to RECOVER
+                a vault - the passphrase and the recovery key stay the only two
   js/model.js   pure tree functions, merge, schema upgrade
   js/sync.js    the only module allowed to talk to /api/vault
   js/push.js    the only module allowed to talk to /api/push
