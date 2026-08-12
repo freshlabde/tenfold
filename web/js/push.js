@@ -13,9 +13,27 @@
 // token (derived from the master key), so a stranger holding a sync id cannot
 // register a reminder for somebody else's vault. The push that comes back
 // carries NO payload at all, so there is nothing in it that could leak.
+//
+// TWO TRANSPORTS, ONE FEATURE
+// ---------------------------
+// Everything above describes the browser. Inside the native shell there is a
+// second way to the same reminder, and it is the shorter one: the shell owns
+// UNUserNotificationCenter, which schedules a repeating local notification on
+// the device itself. No VAPID key, no subscription, no /api/push call, no
+// server that has to be running at the chosen hour - and nothing to leak,
+// because nothing leaves the phone.
+//
+// Which transport is in use is decided HERE and nowhere else. `enablePush`,
+// `disablePush`, `refresh` and the three "would this work here" probes each
+// branch once, at the top, on whether the shell offers the reminder
+// capability. The settings row, the setup step and the one-time offer sheet
+// call the same four entry points either way and know nothing about it - the
+// day this module forks its callers is the day the feature has two designs.
 
 import { deriveSyncAuthToken } from "./crypto.js";
 import { syncMeta } from "./sync.js";
+import { CAP_REMINDER, shellWith, shellSend } from "./shell.js";
+import { t } from "./i18n.js";
 
 /** Same trick as sync.js: the app also lives under the /tenfold prefix. */
 const API_BASE = location.pathname.startsWith("/tenfold/") ? "/tenfold/api/push/" : "/api/push/";
@@ -33,6 +51,44 @@ const LOCALE_URL = `${location.origin}/tenfold-locale`;
 
 /** Cached view of the state, so the settings screen can render synchronously. */
 const state = { supported: null, permission: "default", enabled: false, hour: 8 };
+
+/**
+ * The native shell, but only when it can actually schedule a reminder.
+ * Null everywhere else, which is the browser path above.
+ * @returns {Object|null}
+ */
+function reminderShell() {
+  return shellWith(CAP_REMINDER);
+}
+
+/**
+ * The sentence the notification shows, ready-localised.
+ *
+ * The shell holds no catalogue and must never grow one: it would be a second
+ * place where the app's words live, in a repository on a different release
+ * cycle, and the two would drift the first time either was touched. So the web
+ * app hands over the finished line at the moment the reminder is scheduled.
+ *
+ * Content-free, and it has to stay that way - this is the one sentence the app
+ * says while the vault is locked. Two fixed strings out of the catalogue: no
+ * title, no goal, no count, nothing of the person's.
+ * @returns {{title: string, body: string}}
+ */
+function reminderNotice() {
+  return { title: t("push.notice.title"), body: t("push.notice.body") };
+}
+
+/** The browser's three permission words, from the shell's four. */
+function permissionFromShell(value) {
+  if (value === "granted" || value === "denied") return value;
+  return "default";
+}
+
+function clampHour(value) {
+  const hour = Math.trunc(Number(value));
+  if (!Number.isFinite(hour)) return 8;
+  return Math.max(0, Math.min(23, hour));
+}
 
 function endpointUrl(path) {
   return `${API_BASE}${path}`;
@@ -57,9 +113,18 @@ function writePref(pref) {
   }
 }
 
-/** @returns {boolean} true when this browser can do web push at all. */
+/**
+ * Can a daily reminder be set up in this window at all?
+ *
+ * In the shell the answer is yes and none of the browser's three APIs are
+ * involved - the web view has no Service Worker, no PushManager and no
+ * Notification object, and measuring for them would return the wrong answer
+ * for a feature that is fully present.
+ * @returns {boolean}
+ */
 export function pushSupported() {
   if (typeof navigator === "undefined" || typeof window === "undefined") return false;
+  if (reminderShell()) return true;
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
@@ -70,6 +135,11 @@ export function pushSupported() {
  */
 function defaultInstalled() {
   if (typeof window === "undefined") return false;
+  // The shell IS the installed app - there is no tab it could be running in.
+  // Answered before the display-mode probe rather than after it: a WKWebView
+  // reports no display-mode at all, so the media query below would say "browser
+  // tab" about the one context that is certainly not one.
+  if (reminderShell()) return true;
   // iOS Safari's own flag, older than display-mode and still the honest one.
   if (navigator && navigator.standalone === true) return true;
   try {
@@ -106,6 +176,11 @@ function applePlatform() {
  */
 export function usableHere() {
   if (!pushSupported()) return false;
+  // In the shell the prompt leads straight to UNUserNotificationCenter, so the
+  // whole "is this a tab" question is moot. Stated explicitly rather than left
+  // to fall out of installedHere(), because the answer must not depend on a
+  // user-agent string or a display-mode the web view does not report.
+  if (reminderShell()) return true;
   if (applePlatform()) return installedHere();
   return true;
 }
@@ -116,6 +191,7 @@ export function usableHere() {
  * context where the answer is worth anything on every platform.
  */
 export function remindableHere() {
+  if (reminderShell()) return true;
   return pushSupported() && installedHere();
 }
 
@@ -134,6 +210,29 @@ export async function refresh() {
   state.supported = pushSupported();
   const pref = readPref();
   state.hour = typeof pref.hour === "number" ? pref.hour : 8;
+
+  // The shell is the authority on its own scheduled notification, exactly as
+  // the browser is on its subscription. Ask it rather than trusting the local
+  // preference: permission can be revoked in Settings and the notification can
+  // be gone without this app ever running in between.
+  const shell = reminderShell();
+  if (shell) {
+    let reply = null;
+    try {
+      reply = await shellSend({ type: "reminder.status" });
+    } catch {
+      // No answer. Report what is certain - the feature exists here - and
+      // leave the rest at the last known values rather than inventing a state.
+      reply = null;
+    }
+    if (reply) {
+      state.permission = permissionFromShell(reply.permission);
+      state.enabled = !!reply.enabled;
+      if (typeof reply.hour === "number") state.hour = clampHour(reply.hour);
+    }
+    return JSON.stringify(snapshot()) !== before;
+  }
+
   state.permission = state.supported ? Notification.permission : "denied";
   state.enabled = false;
   if (state.supported && state.permission === "granted") {
@@ -228,7 +327,36 @@ export async function vapidPublicKey() {
  */
 export async function enablePush(ctx, localHour) {
   if (!pushSupported()) throw new PushError("unsupported");
-  const hour = Math.max(0, Math.min(23, Math.trunc(localHour)));
+  const hour = clampHour(localHour);
+
+  // ---- the shell transport -------------------------------------------------
+  // Local, and therefore short: the shell asks the operating system for
+  // permission inside this same user gesture and schedules a repeating daily
+  // notification. Nothing is sent anywhere. Notably absent: authHeaders(),
+  // vapidPublicKey() and the /api/push/subscribe POST - a reminder that never
+  // leaves the device needs no vault to prove anything about, which is why
+  // this branch does not touch `ctx` at all.
+  const shell = reminderShell();
+  if (shell) {
+    const notice = reminderNotice();
+    let reply;
+    try {
+      reply = await shellSend({ type: "reminder.schedule", hour, title: notice.title, body: notice.body });
+    } catch {
+      throw new PushError("shell");
+    }
+    state.permission = permissionFromShell(reply && reply.permission);
+    // A refused prompt is the same answer here as in a browser, so it arrives
+    // as the same error code and the settings screen shows the same sentence.
+    if (state.permission === "denied") throw new PushError("denied");
+    if (!reply || reply.ok !== true) throw new PushError("shell");
+    writePref({ ...readPref(), hour });
+    state.hour = hour;
+    state.enabled = true;
+    return;
+  }
+
+  // ---- the browser transport ----------------------------------------------
   const permission = await Notification.requestPermission();
   state.permission = permission;
   if (permission !== "granted") throw new PushError("denied");
@@ -285,6 +413,26 @@ export async function enablePush(ctx, localHour) {
  * anything with.
  */
 export async function forgetLocal() {
+  // In the shell there is nothing to give back to a server - the notification
+  // is on this device and only this device, so cancelling it IS the whole of
+  // forgetting it.
+  if (reminderShell()) {
+    try {
+      await shellSend({ type: "reminder.cancel" });
+    } catch {
+      // A wipe must complete whatever the shell says. The scheduled
+      // notification carries no content, so the worst case is one more calm
+      // line tomorrow morning about a vault that is gone.
+    }
+    try {
+      localStorage.removeItem(PREF_KEY);
+    } catch {
+      // Storage disabled: there was no preference to remove.
+    }
+    state.enabled = false;
+    state.hour = 8;
+    return;
+  }
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     const sub = reg ? await reg.pushManager.getSubscription() : null;
@@ -303,6 +451,22 @@ export async function forgetLocal() {
 
 /** Take the reminder away again. The subscription is dropped on both sides. */
 export async function disablePush(ctx) {
+  // The shell removes the pending request by its fixed identifier. There is no
+  // second side to tell, and no permission to hand back: iOS keeps the
+  // authorization, which is what makes turning the reminder on again silent.
+  const shell = reminderShell();
+  if (shell) {
+    try {
+      await shellSend({ type: "reminder.cancel" });
+    } catch {
+      // Nothing answered. The settings screen re-reads the truth from the
+      // shell straight after this call, so a failure shows up as a reminder
+      // that is still on rather than as a wrong claim that it is off.
+    }
+    state.enabled = false;
+    return;
+  }
+
   let sub = null;
   try {
     const reg = await navigator.serviceWorker.getRegistration();

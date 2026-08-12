@@ -293,6 +293,12 @@ export const en = {
   "push.error.tooMany": "Five devices already have a reminder for this vault.",
   "push.error.offline": "No connection to the server.",
   "push.error.server": "The server did not answer properly.",
+  "push.error.shell": "The app did not answer the request.",
+  // The whole notification. Two fixed lines - the same ones sw.js shows on the
+  // web, kept here as well because the native shell holds no catalogue and the
+  // app hands it the finished sentence.
+  "push.notice.title": "tenfold",
+  "push.notice.body": "Your question is waiting.",
 
   // -------------------------------------------------------- the context index
   "entities.title": "Context",

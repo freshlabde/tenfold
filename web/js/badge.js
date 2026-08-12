@@ -12,13 +12,53 @@
 // no storage and no DOM, it never throws into a caller (a browser without the
 // API, or one that refuses because the app is not installed, is a no-op), and
 // it does NOT clear itself when the app locks - see the contract.
+//
+// THREE SURFACES, ONE COUNT
+// -------------------------
+// The number goes to the Badging API in a browser, to the native shell where
+// that API is missing, and - through the shell - to the home-screen widget.
+// All three are fed from the same `badgeCount()` call in the same tick, so the
+// icon, the widget and the Today screen can never disagree with each other.
+//
+// The widget gets one thing more than the badge: whether today's question is
+// still waiting. That is a BOOLEAN, and it stays one. The widget shows numbers
+// and a fixed line; it never shows a goal, a title or a question - see the
+// contract, and tenfold-ios/docs/BRIDGE.md, which says it from the other side.
 
 import { dueNowCount } from "./model.js";
+import { dailyQuestion } from "./questions.js";
+import { CAP_BADGE, CAP_WIDGET, shellWith, shellPost } from "./shell.js";
 
 /** Whether this browser has the Badging API at all. Desktop tabs mostly do
  *  not, and an uninstalled PWA is refused even where the method exists. */
 export function supported() {
-  return typeof navigator !== "undefined" && typeof navigator.setAppBadge === "function";
+  if (typeof navigator !== "undefined" && typeof navigator.setAppBadge === "function") return true;
+  return shellWith(CAP_BADGE) !== null;
+}
+
+/**
+ * Is today's question still waiting to be answered?
+ *
+ * Derived, not stored. `questions.dailyQuestion` already answers exactly this
+ * for the Today screen: it returns null when the list is empty or when the
+ * question was put away for today (`settings.dailyDismissed`), and an object
+ * otherwise. Asking it here rather than keeping a second flag is the same
+ * discipline the count follows - one rule, several readers - so the widget can
+ * never say the question is waiting while the screen shows it answered.
+ *
+ * What comes back is a boolean. The question itself, and the goal it is asked
+ * about, stay inside the vault.
+ *
+ * @param {Object|null} doc
+ * @param {{now?: number}} [opts]
+ * @returns {boolean}
+ */
+export function questionWaits(doc, opts = {}) {
+  if (!doc || !Array.isArray(doc.nodes)) return false;
+  const dismissed = doc.settings && typeof doc.settings.dailyDismissed === "string"
+    ? doc.settings.dailyDismissed
+    : undefined;
+  return dailyQuestion(doc.nodes, { ...opts, dismissed }) !== null;
 }
 
 /**
@@ -46,12 +86,24 @@ export function badgeCount(doc, opts = {}) {
  * @returns {number} the count that was applied (0 when cleared or unsupported)
  */
 export function setBadge(doc, opts = {}) {
-  if (!supported()) return 0;
   const count = badgeCount(doc, opts);
+  // Fed first, and fed whether or not an icon badge is possible: the widget is
+  // a separate surface that happens to share this moment, not a consequence of
+  // the badge. A shell that offered only one of the two would still be served.
+  sendWidgetState(doc, count, opts);
+  if (!supported()) return 0;
   try {
     if (count > 0) {
-      const result = navigator.setAppBadge(count);
-      if (result && typeof result.catch === "function") result.catch(() => {});
+      // The Badging API where it exists; the shell where it does not. WKWebView
+      // has no navigator.setAppBadge at all, so on iOS the number reaches the
+      // icon through UIApplication on the native side instead - the same count,
+      // one hop further.
+      if (typeof navigator !== "undefined" && typeof navigator.setAppBadge === "function") {
+        const result = navigator.setAppBadge(count);
+        if (result && typeof result.catch === "function") result.catch(() => {});
+      } else {
+        shellPost({ type: "badge.set", count });
+      }
     } else {
       clearBadge();
     }
@@ -62,6 +114,28 @@ export function setBadge(doc, opts = {}) {
 }
 
 /**
+ * Tell the shell what the home-screen widget should show: how many steps are
+ * due now, and whether today's question is still waiting.
+ *
+ * Two numbers and a boolean. Nothing else may ever be added to this message
+ * without the contract changing first - the widget is rendered by a process
+ * outside the vault's trust boundary and drawn on a home screen anybody can
+ * see over a shoulder.
+ *
+ * Fire and forget. A widget that missed one update is a widget that is one
+ * count stale until the next mutation; a caller that had to await it would be
+ * a save path blocked on a home screen.
+ *
+ * @param {Object|null} doc
+ * @param {number} due
+ * @param {{now?: number}} [opts]
+ */
+function sendWidgetState(doc, due, opts = {}) {
+  if (!shellWith(CAP_WIDGET)) return;
+  shellPost({ type: "widget.state", due, questionWaits: questionWaits(doc, opts) });
+}
+
+/**
  * Take the badge away. Used when the vault is wiped - and NOT when it locks:
  * a count is content-free, and a badge that survives the lock is the whole
  * point of having one.
@@ -69,6 +143,13 @@ export function setBadge(doc, opts = {}) {
 export function clearBadge() {
   if (typeof navigator === "undefined") return;
   try {
+    // Zero, not a separate verb: the shell has one message for the number on
+    // the icon and zero means "take it away", so there is no second code path
+    // that could be reached in one direction and not the other.
+    if (typeof navigator.setAppBadge !== "function" && shellWith(CAP_BADGE)) {
+      shellPost({ type: "badge.set", count: 0 });
+      return;
+    }
     if (typeof navigator.clearAppBadge === "function") {
       const result = navigator.clearAppBadge();
       if (result && typeof result.catch === "function") result.catch(() => {});

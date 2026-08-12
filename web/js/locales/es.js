@@ -293,6 +293,9 @@ export const es = {
   "push.error.tooMany": "Cinco dispositivos ya tienen un recordatorio para esta caja fuerte.",
   "push.error.offline": "Sin conexión con el servidor.",
   "push.error.server": "El servidor no respondió correctamente.",
+  "push.error.shell": "La aplicación no respondió a la petición.",
+  "push.notice.title": "tenfold",
+  "push.notice.body": "Tu pregunta te espera.",
 
   // -------------------------------------------------------- the context index
   "entities.title": "Entorno",

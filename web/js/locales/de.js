@@ -293,6 +293,9 @@ export const de = {
   "push.error.tooMany": "Fünf Geräte haben für diesen Tresor schon eine Erinnerung.",
   "push.error.offline": "Keine Verbindung zum Server.",
   "push.error.server": "Der Server hat nicht sauber geantwortet.",
+  "push.error.shell": "Die App hat auf die Anfrage nicht geantwortet.",
+  "push.notice.title": "tenfold",
+  "push.notice.body": "Deine Frage wartet.",
 
   // -------------------------------------------------------- the context index
   "entities.title": "Umfeld",

@@ -164,6 +164,50 @@ Anyone who wants to change an interface changes this file first.
     another sheet. Closing with the X settles nothing (the share rule), both buttons settle it
     for ever.
 
+#### Two transports, one reminder
+
+The daily reminder has two ways of arriving, and which one is in use is decided in
+`web/js/push.js` and nowhere else. No screen knows the difference: the settings row, the
+setup step and the one-time offer sheet call the same `ctx.push.enable/disable/refresh`
+either way. The day that stops being true, the feature has two designs.
+
+| | **Web push** (a browser) | **Local notification** (the native shell) |
+|---|---|---|
+| Scheduler | the server, once daily per subscription | `UNUserNotificationCenter` on the device |
+| Needs sync | **yes** - the write token is what proves a subscription belongs to that vault | no. Nothing leaves the phone, so there is nothing to authorise |
+| Network | `GET /api/push/vapid`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe` | **none.** No VAPID key, no `/api/push` call of any kind |
+| Where the sentence comes from | the `NOTICE` table in `web/sw.js` (a worker cannot import a catalogue) | `push.notice.title` / `push.notice.body`, handed to the shell at schedule time |
+| Permission words | `default` / `granted` / `denied` | `notDetermined` / `granted` / `denied`, mapped onto the three above |
+
+- **The gate is a capability, not a platform.** `web/js/shell.js` looks for
+  `window.__tenfoldShell` and asks whether it advertises `"reminder"`. A shell build without
+  it falls back to the browser path rather than posting into the void, and a plain browser
+  never sees any of this. The capability names are duplicated in
+  `tenfold-ios/Sources/Bridge/ShellBridge.swift` - two repositories, no shared import - and
+  pinned literally by `tests/shell.spec.js` on this side and the bridge's unit tests on the
+  other.
+- **The shell branch never touches `ctx`.** It reads no vault, derives no token, and makes no
+  request. A test asserts that no `/api/push/*` fetch happens in shell mode, by spying on
+  `fetch` itself rather than intercepting the route: the contract is that the app does not
+  *ask*, not that the request fails.
+- **The sentence travels, the catalogue does not.** The shell holds no strings. It is handed
+  two finished lines - `"tenfold"` and `"Your question is waiting."` in the current language -
+  because a catalogue in a second repository on a second release cycle would drift the first
+  time either side was touched. They are the same two lines `sw.js` shows on the web, and both
+  are content-free by construction.
+- **A refused prompt is not a new failure mode.** The shell answers `permission: "denied"` and
+  `push.js` throws the existing `PushError("denied")`, so the person sees the sentence they
+  would have seen in a browser. One shell-specific code exists, `push.error.shell`, for the
+  case where the native side does not answer at all; everything the *feature* can do wrong
+  already had a word.
+- **`usableHere()` and `remindableHere()` answer true in the shell** regardless of
+  display-mode or user-agent. A `WKWebView` reports no display-mode, so the installed-app
+  probe would call the one certainly-installed context a browser tab; and the shell is the
+  installed app by construction. `setInstalledProbe()` still overrides everything, so the
+  tests keep their seam.
+- **`push.js` is still one of exactly two modules allowed to touch the network** (rule 7).
+  The shell path adds no third: it removes network from the reminder entirely.
+
 ## The ranked ten: three tiers, and the height budget
 
 Importance on the ten is shown as **three bands, not as a gradient**. A per-rank slope of
@@ -258,6 +302,36 @@ Both are therefore specified here down to what they are allowed to know.
   refused is a no-op, never an error and never a broken session.
 - **No setting.** This surface is quiet and content-free; there is nothing to
   configure.
+
+### The home-screen widget (native shell only)
+
+A third outside surface, and the most exposed one: a widget is drawn by a process that has
+no key, sits on a home screen anybody standing nearby can read, and is rendered while the
+vault is locked and the app is not running. It is therefore specified by what it may NOT
+know, first.
+
+- **Counts only. No goal text, ever.** The whole message is
+  `{type: "widget.state", due: <number>, questionWaits: <boolean>}` - three keys, and
+  `tests/shell.spec.js` asserts the key set exactly so that a fourth field breaks a test
+  rather than shipping. No title, no question, no date, no name. The widget draws the number
+  and, when the question is waiting, one fixed line saying so. The opt-in title mode that
+  `tenfold-ios/docs/BRIDGE.md` mentions as a future exception does not exist and is not
+  covered by this contract.
+- **`due` is the badge count**, from the same `badgeCount()` call in the same tick as the
+  icon. One rule (`model.dueNowCount`), three readers: the Today screen, the icon and the
+  widget. They cannot disagree.
+- **`questionWaits` is derived, not stored.** `badge.questionWaits(doc, opts)` asks
+  `questions.dailyQuestion(nodes, {dismissed: settings.dailyDismissed})` and returns whether
+  it produced anything - which is precisely the condition under which the Today screen shows
+  the question. No second flag was added: a flag would be a second rule, and the widget could
+  then claim the question waits while the screen shows it answered.
+- **Sent whenever the badge is, and independently of it.** `setBadge()` feeds the widget
+  first and does so even where no icon badge is possible, because a shell might offer one
+  capability and not the other. Fire and forget: a save path must never wait on a home screen.
+- **The badge itself crosses the same bridge** where `navigator.setAppBadge` is missing, as
+  `{type: "badge.set", count: <number>}`. Zero means "take it away" - one message, one
+  meaning, rather than a second verb that could be reached in one direction and not the other.
+- **Nothing here is gated on sync.** Both messages are local facts about a local list.
 
 ### Share target (Android/Chromium, installed PWA)
 

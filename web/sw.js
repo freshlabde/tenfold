@@ -69,6 +69,7 @@ const SHELL = [
   "./js/search.js",
   "./js/sync.js",
   "./js/push.js",
+  "./js/shell.js",
   "./js/webauthn.js",
   "./js/llm.js",
   "./js/prompts.js",
