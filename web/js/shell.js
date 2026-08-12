@@ -99,6 +99,33 @@ export function shellPost(message) {
 }
 
 /**
+ * Listen for a message the shell sends on its own.
+ *
+ * Everything else in this module is the page asking a question. This is the
+ * other direction: the shell delivers unprompted messages - so far exactly one,
+ * `share.incoming` - by dispatching a `tenfoldshell` CustomEvent on window from
+ * its `_receive` hook. Replies to a `request()` or a `send()` never come
+ * through here; those resolve their own promise and are never dispatched.
+ *
+ * Still transport and nothing else: this knows the event name and nothing about
+ * what any message means. In a browser it costs one listener that never fires.
+ *
+ * @param {string} type the message type to listen for
+ * @param {(message: Object) => void} handler
+ * @returns {() => void} removes the listener
+ */
+export function onShellMessage(type, handler) {
+  if (typeof window === "undefined") return () => {};
+  const listener = (event) => {
+    const message = event && event.detail;
+    if (!message || message.type !== type) return;
+    handler(message);
+  };
+  window.addEventListener("tenfoldshell", listener);
+  return () => window.removeEventListener("tenfoldshell", listener);
+}
+
+/**
  * Send and wait for the native reply.
  *
  * The message travels FLAT - `{type, hour, title, body}` with an id added -

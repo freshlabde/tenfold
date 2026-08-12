@@ -310,13 +310,37 @@ no key, sits on a home screen anybody standing nearby can read, and is rendered 
 vault is locked and the app is not running. It is therefore specified by what it may NOT
 know, first.
 
-- **Counts only. No goal text, ever.** The whole message is
-  `{type: "widget.state", due: <number>, questionWaits: <boolean>}` - three keys, and
-  `tests/shell.spec.js` asserts the key set exactly so that a fourth field breaks a test
-  rather than shipping. No title, no question, no date, no name. The widget draws the number
-  and, when the question is waiting, one fixed line saying so. The opt-in title mode that
-  `tenfold-ios/docs/BRIDGE.md` mentions as a future exception does not exist and is not
-  covered by this contract.
+- **Counts only, unless the person switched the title on.** The default message is
+  `{type: "widget.state", due: <number>, questionWaits: <boolean>}` - three keys - and with the
+  opt-in on it carries a fourth, `topTitle: <string>`. `tests/shell.spec.js` pins both shapes
+  exactly, so a fifth field breaks a test rather than shipping. No question text, no note, no
+  date, no name of a person. The widget draws the number and, when the question is waiting, one
+  fixed line saying so.
+- **The opt-in title is the one deliberate exception in the whole app to "no goal text leaves
+  the vault".** It is worth stating what makes it defensible rather than merely allowed:
+  - **Off by default**, and it is a setting inside the vault (`doc.settings.widgetTitle`), so
+    the decision travels with the document to every device and there is one place to look for
+    the answer. Not a native switch: that would be a second source of truth for the single
+    setting that moves text out of the encryption.
+  - **The row only exists where a widget does** - `badge.widgetSupported()`, i.e. a shell that
+    advertises the `widget` capability. In a browser the group is absent, not disabled.
+  - **It says what it does**: `settings.widgetTitleWarn`, in all three catalogues, states that
+    the name sits outside the encryption on the home and lock screen, readable without the
+    passphrase.
+  - **Rank 1 only, title only.** `badge.topTitle(doc)` reads `model.childrenOf(nodes, null)[0]`
+    - the same ordered list the outline draws - takes its `title`, trims it, and caps it at
+    `WIDGET_TITLE_MAX` (80). Never a note, never a child, never the daily question.
+  - **Turning it off clears it.** The absent field IS the clear: the shell stores the whole
+    state in one value, so the next `widget.state` without `topTitle` leaves no title in the
+    App Group. Changing the setting goes through `setSettings` -> `scheduleSave` -> `setBadge`,
+    so the home screen changes in the same tick as the switch.
+  - **A lock does NOT clear it**, exactly like the badge count, and for the same reason: a
+    person who put their top goal on the home screen asked for a surface that is there when the
+    app is not. tenfold locks after fifteen minutes and on every reload, so a title that
+    vanished with the lock would be blank almost all of the time - which is not the feature
+    they turned on. What clears it is switching it off, and `wipeLocalVault()`, which calls
+    `badge.clearWidgetState()` because after a wipe there is no next save to correct the
+    home screen with.
 - **`due` is the badge count**, from the same `badgeCount()` call in the same tick as the
   icon. One rule (`model.dueNowCount`), three readers: the Today screen, the icon and the
   widget. They cannot disagree.
@@ -378,6 +402,36 @@ else changes.
   dropped. Discarding empties the bucket. Closing the sheet with the X settles
   nothing; the item stays parked and is offered again at the next unlock.
 - Strings live under the `share.` prefix in all three catalogues.
+
+**On iOS the share sheet feeds the same inbox.** There is no share target to register, so the
+native shell carries one instead: a Share Extension accepts text and web URLs, writes
+`{title, text, url, ts}` into an App Group slot (**one slot, latest wins**, the same rule as
+the Cache bucket) and never launches the app. When the app next becomes active the shell hands
+that item to the page as `{type: "share.incoming", …}`; `shareinbox.stashShare()` parks it in
+the **same** `tenfold-share-inbox` bucket under the same key, and from there it is the path
+above - the post-unlock offer sheet, `shareToNode`, the wipe on import, on dismissal and on
+`wipeLocalVault`. One implementation, two platforms; nothing downstream knows which one it is
+running on.
+
+Two details that are not decoration:
+
+- **The bucket key is https even where the origin is not.** `shareKey()` builds the key from
+  `location.origin` on the web, and falls back to a fixed
+  `https://shell.tenfold.invalid/tenfold-share-inbox` on any other scheme. Not a preference:
+  `cache.put()` rejects with a `TypeError` unless the request URL's scheme is http(s), and the
+  shell's origin is `tenfold-app://app` - measured, in `tenfold-ios/docs/DECISIONS.md` D12. The
+  host is in the reserved `.invalid` TLD and is never fetched.
+- **The app tells the shell when the item is parked**, with `{type: "share.stored"}`, and only
+  that empties the App Group slot. Receiving is not storing: parking is a Cache write and a
+  Cache write can fail (see the previous point, which is exactly how it failed the first time).
+  A share that could not be parked is not acknowledged, so it stays in the slot and is offered
+  again at the next launch instead of vanishing. The plaintext window is the same honest window, from the moment of sharing until
+the next unlock, with one extra leg at the front: the App Group slot is plaintext too (an
+extension holds no key and cannot be given one), and the shell wipes that slot the moment the
+page confirms it has the item - and only then, so a page that has not finished booting costs a
+retry rather than somebody's note. The shell cannot observe a vault wipe, so the slot is not
+cleared by one; what bounds it instead is that it only ever holds a single share somebody made
+deliberately, and the next share overwrites it.
 
 ## `web/js/crypto.js` (BUILT, do not change without updating its tests)
 

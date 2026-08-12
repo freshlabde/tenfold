@@ -38,8 +38,8 @@ import {
 } from "./entities.js";
 import * as sync from "./sync.js";
 import * as push from "./push.js";
-import { setBadge, clearBadge } from "./badge.js";
-import { readShare, clearShare } from "./shareinbox.js";
+import { setBadge, clearBadge, clearWidgetState } from "./badge.js";
+import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import * as webauthn from "./webauthn.js";
 import { llmEnabled, llmMode, bindContext as bindLlmContext } from "./llm.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
@@ -691,10 +691,17 @@ const ctx = {
   async wipeLocalVault() {
     sync.resetSync();
     await clearAll();
-    // Everything this device held about the list goes, including the two
-    // things that live outside the vault: the count on the icon, and anything
-    // another app shared in and nobody filed yet.
+    // Everything this device held about the list goes, including the three
+    // things that live outside the vault: the count on the icon, whatever the
+    // home-screen widget was showing, and anything another app shared in that
+    // nobody filed yet.
+    //
+    // The widget is cleared explicitly rather than left to the next save,
+    // because after a wipe there is no next save. With the opt-in title on it
+    // would otherwise keep a goal on the home screen of a device whose vault
+    // no longer exists, which is the one outcome that feature must not have.
     clearBadge();
+    clearWidgetState();
     await clearShare();
     state.vault = null;
     state.masterKey = null;
@@ -1596,6 +1603,21 @@ async function boot() {
   // back press from it leaves the app, as it should.
   syncHistory();
   render();
+
+  // The native shell's share hand-off. Registered here, before anything is
+  // unlocked, because the shell waits for this listener to exist before it
+  // gives up its copy - and because a share can arrive at any moment, not only
+  // during an unlock. Parking the item is all that happens now; the offer
+  // sheet is the same one the Android share target gets, and it only opens
+  // over an open document.
+  startShellShareInbox(() => {
+    // Not over another sheet. Something the person is already in the middle of
+    // outranks something that arrived a second ago; the item stays parked and
+    // is offered at the next unlock, which is the same rule closing this sheet
+    // with the X follows.
+    if (isSheetOpen()) return;
+    offerShare();
+  });
 
   if (pairing) await handlePairing(pairing);
 

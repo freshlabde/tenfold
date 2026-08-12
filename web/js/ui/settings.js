@@ -10,7 +10,10 @@
 // status line and two actions - no progress bars, no spinner, no dialog: a
 // sync that fails is a quiet dot, never an interruption. The daily reminder
 // only appears with sync on, is off until switched on, and says out loud what
-// it cannot do on iOS outside the installed app. Both export handlers stamp
+// it cannot do on iOS outside the installed app. The widget group appears only
+// where a native shell offers a widget, and holds the one switch in this app
+// that moves text out of the encryption - off by default, and stated as what
+// it is rather than as a feature. Both export handlers stamp
 // doc.settings.exportedAt, which is what tells the outline that this vault is
 // no longer the only copy of itself. The last row of the security group is the
 // full deletion - server copy and device, named part by part behind an
@@ -24,6 +27,7 @@ import { openSheet, closeSheet } from "./sheet.js";
 import { qrCard } from "./qrview.js";
 import { relativeTime } from "./format.js";
 import { call, llmSettings } from "../llm.js";
+import { widgetSupported } from "../badge.js";
 
 const SKINS = ["slate", "register", "breath"];
 const LLM_MODES = ["off", "local", "cloud"];
@@ -308,6 +312,41 @@ function reminderRow(ctx) {
   return status.enabled
     ? row("push.title", "push.onDesc", hourLabel(status.hour), () => reminderSheet(ctx))
     : row("push.enable", "push.enableDesc", null, () => reminderSheet(ctx));
+}
+
+/**
+ * The home-screen widget's one switch: may it show the name of the top goal?
+ *
+ * Where this lives is the point. The widget is drawn by the native shell, but
+ * the decision belongs inside the vault - it travels with the document to
+ * every device, it survives a reinstall, and there is exactly one place to
+ * look for the answer. A native settings screen would have been a second
+ * source of truth for the one setting in this app that moves text out of the
+ * encryption.
+ *
+ * The whole group is absent without a widget to configure - in a browser, or
+ * on a shell too old to advertise the capability. A disabled row would be an
+ * offer the app cannot keep.
+ *
+ * Off by default, and the two hints under it say plainly what "on" means: not
+ * "improves your home screen" but "puts this goal's name where anybody looking
+ * at the phone can read it". Somebody may well want exactly that. They should
+ * want it knowing.
+ */
+function widgetGroup(ctx) {
+  if (!widgetSupported()) return null;
+  const settings = (ctx.doc && ctx.doc.settings) || {};
+  return group("settings.group.widget", [
+    segment(
+      "settings.widgetTitle",
+      DEPTH,
+      settings.widgetTitle === true ? "on" : "off",
+      (v) => t(`settings.widgetTitle.${v}`),
+      (v) => ctx.setSettings({ widgetTitle: v === "on" }),
+    ),
+    el("p", { class: "field-hint", style: { padding: "0 2px" } }, [text(t("settings.widgetTitleDesc"))]),
+    el("p", { class: "field-hint", style: { padding: "0 2px" } }, [text(t("settings.widgetTitleWarn"))]),
+  ]);
 }
 
 /** The whole sync group: off = one row, on = status, pairing code, off switch. */
@@ -854,6 +893,10 @@ export function render(ctx) {
       file,
     ]),
     syncGroup(ctx),
+    // Next to the reminder, which is the app's other outside surface - and
+    // deliberately NOT inside the sync group above it: a widget is a local
+    // fact about a local list and has nothing to do with a server.
+    widgetGroup(ctx),
     llmGroup(ctx),
     group("settings.group.security", [
       biometricRow(ctx),

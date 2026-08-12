@@ -108,7 +108,16 @@ async function stubShell(page, opts = {}) {
         messages.push({ type, payload: payload || null });
         return Promise.resolve({ type: "pong", replyTo: `s${nextId++}` });
       },
-      _receive() {},
+      // The real one, not a no-op: this is how the native side delivers a
+      // message the page did not ask for, and wave 2c has one - share.incoming.
+      // Copied from the injected source in
+      // tenfold-ios/Sources/Bridge/ShellBridge.swift: a message carrying
+      // `replyTo` resolves a pending promise, everything else is dispatched as
+      // a `tenfoldshell` CustomEvent on window.
+      _receive(message) {
+        if (!message || typeof message !== "object") return;
+        window.dispatchEvent(new CustomEvent("tenfoldshell", { detail: message }));
+      },
     };
   }, {
     capabilities: opts.capabilities || ["reminder", "badge", "widget"],
@@ -424,10 +433,13 @@ test("the widget learns two counters and nothing else", async ({ page }) => {
   expect(states.length).toBeGreaterThan(0);
   const last = states[states.length - 1];
 
-  // Exactly three keys. This assertion is the privacy contract in executable
-  // form: the widget is drawn by a process outside the vault and shown on a
-  // home screen anybody can read over a shoulder, so a fourth field must break
-  // a test rather than ship.
+  // Exactly three keys with the title opt-in off, which is the default and is
+  // what this test runs with. The assertion is the privacy contract in
+  // executable form: the widget is drawn by a process outside the vault and
+  // shown on a home screen anybody can read over a shoulder, so a fourth field
+  // that nobody asked for must break a test rather than ship. The one field
+  // that MAY appear - topTitle, behind the settings switch - has its own tests
+  // below and its own shape in the allow-list at the end of this file.
   expect(Object.keys(last).sort()).toEqual(["due", "questionWaits", "type"]);
   expect(typeof last.due).toBe("number");
   expect(typeof last.questionWaits).toBe("boolean");
@@ -522,16 +534,30 @@ test("nothing the shell is handed can carry vault content", async ({ page }) => 
   await expect(page.locator(".toast")).toContainText("08:00");
 
   const all = await messages(page);
+  // One entry per message type, and every SHAPE that type may take. Only
+  // widget.state has two, and the second one exists solely because somebody
+  // switched the title on: with the opt-in off - as in this test - the three
+  // key shape is the only one that may appear.
   const allowed = {
-    "reminder.schedule": ["body", "hour", "title", "type"],
-    "reminder.cancel": ["type"],
-    "reminder.status": ["type"],
-    "badge.set": ["count", "type"],
-    "widget.state": ["due", "questionWaits", "type"],
+    "reminder.schedule": [["body", "hour", "title", "type"]],
+    "reminder.cancel": [["type"]],
+    "reminder.status": [["type"]],
+    "badge.set": [["count", "type"]],
+    // The page telling the shell it may let go of its own copy of a share.
+    // No fields: the shell knows what it sent.
+    "share.stored": [["type"]],
+    "widget.state": [
+      ["due", "questionWaits", "type"],
+      ["due", "questionWaits", "topTitle", "type"],
+    ],
   };
   for (const message of all) {
     expect(Object.keys(allowed)).toContain(message.type);
-    expect(Object.keys(message).sort()).toEqual(allowed[message.type]);
+    expect(allowed[message.type]).toContainEqual(Object.keys(message).sort());
+  }
+  // And in this run, with the opt-in untouched, no title crossed at all.
+  for (const message of all.filter((m) => m.type === "widget.state")) {
+    expect(message.topTitle).toBe(undefined);
   }
   for (const message of all.filter((m) => m.type === "reminder.schedule")) {
     expect(message.title).toBe(NOTICE.title);
@@ -539,4 +565,347 @@ test("nothing the shell is handed can carry vault content", async ({ page }) => 
   }
   expect(JSON.stringify(all)).not.toContain("CANARY-SHELL-7731");
   expect(JSON.stringify(all)).not.toContain(PASS);
+});
+
+// ------------------------------------------------- the share sheet's hand-off
+//
+// iOS has no share target, so the native shell carries one: a Share Extension
+// writes an item into an App Group, and the shell hands it to the page as
+// `share.incoming`. What is under test here is that the web app files it
+// through the EXISTING share inbox - the same Cache bucket, the same
+// post-unlock offer sheet, the same wipe rules that the Android share target
+// has used since it shipped. The native half (the extension, the App Group
+// slot, the hand-over) is tested in tenfold-ios/Tests/Unit.
+
+/** Lock from inside the app, flushing the debounced save on the way out. */
+async function lockNow(page) {
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    await ctx.lock();
+  });
+  await page.waitForSelector(".lock-title");
+}
+
+async function unlock(page) {
+  await page.waitForSelector(".lock-title");
+  await page.locator(".lock input").fill(PASS);
+  await page.getByRole("button", { name: /Unlock/ }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+}
+
+/** What the shell does when its App Group slot had something in it. */
+async function pushShare(page, item) {
+  await page.evaluate((value) => {
+    window.__tenfoldShell._receive({ type: "share.incoming", ...value });
+  }, item);
+}
+
+const shareBucket = (page) =>
+  page.evaluate(async () => {
+    if (!(await caches.has("tenfold-share-inbox"))) return null;
+    const cache = await caches.open("tenfold-share-inbox");
+    const hit = await cache.match(`${location.origin}/tenfold-share-inbox`);
+    return hit ? await hit.json() : null;
+  });
+
+test("a share handed over by the shell is parked, and offered at the next unlock", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Get the knee fixed"]);
+
+  // The handshake the shell waits for before it gives up its own copy. Without
+  // it a cold launch would deliver into a page whose listener does not exist
+  // yet and the item would be lost - see tenfold-ios/docs/BRIDGE.md.
+  expect(await page.evaluate(() => window.__tenfoldShareReady)).toBe(true);
+
+  // Locked, which is the ordinary case: somebody shares something into tenfold
+  // while it is in the background, and the app is opened later.
+  await lockNow(page);
+
+  const secret = "CANARY-SHARE-IOS-9214 the brace the physio recommended";
+  await pushShare(page, {
+    title: "A brace worth trying",
+    text: secret,
+    url: "https://a.invalid/brace",
+    ts: Date.now(),
+  });
+
+  // Parked, not shown: there is no open document to file anything into, and a
+  // sheet over the lock screen would be a leak rather than a feature.
+  await expect.poll(async () => (await shareBucket(page)) !== null).toBe(true);
+  expect(await page.locator(".sheet").count()).toBe(0);
+
+  await unlock(page);
+
+  // The existing sheet, unchanged - the same one an Android share opens.
+  const sheet = page.locator(".sheet");
+  await expect(sheet.locator(".sheet-title")).toHaveText("Shared with tenfold");
+  await expect(sheet).toContainText("A brace worth trying");
+  await expect(sheet).toContainText(secret);
+
+  // Filed under the goal, through the ordinary mutate path, and the parking
+  // space is emptied afterwards.
+  await sheet.getByRole("button", { name: "Get the knee fixed" }).click();
+  await expect.poll(() => shareBucket(page)).toBe(null);
+  const filed = await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    return ctx.doc.nodes.map((n) => ({ title: n.title, note: n.note || "", origin: n.origin }));
+  });
+  const node = filed.find((n) => n.title === "A brace worth trying");
+  expect(node).toBeTruthy();
+  expect(node.note).toContain(secret);
+  expect(node.origin).toBe("manual");
+
+  // The shell is told it may let go of its own copy - and told nothing else:
+  // the acknowledgement carries no fields, so the shared text cannot ride back
+  // out on it.
+  const acks = await sent(page, "share.stored");
+  expect(acks.length).toBeGreaterThan(0);
+  expect(Object.keys(acks[0])).toEqual(["type"]);
+
+  // And nothing of the share went back out over the bridge.
+  expect(JSON.stringify(await messages(page))).not.toContain(secret);
+});
+
+test("a share that carries nothing readable is dropped rather than parked", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+
+  await pushShare(page, { title: "   ", text: "", url: "", ts: Date.now() });
+  // Nothing parked and no sheet: an offer showing nothing is a worse answer
+  // than no offer. The same rule sw.js follows for an empty POST.
+  await page.waitForTimeout(300);
+  expect(await shareBucket(page)).toBe(null);
+  expect(await page.locator(".sheet").count()).toBe(0);
+});
+
+test("the bucket key is an https URL even where the origin is not", async ({ page }) => {
+  // Measured, not preferred: cache.put() rejects with a TypeError unless the
+  // request URL's scheme is http or https, and inside the native shell the
+  // origin is tenfold-app://app. Without the fallback the item could not be
+  // parked at all on iOS - see tenfold-ios/docs/DECISIONS.md D12.
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const { shareKey, shareKeyFor } = await import("/web/js/shareinbox.js");
+    return {
+      here: shareKey(),
+      web: shareKeyFor("https://tenfold.kairatools.com"),
+      shell: shareKeyFor("tenfold-app://app"),
+      opaque: shareKeyFor(""),
+    };
+  });
+  expect(r.here).toBe("http://127.0.0.1:7711/tenfold-share-inbox");
+  expect(r.web).toBe("https://tenfold.kairatools.com/tenfold-share-inbox");
+  expect(r.shell).toBe("https://shell.tenfold.invalid/tenfold-share-inbox");
+  expect(r.opaque).toBe("https://shell.tenfold.invalid/tenfold-share-inbox");
+  // .invalid is reserved precisely so it can never resolve to anything real,
+  // and nothing ever fetches this key - it is a Cache key, not an address.
+  expect(r.shell).toContain(".invalid/");
+});
+
+test("a share the app could not park is not acknowledged, so the shell keeps it", async ({ page }) => {
+  // The other half of the same measurement. If the Cache write throws, the
+  // page must stay silent: the shell empties its App Group slot on
+  // share.stored and on nothing else, so an acknowledgement here would be the
+  // difference between "offered again next launch" and "gone".
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+
+  await page.evaluate(() => {
+    // Break the bucket the way a non-http(s) key does.
+    caches.open = () => Promise.reject(new TypeError("no cache storage here"));
+  });
+  await pushShare(page, { title: "Will not park", text: "", url: "", ts: Date.now() });
+  await page.waitForTimeout(500);
+
+  expect(await sent(page, "share.stored")).toEqual([]);
+});
+
+test("the share hand-off message name is pinned to the one the shell sends", async ({ page }) => {
+  // The other half of this assertion is in
+  // tenfold-ios/Tests/Unit/ShareHandoverTests.swift. Two repositories, no
+  // shared import: a rename would stop shares arriving without breaking a
+  // build on either side.
+  const source = readFileSync(join(ROOT, "web/js/shareinbox.js"), "utf8");
+  expect(source).toContain('export const SHELL_MESSAGE = "share.incoming";');
+  expect(source).toContain('export const SHELL_STORED_MESSAGE = "share.stored";');
+
+  await page.goto("/tests/fixture.html");
+  const names = await page.evaluate(async () => {
+    const inbox = await import("/web/js/shareinbox.js");
+    return [inbox.SHELL_MESSAGE, inbox.SHELL_STORED_MESSAGE];
+  });
+  expect(names).toEqual(["share.incoming", "share.stored"]);
+});
+
+// ---------------------------------------------------- the widget's opt-in title
+
+const titleSwitch = (page) => page.getByRole("group", { name: "Show the top goal's name" });
+
+const lastWidgetState = async (page) => {
+  const list = await sent(page, "widget.state");
+  return list.length ? list[list.length - 1] : null;
+};
+
+test("the title switch appears only where the shell offers a widget", async ({ page }) => {
+  // A capability the shell does not advertise is a feature the web app must
+  // not offer. Not a disabled row - an offer the app cannot keep is worse than
+  // no offer at all.
+  await stubShell(page, { capabilities: ["reminder", "badge"] });
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await openSettings(page);
+  await expect(titleSwitch(page)).toHaveCount(0);
+  await expect(page.locator(".group-key").filter({ hasText: /^Home screen widget$/ })).toHaveCount(0);
+});
+
+test("switching the title on sends it, switching it off takes it away again", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Get the knee fixed", "Learn to sail"]);
+
+  // Off by default: this is the one setting in the app that moves text out of
+  // the encryption, and it starts off.
+  expect((await lastWidgetState(page)).topTitle).toBe(undefined);
+
+  await openSettings(page);
+  await expect(titleSwitch(page)).toHaveCount(1);
+  await titleSwitch(page).getByRole("button", { name: "Show" }).click();
+
+  // The rank-1 goal, and only its title. The switch changes the home screen in
+  // the same tick, through the ordinary save funnel.
+  await expect.poll(async () => (await lastWidgetState(page)).topTitle).toBe("Get the knee fixed");
+  const withTitle = await lastWidgetState(page);
+  expect(Object.keys(withTitle).sort()).toEqual(["due", "questionWaits", "topTitle", "type"]);
+
+  // The second goal never travels. One title, never a list.
+  expect(JSON.stringify(await messages(page))).not.toContain("Learn to sail");
+
+  await titleSwitch(page).getByRole("button", { name: "Hide" }).click();
+  // The absent field IS the clear: the shell stores one value, so a message
+  // without the key leaves no title in the App Group.
+  await expect.poll(async () => (await lastWidgetState(page)).topTitle).toBe(undefined);
+  await expect
+    .poll(async () => Object.keys(await lastWidgetState(page)).sort())
+    .toEqual(["due", "questionWaits", "type"]);
+});
+
+test("a lock leaves the title where it is, exactly like the badge count", async ({ page }) => {
+  // The honest behaviour, and the one most likely to be questioned: somebody
+  // who put their top goal on the home screen asked for a surface that is
+  // there while the app is not. tenfold locks after fifteen minutes and on
+  // every reload, so a title that vanished with the lock would be blank almost
+  // all of the time - which is not the thing they switched on. Turning the
+  // switch off clears it; a lock does not.
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Get the knee fixed"]);
+  await openSettings(page);
+  await titleSwitch(page).getByRole("button", { name: "Show" }).click();
+  await expect.poll(async () => (await lastWidgetState(page)).topTitle).toBe("Get the knee fixed");
+
+  await lockNow(page);
+  expect((await lastWidgetState(page)).topTitle).toBe("Get the knee fixed");
+});
+
+test("wiping the vault takes the widget back to nothing", async ({ page }) => {
+  // After a wipe there is no next save to correct the home screen with, so the
+  // wipe path says so explicitly. Without this a device whose vault no longer
+  // exists would keep a goal on its home screen.
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Get the knee fixed"]);
+  await openSettings(page);
+  await titleSwitch(page).getByRole("button", { name: "Show" }).click();
+  await expect.poll(async () => (await lastWidgetState(page)).topTitle).toBe("Get the knee fixed");
+
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    await ctx.wipeLocalVault();
+  });
+
+  await expect.poll(async () => (await lastWidgetState(page))).toEqual({
+    type: "widget.state",
+    due: 0,
+    questionWaits: false,
+  });
+});
+
+test("the title is the rank-1 goal, trimmed and capped", async ({ page }) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const badge = await import("/web/js/badge.js");
+    const doc = (nodes, on) => ({ nodes, settings: { widgetTitle: on } });
+    const two = [
+      { id: "b", parentId: null, rank: 1, title: "Second" },
+      { id: "a", parentId: null, rank: 0, title: "  First  " },
+    ];
+    return {
+      max: badge.WIDGET_TITLE_MAX,
+      off: badge.topTitle(doc(two, false)),
+      rankOne: badge.topTitle(doc(two, true)),
+      empty: badge.topTitle(doc([], true)),
+      untitled: badge.topTitle(doc([{ id: "a", parentId: null, rank: 0, title: "" }], true)),
+      long: badge.topTitle(doc([{ id: "a", parentId: null, rank: 0, title: "x".repeat(500) }], true)),
+      noDoc: badge.topTitle(null),
+    };
+  });
+  expect(r.max).toBe(80);
+  // The switch is the gate, and it is read from the document rather than from
+  // anywhere the shell could reach.
+  expect(r.off).toBe("");
+  // Rank order, not array order: the same ordered list the outline draws.
+  expect(r.rankOne).toBe("First");
+  expect(r.empty).toBe("");
+  expect(r.untitled).toBe("");
+  expect(r.noDoc).toBe("");
+  // Capped before it ever crosses the bridge: the least exposed title is the
+  // shortest one that still means something.
+  expect(r.long.length).toBe(80);
+  expect(r.long.endsWith("…")).toBe(true);
+});
+
+test("the warning about the title exists in all three catalogues", async ({ page }) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const { LOCALES } = await import("/web/js/i18n.js");
+    const out = {};
+    for (const locale of LOCALES) {
+      const cat = (await import(`/web/js/locales/${locale}.js`))[locale];
+      out[locale] = {
+        group: cat["settings.group.widget"],
+        label: cat["settings.widgetTitle"],
+        on: cat["settings.widgetTitle.on"],
+        off: cat["settings.widgetTitle.off"],
+        desc: cat["settings.widgetTitleDesc"],
+        warn: cat["settings.widgetTitleWarn"],
+      };
+    }
+    return out;
+  });
+  for (const locale of ["en", "de", "es"]) {
+    for (const [key, value] of Object.entries(r[locale])) {
+      expect(typeof value, `${locale}.${key}`).toBe("string");
+      expect(value.length, `${locale}.${key}`).toBeGreaterThan(0);
+    }
+    // The warning has to be a warning, not a feature description: it names
+    // where the text ends up, and it is long enough to have said it.
+    expect(r[locale].warn.length, `${locale} warning`).toBeGreaterThan(80);
+  }
+  expect(r.en.warn).toContain("outside the encryption");
+  expect(r.de.warn).toContain("außerhalb der Verschlüsselung");
+  expect(r.es.warn).toContain("fuera del cifrado");
 });

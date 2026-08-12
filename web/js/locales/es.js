@@ -413,6 +413,12 @@ export const es = {
   "settings.lastSavedNever": "todavía no",
   "settings.lock": "Bloquear ahora",
   "settings.lockDesc": "Borra de la memoria la lista abierta.",
+  "settings.group.widget": "Widget en la pantalla de inicio",
+  "settings.widgetTitle": "Mostrar el nombre de la meta principal",
+  "settings.widgetTitle.on": "Mostrar",
+  "settings.widgetTitle.off": "Ocultar",
+  "settings.widgetTitleDesc": "El widget muestra cuántos pasos vencen y si la pregunta de hoy sigue esperando. Con esto activado muestra además el nombre de tu meta número uno.",
+  "settings.widgetTitleWarn": "Ese nombre queda entonces fuera del cifrado, en la pantalla de inicio y en la de bloqueo: legible para cualquiera que coja el teléfono o le eche un vistazo, sin tu frase de paso. Sigue ahí mientras tenfold está bloqueado y desaparece en cuanto desactivas esto.",
 
   // --------------------------------------------------- delete everywhere
   "danger.delete": "Borrar la caja fuerte en todas partes",

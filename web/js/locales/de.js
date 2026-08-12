@@ -413,6 +413,12 @@ export const de = {
   "settings.lastSavedNever": "noch nie",
   "settings.lock": "Jetzt sperren",
   "settings.lockDesc": "Löscht die offene Liste aus dem Speicher.",
+  "settings.group.widget": "Widget auf dem Homescreen",
+  "settings.widgetTitle": "Namen des obersten Ziels zeigen",
+  "settings.widgetTitle.on": "Zeigen",
+  "settings.widgetTitle.off": "Verbergen",
+  "settings.widgetTitleDesc": "Das Widget zeigt, wie viele Schritte fällig sind und ob die Frage des Tages noch wartet. Mit dieser Einstellung zeigt es zusätzlich den Namen deines Ziels Nummer eins.",
+  "settings.widgetTitleWarn": "Dieser Name steht dann außerhalb der Verschlüsselung, auf dem Homescreen und auf dem Sperrbildschirm: lesbar für jeden, der das Telefon in die Hand nimmt oder darauf schaut, ganz ohne deine Passphrase. Er bleibt dort, während tenfold gesperrt ist, und verschwindet, sobald du das hier ausschaltest.",
 
   // --------------------------------------------------- delete everywhere
   "danger.delete": "Tresor überall löschen",

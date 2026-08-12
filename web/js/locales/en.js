@@ -416,6 +416,15 @@ export const en = {
   "settings.lastSavedNever": "not yet",
   "settings.lock": "Lock now",
   "settings.lockDesc": "Wipes the open list out of memory.",
+  // The widget's opt-in title. The warning is not softened anywhere: this is
+  // the one switch in the app that moves text out of the encryption, and the
+  // person turning it on has to be able to picture where that text ends up.
+  "settings.group.widget": "Home screen widget",
+  "settings.widgetTitle": "Show the top goal's name",
+  "settings.widgetTitle.on": "Show",
+  "settings.widgetTitle.off": "Hide",
+  "settings.widgetTitleDesc": "The widget shows how many steps are due and whether today's question is waiting. With this on it also shows the name of your number one goal.",
+  "settings.widgetTitleWarn": "That name then sits outside the encryption, on the home screen and on the lock screen: readable by anyone who picks up the phone or glances at it, without your passphrase. It stays there while tenfold is locked, and it disappears when you turn this off.",
 
   // --------------------------------------------------- delete everywhere
   "danger.delete": "Delete the vault everywhere",
