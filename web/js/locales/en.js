@@ -585,6 +585,9 @@ export const en = {
   "support.qrBtc": "Bitcoin address as a QR code",
   "support.qrEvm": "USDT and USDC address as a QR code",
   "support.privacy": "PayPal is a page outside this app. The two addresses are fixed text on this screen: nothing is loaded, nothing is counted, and this app never learns whether anybody paid.",
+  // Asked once, after a week of use, and only of somebody who never opened the
+  // tip jar by themselves. The body of that sheet is support.body.
+  "supportNudge.title": "Enjoying tenfold?",
 
   // ------------------------------------------------------------- assistance
   "settings.group.llm": "Assistance",

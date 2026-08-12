@@ -26,6 +26,7 @@ import {
   reorder,
   softDelete,
   upgradeDoc,
+  createdAtOf,
 } from "./model.js";
 import {
   addEntity,
@@ -64,6 +65,8 @@ import * as assist from "./ui/assist.js";
 import * as imageImport from "./ui/imageimport.js";
 import { openShareImport } from "./ui/shareimport.js";
 import { openPushOffer } from "./ui/pushoffer.js";
+import { openSupportNudge } from "./ui/supportnudge.js";
+import { supportAvailable } from "./ui/support.js";
 
 /** Minutes of inactivity after which the document is wiped from memory. */
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -77,6 +80,12 @@ export const APP_VERSION = "1.0.0";
 // tests/regressions.spec.js keeps the two strings identical; the bump command
 // rewrites both.
 export const CACHE_VERSION = "tenfold-v57";
+
+/**
+ * How long a vault has to have been in use before the app asks, once, whether
+ * it is worth an espresso. The owner's number: seven days.
+ */
+const SUPPORT_NUDGE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 const appEl = document.getElementById("app");
 const layerEl = document.getElementById("layer");
@@ -112,6 +121,8 @@ const state = {
   autoLocked: false,
   /** "today" when the app was opened from the daily notification. */
   pendingView: null,
+  /** True once the espresso question has been put this session - see offerSupport. */
+  supportNudgedThisSession: false,
 };
 
 let saveTimer = 0;
@@ -498,6 +509,32 @@ function setLanguage(lang) {
 }
 
 /**
+ * Give the document a birthday if it has none.
+ *
+ * A vault created from now on gets its stamp at creation, which is the honest
+ * moment. Every vault that already exists gets one here, on the first unlock
+ * after this version: the earliest `createdAt` in the document, i.e. the oldest
+ * goal or card anybody ever wrote, and only where there is nothing at all to go
+ * on, today. That errs towards "younger than it really is", so the one thing
+ * that reads this stamp - the week-old espresso question - asks late rather
+ * than early.
+ *
+ * Not sealed on its own: the debounced save picks it up with the next change,
+ * and a session that ends before that simply derives the same value again.
+ */
+function stampCreatedAt() {
+  if (!state.doc) return;
+  const settings = state.doc.settings || {};
+  if (typeof settings.createdAt === "number" && Number.isFinite(settings.createdAt)) return;
+  const anchor = createdAtOf(state.doc);
+  state.doc = {
+    ...state.doc,
+    settings: { ...settings, createdAt: anchor === null ? Date.now() : anchor },
+  };
+  scheduleSave();
+}
+
+/**
  * What every unlock has in common, whichever envelope released the key: the
  * document is opened, lifted to the current schema before any screen or merge
  * can see it, and the idle clock starts. The key stays in this module - it is
@@ -508,6 +545,10 @@ async function openWithMasterKey(key) {
   state.masterKey = key;
   state.doc = upgradeDoc(await openFromVault(state.vault, key));
   state.autoLocked = false;
+  // A fresh unlock is a fresh session for anything that may be offered at most
+  // once per unlock.
+  state.supportNudgedThisSession = false;
+  stampCreatedAt();
   applyPresentation(state.doc.settings || {});
   state.savedAt = await lastSavedAt();
   // First correct count of the session: the worker may have left a numberless
@@ -564,14 +605,47 @@ async function offerPush() {
   openPushOffer(layerEl, ctx);
 }
 
+// ----------------------------------------------------------- espresso nudge
+
+/**
+ * The only time this app asks for anything unprompted, and it asks once.
+ *
+ * A vault that has been in use for a week has proved the app is worth keeping;
+ * somebody who already found the tip jar by themselves needs no reminder of it,
+ * ever. Everything else here is a reason NOT to ask: the shell, where an
+ * external payment link is an App Store rejection and an in-app purchase is a
+ * later wave; a sheet already on screen, because a share or a reminder is the
+ * older claim on this moment; and the first-run intro, which is somebody
+ * deciding whether to trust this app with their goals.
+ *
+ * `supportNudged` (written by both buttons, sealed at once) is what makes it
+ * once per vault. The session flag is what makes the X honest: closing the
+ * sheet settles nothing and the question comes back at the NEXT unlock, but it
+ * does not come back a second time in the same session.
+ */
+async function offerSupport() {
+  if (!state.doc || state.introAbout) return;
+  if (isSheetOpen()) return;
+  if (!supportAvailable()) return;
+  if (state.supportNudgedThisSession) return;
+  const settings = state.doc.settings || {};
+  if (settings.supportNudged || settings.supportOpened) return;
+  const created = createdAtOf(state.doc);
+  if (created === null || ctx.now() - created < SUPPORT_NUDGE_AFTER_MS) return;
+  state.supportNudgedThisSession = true;
+  openSupportNudge(layerEl, ctx);
+}
+
 /**
  * Everything that wants a word after an unlock, in the one order that makes
- * sense: what another app sent in is answered first, and the reminder is only
- * offered when that left the screen empty.
+ * sense: what another app sent in is answered first, the reminder is only
+ * offered when that left the screen empty, and the one question that is about
+ * the app itself rather than about the person's own list comes last of all.
  */
 async function offerAfterUnlock() {
   await offerShare();
   await offerPush();
+  await offerSupport();
 }
 
 // ------------------------------------------------------------------- context
@@ -1243,6 +1317,10 @@ const ctx = {
         lang: LOCALES.includes(prefLang) ? prefLang : detectLocale(),
         skin: "slate",
         theme: "dark",
+        // The vault's birthday, written at the one moment that knows it for
+        // certain. Everything that asks how old this vault is reads this, and
+        // a document that predates the stamp gets one backfilled on unlock.
+        createdAt: Date.now(),
       },
     };
     applyPresentation(state.doc.settings);

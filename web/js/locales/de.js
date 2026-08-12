@@ -579,6 +579,7 @@ export const de = {
   "support.qrBtc": "Bitcoin-Adresse als QR-Code",
   "support.qrEvm": "USDT- und USDC-Adresse als QR-Code",
   "support.privacy": "PayPal ist eine Seite außerhalb dieser App. Die beiden Adressen sind fester Text auf diesem Bildschirm: nichts wird geladen, nichts gezählt, und diese App erfährt nie, ob jemand gezahlt hat.",
+  "supportNudge.title": "Gefällt dir tenfold?",
 
   // ------------------------------------------------------------- assistance
   "settings.group.llm": "Unterstuetzung",

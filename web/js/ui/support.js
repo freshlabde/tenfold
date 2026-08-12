@@ -18,9 +18,11 @@
 //     details below are string constants in this file; the QR symbols are
 //     drawn locally by web/js/qr.js. Nothing here counts a visit, and nothing
 //     here can tell whether anybody ever paid.
-//   - It touches no document content and reads nothing from the vault, so the
-//     sheet works with the vault sealed - the About screen it hangs off is
-//     readable before unlocking.
+//   - It touches no document content and reads no goal, no note and no card,
+//     so the sheet works with the vault sealed - the About screen it hangs off
+//     is readable before unlocking. The one thing it does write, where a
+//     document happens to be open, is the settings flag that tells the week-old
+//     nudge in ui/supportnudge.js that nobody needs asking any more.
 //
 // The addresses are written out ONCE, here, and pinned literally by
 // tests/support.spec.js. A wrong character in a crypto address is money handed
@@ -158,6 +160,20 @@ export function openSupportSheet(ctx) {
   // from anywhere somebody wires a button to it later, and the shell rule has
   // to hold without that person having read this file.
   if (!supportAvailable()) return null;
+
+  // Somebody came here by themselves, which is the one thing that makes the
+  // week-old nudge unnecessary for ever. Recorded here rather than at the two
+  // entry points, so an entry point added later cannot forget it - and sealed
+  // immediately, because a flag that decides whether a question is ever asked
+  // again must survive a reload in the next 600 ms.
+  //
+  // On the lock screen there is no open document to record into (the About
+  // screen, and with it this sheet, is readable before unlocking) - that visit
+  // goes unrecorded, which errs towards asking a question that was already
+  // answered rather than towards writing outside the vault.
+  if (ctx && ctx.doc && !ctx.doc.settings.supportOpened && typeof ctx.setSettings === "function") {
+    ctx.setSettings({ supportOpened: true }, { now: true });
+  }
 
   const body = el("div", {}, [
     el("p", { class: "check-text", style: { paddingTop: "6px" } }, [text(t("support.body"))]),

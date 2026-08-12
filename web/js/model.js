@@ -135,6 +135,35 @@ export function createEntity(partial = {}) {
 }
 
 /**
+ * How old is this vault, expressed as the moment it began?
+ *
+ * `settings.createdAt` is the stamp app.js writes when the vault is created,
+ * and backfills once for a vault that predates the stamp. It is not trusted on
+ * its own: two devices that both backfilled produce two stamps, and
+ * `mergeSettings` keeps whichever document was touched last, which could be the
+ * later one. So the answer is the EARLIEST evidence in the document - the stamp
+ * or the oldest thing anybody ever wrote into it, whichever came first. That
+ * cannot make a vault look younger than its own content.
+ *
+ * Tombstones count: a deleted node still proves the vault existed that day.
+ *
+ * @param {Object} doc
+ * @returns {number|null} epoch ms, or null for a document with no evidence at all
+ */
+export function createdAtOf(doc) {
+  if (!doc || typeof doc !== "object") return null;
+  const settings = doc.settings && typeof doc.settings === "object" ? doc.settings : {};
+  let oldest = num(settings.createdAt);
+  const consider = (item) => {
+    const at = item && num(item.createdAt);
+    if (at !== null && (oldest === null || at < oldest)) oldest = at;
+  };
+  for (const n of Array.isArray(doc.nodes) ? doc.nodes : []) consider(n);
+  for (const e of Array.isArray(doc.entities) ? doc.entities : []) consider(e);
+  return oldest;
+}
+
+/**
  * How much context a node already carries, 0..1. Presence only - length is
  * not quality, and a marker that rewards typing would be a nag.
  * @param {Object} node

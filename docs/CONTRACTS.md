@@ -159,10 +159,10 @@ Anyone who wants to change an interface changes this file first.
   - **The one-time offer** (`ui/pushoffer.js`, `offerPush()` in app.js, called from
     `offerAfterUnlock()`): on an unlock in the installed app, with sync on, no subscription
     running and no `pushOffered` recorded, ONE sheet asks the same question with the same
-    words and the same enable path. Ordering is a rule: the share import is offered first and
-    the reminder only if that left the screen empty - never over the About intro, never over
-    another sheet. Closing with the X settles nothing (the share rule), both buttons settle it
-    for ever.
+    words and the same enable path. Ordering is a rule: the share import is offered first, the
+    reminder only if that left the screen empty, and the espresso question (see the tip jar)
+    after both - never over the About intro, never over another sheet. Closing with the X
+    settles nothing (the share rule), both buttons settle it for ever.
 
 #### Two transports, one reminder
 
@@ -571,7 +571,16 @@ export const ENTITY_KINDS = ["person","place","org","topic"]
 export function createEntity(partial): Entity
 export function storyDepth(node): number                     // 0..1, presence only
 export function upgradeDoc(doc): Doc                         // schema 1 -> 2, in memory, idempotent
+export function createdAtOf(doc): number|null                // the vault's age anchor, see below
 ```
+
+`createdAtOf` answers "when did this vault begin" as the EARLIEST evidence in the document:
+`settings.createdAt` or the oldest `createdAt` on any node or entity, tombstones included,
+whichever is smaller; `null` only for a document with no evidence at all. It is not
+`settings.createdAt` on its own on purpose - two devices that both backfilled the stamp produce
+two values and `mergeSettings` keeps the one from the document touched last, which may be the
+later one. Taking the minimum means a vault can never look younger than its own content, so the
+one thing that reads it (the espresso question below) errs towards asking late.
 
 `mergeDocs`: on conflict the younger `updatedAt` wins; the losing `title`/`note`/`story` is
 appended to the winner's `note` (for an entity: `name`/`relation`/`notes` into `notes`) under a
@@ -807,6 +816,52 @@ wrong.
   content, so the sheet works with the vault sealed, which is what the About
   entry point on the lock screen needs.
 - Strings live under the `support.` prefix in all three catalogues.
+- **Opening the sheet is recorded**, once, as `doc.settings.supportOpened` (sealed immediately),
+  written inside `openSupportSheet` rather than at the two entry points so that a third entry
+  point cannot forget it. It is the only thing this module writes, and its only purpose is the
+  rule below. On the lock screen there is no open document to write into - the About screen and
+  with it this sheet are readable before unlocking - so that visit goes unrecorded, which errs
+  towards asking a question that was already answered rather than towards writing outside the
+  vault.
+
+### The espresso question (`web/js/ui/supportnudge.js`, WEB ONLY)
+
+The one thing this app ever asks for unprompted, and it asks at most once per vault. A sheet in
+the shape of the reminder offer: the title asks whether tenfold is being enjoyed, the body is
+`support.body` word for word, the primary button opens the tip jar above and the quiet one says
+"Not now".
+
+- **Trigger, all of it required.** On an unlock, as the last step of `offerAfterUnlock()`:
+  the vault is at least **7 days** old by `createdAtOf(doc)`; `settings.supportOpened` is unset
+  (somebody who found the jar by themselves is never asked); `settings.supportNudged` is unset;
+  `supportAvailable()` is true, i.e. `window.__tenfoldShell` is ABSENT; no sheet is open; and
+  the first-run About intro is not on screen. A vault whose age cannot be established is not
+  asked.
+- **Not in the shell, at any age.** A nudge towards PayPal inside the iOS app is the same App
+  Store rejection as the link it leads to. The guard sits in `offerSupport()` in app.js AND in
+  `openSupportNudge`, the same belt-and-braces the sheet itself uses. The shell gets an in-app
+  purchase instead; that is a later wave and a different feature.
+- **Last in the chain.** `offerAfterUnlock()` is `offerShare()` -> `offerPush()` ->
+  `offerSupport()`. Something another app sent in is the oldest claim on the moment, the
+  reminder is the app's promise from the first run, and a question about the app itself comes
+  after both. Each step bails on `isSheetOpen()`, so the ones behind a sheet simply wait for the
+  next unlock. Pinned by `tests/supportnudge.spec.js`, at runtime and in the source.
+- **Both buttons are final**, and both write `settings.supportNudged` with the immediate seal
+  (`setSettings(..., { now: true })`) - the same reason the reminder offer does: a reload 200 ms
+  later must not ask again. The primary writes `supportOpened` in the SAME call before opening
+  the jar, so one decision costs one seal instead of two racing ones.
+- **The X is not an answer.** Closing the sheet settles nothing, exactly as the share and
+  reminder offers behave, and the question comes back at the next unlock. It does not come back
+  twice in one session: `state.supportNudgedThisSession` is set when the sheet opens and cleared
+  in `openWithMasterKey`, i.e. per unlock, not per screen.
+- **The age anchor** is `doc.settings.createdAt`, written when the vault is created
+  (`createVaultWith`) and backfilled once on the first unlock of a document that has none
+  (`stampCreatedAt`, from `createdAtOf` - the oldest node or entity, and only where there is
+  nothing at all to go on, today). The backfill rides on the debounced save; a session that ends
+  before it lands derives the same value again next time.
+- **One new string, `supportNudge.title`**, in all three catalogues; everything else on the
+  sheet is `support.body`, `support.row` and `common.notNow`, so the question and the answer
+  speak with one voice.
 
 ## The privacy policy (`web/privacy.html`)
 
