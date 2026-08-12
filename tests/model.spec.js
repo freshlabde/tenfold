@@ -626,3 +626,45 @@ test("portability: encrypted round trip and markdown export", async ({ page }) =
   expect(r.md).toContain("due: 2026-01-15");
   expect(r.md).not.toContain("Geheim");
 });
+
+test("a document from a FUTURE app version keeps its unknown fields through open, edit and save", async ({ page }) => {
+  // The owner's container question: when a later version adds fields, an
+  // older client that opens the vault must not strip them. upgradeDoc spreads
+  // unknown doc keys and fill() copies unknown node/entity keys - this pins
+  // that behaviour so a refactor cannot quietly lose future data.
+  const r = await page.evaluate(async () => {
+    const { upgradeDoc, createNode } = await import("/web/js/model.js");
+    const future = {
+      schema: 99,
+      futureTopLevel: { colour: "amber", tiers: [1, 2, 3] },
+      settings: { lang: "de", futureSetting: true },
+      entities: [{ id: "e1", name: "Anna", kind: "person", futureEntityField: "keep-me" }],
+      nodes: [
+        {
+          ...createNode({ title: "A goal from the future" }),
+          futureNodeField: { deep: ["structure"] },
+          futureLevelRef: "L9",
+        },
+      ],
+    };
+    const opened = upgradeDoc(JSON.parse(JSON.stringify(future)));
+    // Simulate the old client editing and re-running the open path once more,
+    // the way a save -> sync -> reopen cycle would.
+    opened.nodes[0].title = "Edited on the old client";
+    const reopened = upgradeDoc(JSON.parse(JSON.stringify(opened)));
+    return {
+      top: reopened.futureTopLevel,
+      setting: reopened.settings.futureSetting,
+      entityField: reopened.entities[0].futureEntityField,
+      nodeField: reopened.nodes[0].futureNodeField,
+      levelRef: reopened.nodes[0].futureLevelRef,
+      title: reopened.nodes[0].title,
+    };
+  });
+  expect(r.top).toEqual({ colour: "amber", tiers: [1, 2, 3] });
+  expect(r.setting).toBe(true);
+  expect(r.entityField).toBe("keep-me");
+  expect(r.nodeField).toEqual({ deep: ["structure"] });
+  expect(r.levelRef).toBe("L9");
+  expect(r.title).toBe("Edited on the old client");
+});
