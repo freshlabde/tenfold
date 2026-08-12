@@ -29,6 +29,8 @@ const KEY = "test-stats-key-9f3c1a7e";
 
 const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36";
 const PHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+/** Exactly what tenfold-ios/Sources/Web/ApiProxy.swift stamps on every forward. */
+const APP_UA = "tenfold-ios/0.1.0";
 
 // One server, one data directory, one file: serial.
 test.describe.configure({ mode: "serial", timeout: 120_000 });
@@ -117,7 +119,8 @@ test("a document load is counted, twice from one address is one visitor", async 
   expect(await statsFile()).not.toContain("item?id=42");
   // The country header Cloudflare sets, normalised.
   expect(day.geo).toEqual({ DE: 2 });
-  expect(day.platform).toEqual({ mobile: 0, desktop: 2 });
+  expect(day.platform).toEqual({ mobile: 0, desktop: 2, app: 0 });
+  expect(day.appDevices).toBe(0);
 
   // And the page the operator reads shows the day's number.
   expect(html).toContain(days[0]);
@@ -142,7 +145,7 @@ test("a phone is counted as mobile, a crawler only as a bot", async () => {
 
   // The phone is a visit; the two crawlers are one number and nothing else.
   expect(day.hits).toBe(3);
-  expect(day.platform).toEqual({ mobile: 1, desktop: 2 });
+  expect(day.platform).toEqual({ mobile: 1, desktop: 2, app: 0 });
   expect(day.bots).toBe(2);
   expect(day.geo).toEqual({ DE: 2, ES: 1 });
   // No user agent is ever stored, bot or human.
@@ -179,6 +182,117 @@ test("api traffic is never counted and no sync id reaches the file", async () =>
   // The drift guard: a sync id is a capability secret. Not one byte of it.
   expect(raw).not.toContain(syncId);
   expect(raw).not.toContain("api/vault");
+});
+
+// ------------------------------------------------------------------- the app
+//
+// The native shell bundles the web app, so it never loads a document from this
+// server. It becomes visible only through the sync and push calls its proxy
+// already sends, which carry "tenfold-ios/<version>" and nothing else.
+
+/** One API call, as the shell's proxy would make it. */
+async function apiCall(path, { ua = APP_UA, ip = null, method = "GET", body = null } = {}) {
+  const headers = { "User-Agent": ua };
+  if (ip) headers["cf-connecting-ip"] = ip;
+  const init = { method, headers };
+  if (body !== null) {
+    headers["Content-Type"] = "application/json";
+    headers["X-Sync-Token"] = "0123456789abcdefghijklmn";
+    headers["X-If-Version"] = "0";
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${BASE}${path}`, init);
+  await res.arrayBuffer();
+  // The counter is deliberately off the response path: the answer is sent
+  // first and the hashing happens after. A test that reads the file the
+  // instant the response lands is racing a design decision, not a bug.
+  await new Promise((done) => setTimeout(done, 60));
+  return res;
+}
+
+test("a document load carrying the shell's user agent lands in the app bucket", async () => {
+  const before = JSON.parse(await statsFile());
+  const beforeDay = before.days[Object.keys(before.days)[0]];
+
+  await load("/", { "User-Agent": APP_UA });
+  await new Promise((done) => setTimeout(done, 60));
+
+  await openPage();
+  const day = JSON.parse(await statsFile()).days[Object.keys(before.days)[0]];
+  // Today theoretical - the shell serves the page from its own bundle - but the
+  // arm exists so that a future build which does fetch the document is not
+  // silently filed as a phone.
+  expect(day.platform).toEqual({
+    mobile: beforeDay.platform.mobile,
+    desktop: beforeDay.platform.desktop,
+    app: beforeDay.platform.app + 1,
+  });
+  expect(day.hits).toBe(beforeDay.hits + 1);
+});
+
+test("the shell's sync calls count devices, once per address per day, and nothing else", async () => {
+  const before = JSON.parse(await statsFile());
+  const dayKey = Object.keys(before.days)[0];
+  const beforeDay = before.days[dayKey];
+  const syncId = "appstatsvaultidaaaaaaaaaaa";
+
+  // One device, one write.
+  const put = await apiCall(`/api/vault/${syncId}`, { method: "PUT", body: { vault: { blob: "ciphertext" } } });
+  expect(put.status).toBe(200);
+  await openPage();
+  expect(JSON.parse(await statsFile()).days[dayKey].appDevices).toBe(1);
+
+  // The same device again, and again: a sync storm is not a second device.
+  await apiCall(`/api/vault/${syncId}`, { method: "PUT", body: { vault: { blob: "ciphertext2" } } });
+  await apiCall(`/api/vault/${syncId}`);
+  await openPage();
+  expect(JSON.parse(await statsFile()).days[dayKey].appDevices).toBe(1);
+
+  // A second address is a second device.
+  await apiCall(`/api/vault/${syncId}`, { ip: "203.0.113.9" });
+  await openPage();
+  expect(JSON.parse(await statsFile()).days[dayKey].appDevices).toBe(2);
+
+  // A browser's API calls stay where they were: counted nowhere at all.
+  await apiCall(`/api/vault/${syncId}`, { ua: BROWSER_UA, ip: "203.0.113.44" });
+  await apiCall("/api/push/subscribe", { ua: BROWSER_UA, ip: "203.0.113.45", method: "POST", body: {} });
+  await openPage();
+  const after = JSON.parse(await statsFile()).days[dayKey];
+  expect(after.appDevices).toBe(2);
+
+  // And none of it moved a single one of the document numbers.
+  expect(after.hits).toBe(beforeDay.hits);
+  expect(after.platform).toEqual(beforeDay.platform);
+  expect(after.visitors).toBe(beforeDay.visitors);
+  expect(after.bots).toBe(beforeDay.bots);
+
+  // The drift guard, byte by byte: the device count is a number, and a number
+  // is all it may leave behind.
+  const raw = await statsFile();
+  expect(raw).not.toContain(syncId);
+  expect(raw).not.toContain("api/vault");
+  expect(raw).not.toContain("api/push");
+  expect(raw).not.toContain("203.0.113.9");
+  expect(raw).not.toContain("203.0.113.44");
+  expect(raw).not.toContain("127.0.0.1");
+  expect(raw).not.toContain("tenfold-ios");
+  expect(raw).not.toContain("0123456789abcdefghijklmn");
+});
+
+test("the platform section is three rows and says what the app row means", async () => {
+  const html = await (await openPage()).text();
+  const section = html.slice(html.indexOf('id="platform"'));
+
+  expect(section).toContain("Mobile (browser)");
+  expect(section).toContain("Desktop (browser)");
+  expect(section).toContain("devices that synced");
+  // The footnote: the one sentence that keeps the app row from being read as
+  // page loads, and the admission that goes with it.
+  expect(section).toContain("it syncs");
+  expect(section).toMatch(/offline is in no number on this page, by design/);
+  // Still no script and still nothing loadable, with the section added.
+  expect(html).not.toMatch(/<script/);
+  expect(html).not.toMatch(/https?:\/\//);
 });
 
 test("the wrong key is a plain 404, and the page never counts itself", async () => {

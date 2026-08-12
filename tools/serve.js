@@ -71,6 +71,20 @@
 //   - Only the app's own document is counted. Never /api/... (those URLs carry
 //     sync ids, which are capability secrets), never an asset, never a query
 //     string, never the stats page itself.
+//   - THE ONE EXCEPTION TO THAT, AND ITS SHAPE: the native shell never loads a
+//     page from here - it ships the app in its bundle - so page counting cannot
+//     see it at all, and an app that phoned home merely to be counted would
+//     break the product's own promise. It is therefore visible only through
+//     traffic it already sends: the sync and push calls its proxy forwards,
+//     which carry the user agent "tenfold-ios/<version>" and nothing else.
+//     Those requests feed ONE number per day and nothing more: how many
+//     distinct devices synced, deduplicated with the same daily salt and
+//     hashed-IP trick as the visitor number, in a Set of its own. No hit per
+//     request - a sync storm is not a visit. No id, no path, no method, no
+//     body, no header beyond that one user-agent prefix. A browser's API calls
+//     stay uncounted, exactly as before.
+//   - An app used offline is invisible here, by design. That is a true number
+//     being missing, not a number waiting to be fixed by a beacon.
 //   - Referrers are stored as HOST only. A full referrer URL can carry another
 //     site's query secrets, and none of that belongs in a counter.
 //   - There is no cookie, no id, no session, no path through a person's visits.
@@ -851,9 +865,24 @@ let statsDirty = false;
 let visitorDay = "";
 let visitorSalt = "";
 let visitorSeen = new Set();
+// The app devices of the same day, kept apart from the visitors so that one
+// person who both opens the page and syncs the app is one of each rather than
+// silently one of neither. Same salt, same lifetime, same never-written rule.
+let appSeen = new Set();
 
 function emptyDay() {
-  return { hits: 0, visitors: 0, bots: 0, ref: {}, geo: {}, platform: { mobile: 0, desktop: 0 } };
+  return {
+    hits: 0,
+    visitors: 0,
+    bots: 0,
+    ref: {},
+    geo: {},
+    platform: { mobile: 0, desktop: 0, app: 0 },
+    // Distinct devices that synced through the native shell today. A count of
+    // the same salted hashes the visitor number uses, in a Set of its own, and
+    // like that number only the COUNT is ever written.
+    appDevices: 0,
+  };
 }
 
 /**
@@ -902,7 +931,13 @@ async function loadStats() {
         if (value.platform && typeof value.platform === "object") {
           entry.platform.mobile = Number(value.platform.mobile) || 0;
           entry.platform.desktop = Number(value.platform.desktop) || 0;
+          // Absent in every file written before the app bucket existed, which
+          // is the whole migration: a missing number is zero, the day keeps its
+          // other counters, and the next flush writes the current shape. No
+          // rewrite pass, no version field, no upgrade step for the operator.
+          entry.platform.app = Number(value.platform.app) || 0;
         }
+        entry.appDevices = Number(value.appDevices) || 0;
         days[day] = entry;
       }
       return { days };
@@ -969,11 +1004,49 @@ function countryOf(value) {
 }
 
 /**
- * Mobile or desktop, and nothing else. The user agent string is read once for
- * this one bit and is not kept, not hashed, not counted in any other shape.
+ * What the native shell puts on every request its proxy forwards, and the only
+ * user agent this server reads for anything but the coarse buckets below. Two
+ * tokens by construction on the client side - the product and its version - so
+ * there is nothing in it to fingerprint: no device model, no OS version, no
+ * build number, nothing that differs between two phones running the release.
+ *
+ * It is a claim, not a credential. Anything can send this header, and then it
+ * is counted as an app device. That is acceptable for a counter nobody bills
+ * anybody for, and it is the reason this string may never be allowed to decide
+ * anything but which column a number lands in.
+ */
+const APP_UA_PREFIX = "tenfold-ios/";
+
+function isAppUa(ua) {
+  return typeof ua === "string" && ua.toLowerCase().startsWith(APP_UA_PREFIX);
+}
+
+/**
+ * Mobile, desktop or app, and nothing else. The user agent string is read once
+ * for this one bit and is not kept, not hashed, not counted in any other shape.
+ *
+ * The app arm is future-proofing, not today's path: the shell bundles the web
+ * app and never fetches a document from here, so this returns "app" only if a
+ * later build ever does load the page over the wire. Today the app reaches the
+ * numbers through recordAppApiCall() below instead.
  */
 function platformOf(ua) {
+  if (isAppUa(ua)) return "app";
   return typeof ua === "string" && /Mobi|Android|iPhone|iPad/.test(ua) ? "mobile" : "desktop";
+}
+
+/**
+ * Turns the day over: one fresh salt and both Sets emptied, together. They
+ * share a salt on purpose - it is thrown away either way, and two salts would
+ * only mean two things to reason about - but they are separate Sets, so a
+ * person who both opens the page and syncs the app is one of each.
+ */
+function rollDay(day) {
+  if (visitorDay === day) return;
+  visitorDay = day;
+  visitorSalt = randomHex(32);
+  visitorSeen = new Set();
+  appSeen = new Set();
 }
 
 /**
@@ -982,16 +1055,27 @@ function platformOf(ua) {
  * that makes it unlinkable is generated in memory and never written anywhere.
  */
 async function noteVisitor(entry, day, ip) {
-  if (visitorDay !== day) {
-    visitorDay = day;
-    visitorSalt = randomHex(32);
-    visitorSeen = new Set();
-  }
+  rollDay(day);
   if (visitorSeen.size >= STATS_MAX_VISITORS) return;
   const digest = await sha256Hex(`${visitorSalt}:${ip}`);
   if (visitorSeen.has(digest)) return;
   visitorSeen.add(digest);
   entry.visitors += 1;
+}
+
+/**
+ * The same approximation for the app, over its own Set. A device that syncs
+ * forty times today is one; the same device tomorrow is a new one, because
+ * today's salt is gone by then - the identical honesty, and the identical
+ * limit, as the visitor number.
+ */
+async function noteAppDevice(entry, day, ip) {
+  rollDay(day);
+  if (appSeen.size >= STATS_MAX_VISITORS) return;
+  const digest = await sha256Hex(`${visitorSalt}:${ip}`);
+  if (appSeen.has(digest)) return;
+  appSeen.add(digest);
+  entry.appDevices += 1;
 }
 
 /**
@@ -1029,6 +1113,39 @@ function recordDocumentLoad(req) {
     } catch {
       // A counter that fails is a counter that fails. It never becomes an
       // error the person on the page can see.
+    }
+  })();
+}
+
+/**
+ * One API request from the native shell. The ONLY thing an /api/ call has ever
+ * been allowed to contribute to the counters, and it contributes exactly one
+ * bit: that some device with the app on it was in touch today.
+ *
+ * What is deliberately not here:
+ *   - No hit. A sync client that PUTs on every edit would otherwise turn one
+ *     afternoon into a traffic spike that means nothing.
+ *   - No path, no method, no sync id, no token, no body length. The id in the
+ *     URL is a capability secret and does not get to be a statistic.
+ *   - Nothing at all for a browser's API calls. Those stay as uncounted as
+ *     they were before this function existed; only the app's user agent opens
+ *     this door, and the door leads to one Set and one integer.
+ */
+function recordAppApiCall(req) {
+  if (!STATS_ENABLED) return;
+  if (!isAppUa(req.headers["user-agent"])) return;
+  const ip = clientIp(req);
+  void (async () => {
+    try {
+      const data = await stats();
+      statsData = data;
+      const day = utcDateKey(Date.now());
+      const entry = data.days[day] || (data.days[day] = emptyDay());
+      await noteAppDevice(entry, day, ip);
+      statsDirty = true;
+    } catch {
+      // Same rule as the document counter: a counter that fails, fails alone.
+      // The sync call it rode in on has already been answered.
     }
   })();
 }
@@ -1104,12 +1221,20 @@ function statsPage(data, key) {
     (acc, day) => {
       acc.mobile += data.days[day].platform.mobile;
       acc.desktop += data.days[day].platform.desktop;
+      acc.app += data.days[day].platform.app;
       return acc;
     },
-    { mobile: 0, desktop: 0 },
+    { mobile: 0, desktop: 0, app: 0 },
   );
-  const platformTotal = platform.mobile + platform.desktop;
-  const share = (value) => (platformTotal ? `${Math.round((value / platformTotal) * 100)}%` : "-");
+  // Summed daily, exactly like the visitor number above it and for the same
+  // reason: each day's figure is distinct WITHIN that day and nothing links two
+  // days, so the sum is "device-days", not people. The page says so.
+  const appDevices = allDays.reduce((sum, day) => sum + data.days[day].appDevices, 0);
+  // The share column compares like with like: browser loads against browser
+  // loads. The app row is a different unit and gets no percentage rather than a
+  // made-up one.
+  const browserLoads = platform.mobile + platform.desktop;
+  const share = (value) => (browserLoads ? `${Math.round((value / browserLoads) * 100)}%` : "-");
 
   const dayRows = allDays
     .slice(0, 60)
@@ -1155,6 +1280,7 @@ function statsPage(data, key) {
   th.n { text-align: right; }
   .none { color: #6C727C; font-size: 13px; }
   td.dim { color: #6C727C; }
+  .unit { display: block; color: #6C727C; font-size: 11px; letter-spacing: .04em; margin-top: 2px; }
   form.clear { margin: 34px 0 0; }
   form.clear button, form.act button { background: transparent; border: 1px solid #2A2018; color: #8A9099;
     border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
@@ -1175,8 +1301,9 @@ function statsPage(data, key) {
 </style>
 </head><body><main>
 <h1>tenfold &middot; stats</h1>
-<p class="lede">Document loads only, counted per UTC day. No IP, no cookie, no identifier is stored -
-the visitor number is a daily count of salted hashes that never leave memory.</p>
+<p class="lede">Document loads, counted per UTC day, plus one number for the app: how many devices synced.
+No IP, no cookie, no identifier is stored - both the visitor and the device number are daily counts of
+salted hashes that never leave memory.</p>
 <nav><a href="#visitors">Visitors</a><a href="#referrers">Referrers</a><a href="#countries">Countries</a><a href="#platform">Platform</a></nav>
 
 <div class="cards">
@@ -1206,10 +1333,26 @@ on this page.</p>
 </div>
 
 <h2 id="platform">Platform</h2>
-<table><tbody>
-<tr><td>Mobile</td><td class="n">${num(platform.mobile)}</td><td class="n">${share(platform.mobile)}</td></tr>
-<tr><td>Desktop</td><td class="n">${num(platform.desktop)}</td><td class="n">${share(platform.desktop)}</td></tr>
+<table><thead><tr><th>Where</th><th class="n">Count</th><th class="n">Share</th></tr></thead><tbody>
+<tr><td>Mobile (browser)<span class="unit">document loads</span></td><td class="n">${num(
+    platform.mobile,
+  )}</td><td class="n">${share(platform.mobile)}</td></tr>
+<tr><td>Desktop (browser)<span class="unit">document loads</span></td><td class="n">${num(
+    platform.desktop,
+  )}</td><td class="n">${share(platform.desktop)}</td></tr>
+<tr><td>App<span class="unit">devices that synced, summed per day</span></td><td class="n">${num(
+    appDevices,
+  )}</td><td class="n dim">-</td></tr>${
+    platform.app
+      ? `
+<tr><td>App<span class="unit">document loads</span></td><td class="n">${num(platform.app)}</td><td class="n dim">-</td></tr>`
+      : ""
+  }
 </tbody></table>
+<p class="lede">The two browser rows are page loads. The app never loads a page from this server - it carries
+the app inside it - so it is counted where it does appear: when it syncs. That row is a per-day count of
+distinct devices, from the same daily salted hash as the visitor number, and the days are added up, so it
+is device-days rather than people. An app used offline is in no number on this page, by design.</p>
 
 <form class="clear" method="post" action="?k=${esc(encodeURIComponent(key))}">
   <input type="hidden" name="action" value="clear">
@@ -1217,10 +1360,12 @@ on this page.</p>
 </form>
 
 <footer>Counted: document loads of the app, per UTC day, with the referrer host, the country header
-Cloudflare sets, and one bit of mobile against desktop. Crawlers and command-line fetchers are put in the
-bot column and appear in nothing else. Never counted: API calls, assets, query strings, this page.
-Never stored: IP addresses, user agents, cookies, sessions, anything that could name a person.
-A visitor counted today and tomorrow is two, because the daily salt is gone by then.</footer>
+Cloudflare sets, and one bit of mobile against desktop against app. Crawlers and command-line fetchers are
+put in the bot column and appear in nothing else. Counted from the app's sync and push calls, and only
+from those: how many distinct devices were in touch that day - no hit per request, no sync id, no path,
+no method. Never counted: a browser's API calls, assets, query strings, this page. Never stored: IP
+addresses, user agents, cookies, sessions, anything that could name a person. A visitor or a device
+counted today and tomorrow is two, because the daily salt is gone by then.</footer>
 </main></body></html>`;
 }
 
@@ -1260,6 +1405,7 @@ async function handleStats(req, res, rel, query) {
       visitorDay = "";
       visitorSalt = "";
       visitorSeen = new Set();
+      appSeen = new Set();
       statsDirty = true;
       await flushStats().catch(() => {});
     }
@@ -1312,6 +1458,11 @@ async function handleApi(req, res, rel) {
     sendJson(res, 429, { error: "slow down" });
     return true;
   }
+  // The app's one way into the numbers, and the only line in the API path that
+  // touches the counters at all. It runs for a real /api/vault or /api/push
+  // request that got past the limiter, it reads one header, and it never
+  // delays the answer: the request continues below regardless.
+  recordAppApiCall(req);
   if (rest.startsWith("push/")) {
     await handlePushApi(req, res, rest.slice("push/".length));
     return true;

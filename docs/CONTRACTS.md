@@ -1353,16 +1353,41 @@ every 5 minutes and whenever the page is rendered:
 - `ref` - the external referrer **host** (`news.ycombinator.com`), never the full URL: a foreign
   URL can carry a foreign query secret.
 - `geo` - the `cf-ipcountry` header when Cloudflare sets one, else `??`.
-- `platform` - one bit, mobile against desktop, from a user-agent substring.
+- `platform` - one bucket of three, `mobile` / `desktop` / `app`, from a user-agent substring.
+- `appDevices` - a COUNT of distinct devices that synced through the native shell that day. Same
+  daily salt, same hash, same never-persisted rule as `visitors`, in a Set of its own.
 
 `ref` and `geo` are capped at **200 keys per day** with an `other` bucket, so a hostile `Referer`
-cannot grow the file without bound; days are capped at 400. The visitor Set is capped at 100 000
-hashes per day and then stops counting rather than eating memory.
+cannot grow the file without bound; days are capped at 400. The visitor Set and the app-device Set
+are each capped at 100 000 hashes per day and then stop counting rather than eating memory.
 
-**What is never recorded:** `/api/*` of any kind (those URLs carry sync ids, which are capability
-secrets), static assets, query strings, the stats page itself, and any 404. No IP, no user agent
-string, no cookie, no session, no identifier, nothing that links two days of one person - the
-same visitor tomorrow is a new one, because today's salt is gone.
+**The native app, and why it is counted differently.** The iOS shell (`tenfold-ios`) bundles the
+web app and never loads a document from this server, so document counting cannot see it at all -
+and an app that sent a beacon purely to be counted would break the product's own promise. It is
+therefore visible only through traffic it already sends: the sync and push calls its proxy
+forwards, which carry `User-Agent: tenfold-ios/<marketing version>` and nothing else. That string
+is two tokens by construction on the client side (`ApiProxy.userAgentValue`, pinned by a unit
+test); it carries no device model, no OS version, no build number and no per-install value, so two
+phones on the same release send byte-identical strings. It is a claim, not a credential - anything
+can send it - which is why it may only decide which column a number lands in.
+
+An `/api/vault*` or `/api/push/*` request with that prefix feeds **`appDevices` and nothing else**:
+no hit (a sync storm is not a visit), no id, no path, no method, no body size. Browsers' API calls
+stay uncounted exactly as before. A `tenfold-ios/` user agent on a *document* load would land in
+`platform.app`; that arm is future-proofing for a build that fetches the page over the wire, and is
+not today's path. An app used offline appears in no number on the page - a true figure missing,
+not one waiting for a beacon. Shell side: `tenfold-ios/docs/DECISIONS.md` D17.
+
+**What is never recorded:** `/api/*` from a browser, and from the app everything except that one
+per-day device count (those URLs carry sync ids, which are capability secrets); static assets,
+query strings, the stats page itself, and any 404. No IP, no user agent string, no cookie, no
+session, no identifier, nothing that links two days of one person - the same visitor or device
+tomorrow is a new one, because today's salt is gone.
+
+**File migration.** `platform.app` and `appDevices` are absent from every `stats.json` written
+before they existed. `loadStats()` reads a missing number as zero and the next flush writes the
+current shape - lazy and tolerant, like the shape change before it. No version field, no rewrite
+pass, no upgrade step for the operator.
 
 **The page.** `GET /stats?k=KEY`, and `/stats.php?k=KEY` for the operator's muscle memory, same
 handler. The key is compared in fixed time over SHA-256 digests; a wrong key, a missing key, a

@@ -229,10 +229,18 @@ banner, no prompt and no "reload to update" button anywhere.
 - **Aggregate visitor counts, if the operator switched them on** (`TENFOLD_STATS_KEY`,
   absent by default). Then the server keeps per UTC day: how many times the app's page
   was loaded, how many distinct visitors, which external referrer hosts and countries,
-  mobile against desktop, and a separate bot count. Sums only - no IP, no user agent, no
-  cookie, no identifier and nothing that links two days of one person ever reaches the
-  disk, and no `/api/` request is counted at all. With the variable unset nothing is
-  recorded and the page does not exist.
+  mobile browser against desktop browser against the app, and a separate bot count. Sums
+  only - no IP, no user agent, no cookie, no identifier and nothing that links two days
+  of one person ever reaches the disk. With the variable unset nothing is recorded and
+  the page does not exist.
+- **That the native app was in touch today.** The iOS shell bundles the web app and
+  loads no page from the server, so it appears in nothing above; rather than have it
+  send a beacon to be counted, its existing sync and push calls carry
+  `User-Agent: tenfold-ios/<version>` - a product and a version, identical on every
+  phone running that release. From those the counters keep **one** number per day: how
+  many distinct devices were in touch, deduplicated by the same daily salted hash and
+  capped there. No hit per request, no sync id, no path, no method. A browser's `/api/`
+  calls are still counted nowhere, and an app used offline appears nowhere at all.
 - **The badge is a number on a locked device.** Content-free by design, and still one
   bit more than nothing: it says how many steps are due.
 - **An unlocked device in someone else's hands** lays everything open. So does a
