@@ -242,7 +242,27 @@ async function unlockWithPassphrase(page) {
       return field.inputValue();
     })
     .toBe(PASS);
-  await page.getByRole("button", { name: /^Unlock$/ }).click();
+  // The click can be swallowed the same way the fill can: the repaint that
+  // follows a refused biometric attempt replaces the button between hit test
+  // and dispatch, and a lost click looks exactly like a slow PBKDF2 (this
+  // spec failed twice in a row in a full 13-worker run and passed alone every
+  // time). Press until the screen actually turns over.
+  await expect
+    .poll(
+      async () => {
+        if (await page.locator(".h-title").count()) return true;
+        // Re-fill before every attempt: the repaint clears the field as well
+        // as replacing the button, and a click on an empty field is silently
+        // ignored by the app - which is exactly what the failure snapshot
+        // showed (locked screen, empty passphrase box, button pressed).
+        if (await field.count()) await field.fill(PASS).catch(() => {});
+        const button = page.getByRole("button", { name: /^Unlock$/ });
+        if (await button.count()) await button.click().catch(() => {});
+        return page.locator(".h-title").count().then((n) => n > 0);
+      },
+      { timeout: 120_000, intervals: [2000] },
+    )
+    .toBe(true);
   await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
 }
 
