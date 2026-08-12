@@ -454,3 +454,24 @@ test("the browser's well-known icon probes get tenfold's own icon, with and with
     expect(body.subarray(0, 4).toString("latin1"), path).toBe("\x89PNG");
   }
 });
+
+test("the welcome headline sets as two lines in every language, on small phones too", async ({ page }) => {
+  // Owner report from the phone: the German title broke to THREE lines.
+  // Two is the design; the size gives way before the line count does.
+  for (const width of [390, 360]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/web/index.html");
+    await page.waitForSelector(".lock-title.is-welcome");
+    for (const lang of ["English", "Deutsch", "Español"]) {
+      await page.locator(".lang-switch").getByRole("button", { name: lang }).click();
+      const lines = await page.locator(".lock-title.is-welcome").evaluate((n) => {
+        const cs = getComputedStyle(n);
+        // Right after navigation lineHeight can still read "normal" (NaN) for
+        // one frame - fall back to the rule's own factor over the font size.
+        const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.14;
+        return Math.round(n.getBoundingClientRect().height / lh);
+      });
+      expect(lines, `${lang} at ${width}px`).toBeLessThanOrEqual(2);
+    }
+  }
+});

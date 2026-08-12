@@ -1501,6 +1501,17 @@ button.h-sub {
   letter-spacing: var(--tracking-display); line-height: 1.05;
 }
 .lock-sub { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 30ch; }
+/* The welcome headline is the long sentence of this screen family and must
+   set as TWO lines, never three (owner: "3 Zeilen sehen unschoen aus - im
+   Zweifel Schrift kleiner"). Sized against the longest catalogue (EN/ES run
+   to ~37ch on one of the two lines at a phone's 350px text column), balanced
+   so the break falls near the middle instead of leaving a one-word tail. */
+.lock-title.is-welcome {
+  font-size: clamp(17px, 5.4vw, 26px);
+  line-height: 1.14;
+  text-wrap: balance;
+}
+
 /* The biometric way in, above the field it does not replace. */
 .lock-bio { margin: 26px 0 4px; }
 .lock-foot { flex: none; padding: 14px var(--gutter) 0; display: flex; justify-content: space-between; align-items: center; }

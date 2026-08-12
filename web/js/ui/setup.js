@@ -110,7 +110,7 @@ function welcome(ctx) {
   return screen([
     el("div", { class: "lock" }, [
       el("div", { class: "lock-mark" }, [icon("mark", 34)]),
-      el("h1", { class: "lock-title" }, [text(t("setup.welcome.title"))]),
+      el("h1", { class: "lock-title is-welcome" }, [text(t("setup.welcome.title"))]),
       el("p", { class: "lock-sub", style: { maxWidth: "34ch" } }, [text(t("setup.welcome.body"))]),
     ]),
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [
