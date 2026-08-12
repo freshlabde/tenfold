@@ -1238,6 +1238,24 @@ button.h-sub {
 .assist-foot {
   margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line);
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap;
+}
+/* The way to an AI the person already has takes the whole width and the row
+   above the pair: its label is a sentence, and squeezed next to two other
+   words on a 390px screen it would wrap into three lines of its own. */
+.leaf-act.is-wide { flex: 1 1 100%; }
+
+/* ------------------------------------------------------------- the copy loop */
+
+/* The prompt on its way out and the answer on its way back use the same field:
+   monospaced, because what stands in it is indentation as much as it is words,
+   and a proportional font hides exactly the thing the parser reads. */
+.textarea.is-prompt {
+  min-height: 208px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  letter-spacing: 0;
 }
 
 /* A bare checkbox: the label carries no text, the line next to it does. */

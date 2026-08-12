@@ -14,6 +14,13 @@
 // a value that does not fit the schema raises, and the UI shows one calm line
 // instead of applying half of something.
 
+import {
+  MAX_OUTLINE_ITEMS,
+  MAX_OUTLINE_LEVEL,
+  MAX_OUTLINE_TITLE,
+  normalizeOutlineItems,
+} from "./aihelp.js";
+
 /** Answers come back in the language the interface is in. */
 const LANGUAGE = { en: "English", de: "German", es: "Spanish" };
 
@@ -357,14 +364,15 @@ export function operationMessages(operation, context, locale) {
 
 // ---------------------------------------------------------- reading a picture
 
-/** Four levels deep, 0..3 - the depth a real handwritten outline reaches. */
-export const MAX_IMPORT_LEVEL = 3;
-
-/** Upper bound on the lines taken from one picture. */
-export const MAX_IMPORT_ITEMS = 100;
-
-/** A line on paper is a line, not an essay. */
-export const MAX_IMPORT_TITLE = 200;
+/**
+ * The three limits of an outline - four levels, a hundred lines, two hundred
+ * characters per line - now live in aihelp.js, which owns the level logic for
+ * both ways an outline can arrive: off a photograph and out of a pasted
+ * answer. Re-exported under their old names so callers keep one address.
+ */
+export const MAX_IMPORT_LEVEL = MAX_OUTLINE_LEVEL;
+export const MAX_IMPORT_ITEMS = MAX_OUTLINE_ITEMS;
+export const MAX_IMPORT_TITLE = MAX_OUTLINE_TITLE;
 
 /**
  * Nothing readable on the picture. Its own failure, not a broken answer: the
@@ -420,10 +428,11 @@ export function importMessages(dataUrl) {
 }
 
 /**
- * The answer, made safe. Everything a model can get wrong about a level is
- * corrected here rather than trusted: a level below zero, a level past four, a
- * level that jumps two steps at once and would have no parent to hang under, a
- * title the length of a page, a list the length of a book.
+ * The answer, made safe. The shape check belongs to this file - a picture flow
+ * that gets no list at all has a BROKEN answer, and one that gets an empty list
+ * has an unreadable picture, which are two different sentences on screen. What
+ * a level is allowed to be is not decided here: that is normalizeOutlineItems
+ * in aihelp.js, shared with the pasted answer, so both ways in clamp the same.
  *
  * @param {Object} value the parsed JSON
  * @returns {{items: {title: string, level: number}[]}}
@@ -434,21 +443,7 @@ export function parseImportItems(value) {
   // A shape that is not a list at all is a broken answer, not an empty page.
   if (!raw) fail();
 
-  const items = [];
-  let previous = -1;
-  for (const entry of raw) {
-    const title = typeof entry === "string" ? str(entry) : str(entry && entry.title);
-    if (!title) continue;
-    const asked = Number(entry && typeof entry === "object" ? entry.level : 0);
-    let level = Number.isFinite(asked) ? Math.trunc(asked) : 0;
-    if (level < 0) level = 0;
-    if (level > MAX_IMPORT_LEVEL) level = MAX_IMPORT_LEVEL;
-    // One step down at a time. The first line is always at the outer margin.
-    if (level > previous + 1) level = previous + 1;
-    items.push({ title: title.slice(0, MAX_IMPORT_TITLE), level });
-    previous = level;
-    if (items.length >= MAX_IMPORT_ITEMS) break;
-  }
+  const items = normalizeOutlineItems(raw);
   if (!items.length) throw new UnreadableError();
   return { items };
 }

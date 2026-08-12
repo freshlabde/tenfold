@@ -689,6 +689,27 @@ export const en = {
   "import.another": "Another picture",
   "import.size": "{n} kB to send",
 
+  // -------------------------------------------------------------- copy loop
+  "aihelp.entry": "Think it through with an AI",
+  "aihelp.title": "Think it through with an AI",
+  "aihelp.scope": "What travels: this goal and where it sits, its story, {n} steps and the names on the cards linked to it. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.scopeOne": "What travels: this goal and where it sits, its story, one step and the names on the cards linked to it. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.copy": "Copy the prompt",
+  "aihelp.share": "Share",
+  "aihelp.copied": "Copied. Paste it into the AI you use.",
+  "aihelp.copyByHand": "This browser did not allow the copy. The text is selected, take it by hand.",
+  "aihelp.paste.entry": "Paste the answer",
+  "aihelp.paste.desc": "The list it wrote becomes steps under this one.",
+  "aihelp.paste.hint": "Paste the whole answer. The indentation becomes the levels, up to four deep.",
+  "aihelp.paste.placeholder": "Paste it here.",
+  "aihelp.paste.look": "Look at it",
+  "aihelp.preview.under": "{n} steps would be written under {title}.",
+  "aihelp.preview.oneUnder": "One step would be written under {title}.",
+  "aihelp.preview.more": "and {n} more.",
+  "aihelp.preview.nothing": "Nothing in there reads as a list of steps. Nothing was changed.",
+  "aihelp.preview.apply": "Write them",
+  "aihelp.applied": "{n} taken over.",
+
   // ------------------------------------------------------------------- share
   "share.title": "Shared with tenfold",
   "share.body": "This came in from another app. It is held on this device unencrypted until you file it or discard it.",

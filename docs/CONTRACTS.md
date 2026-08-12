@@ -1153,6 +1153,71 @@ file, bitmap and canvas in the same single-point teardown. The symbol is rendere
 `web/js/ui/qrview.js` (one SVG path, quiet zone 4, black on white in every skin).
 `decodeImage(imageDataOrCanvas)` returns `string|null` and never throws.
 
+## The copy loop (`web/js/aihelp.js`, `web/js/ui/aihelp.js`)
+
+The person is the transport. tenfold writes a prompt about one goal, they carry it to whatever
+AI they already use, and they paste the answer back. **No network call is involved at any point
+of this loop** - not a relay, not a key, not a provider address, nothing to configure and nothing
+that can be switched off, which is why the entry point does not ask whether any other kind of
+assistance is enabled. It works offline, in a browser with no server behind it, and inside the
+native shell.
+
+**Entry point:** "Think it through with an AI", a quiet `.leaf-act` at the top of the assistance
+block on the leaf screen (`data-ai="copy"`), where every other route to a model has always sat.
+It is absent for a node that is kept away from models, own or inherited. Deliberately NOT marked
+`data-llm`: that attribute names the relay surface, and this is not part of it.
+
+**What enters a prompt** (`buildCopyContext`, pure, tested): the target node with its title,
+status, story, note, done-criterion and planned minutes; the titles of the goals it hangs under;
+its direct children with their status (capped at 20); and the LINKED entity cards of that chain,
+name, kind and relation only (capped at 12).
+
+**What never enters a prompt**, enforced in the builder rather than in the sheet:
+- **an opted-out subtree.** A node with `llmOptout`, or under one, returns `null` - no prompt at
+  all, not a reduced one. Opted-out nodes anywhere in the neighbourhood are dropped and counted.
+- **a card marked `sensitivity: "high"`.** There is no per-call release here and there cannot be
+  one: a text on the clipboard has no single call to release it for.
+- **the notes on ANY card.** The name and what somebody is to you make a card readable; the
+  history on it is the private half and stays on the device.
+- **anything that is not the tree.** The vault, the passphrase, the recovery material, the sync
+  id and the settings have no representation in this module; they cannot be forgotten out
+  because they were never in. Pinned by canaries in `tests/copyloop.spec.js`.
+
+What was held back is NAMED in the prompt ("left out on purpose"), so the model does not fill the
+gap with a guess. The sheet says the same thing in one line above the text, with the number of
+steps in it, before anything is copied.
+
+**The prompt itself** lives in `PROMPT` in `web/js/aihelp.js`, en/de/es, and is built in the
+language the app is in (an unknown locale falls back to English). It asks for two things in
+order: at most three clarifying questions first, then a plain indented list of small steps that
+can be pasted straight back. The three catalogues carry the same label, status and instruction
+keys; a spec asserts that, the way the i18n spec asserts it for the UI catalogues.
+
+**Copying out:** clipboard first (`navigator.clipboard.writeText`), the share menu as a secondary
+where the platform has one (`navigator.share`, text only). A browser that refuses the clipboard is
+not a failure: the prompt stands in a readonly field, it gets selected, and one line says to take
+it by hand.
+
+**Pasting back:** `parseOutlineText` reads indentation RELATIVELY - a stack of the widths it has
+seen, so two spaces, four spaces and a tab all mean the same thing as long as one answer is
+consistent with itself. Bullets, numbers, letters, checkboxes, heading hashes and emphasis marks
+are stripped; a trailing colon goes with them. Levels are then clamped by
+`normalizeOutlineItems`, the ONE place the three limits of an outline live (four levels, 100
+lines, 200 characters per line), shared with the photo import so the two ways in cannot drift.
+Nothing is dropped for looking like prose: a sentence in front of the list becomes a line the
+person sees and cancels on, which is honest where silent swallowing would not be.
+
+**Preview before apply.** The parsed lines are shown with their indentation, counted, and the
+only two answers are Apply and Cancel. Cancel returns to the field with the text still in it and
+writes nothing. Apply goes through `ctx.importTree`, the ordinary mutate path, which sets
+`origin: "llm"` on everything it creates - the answer did come from a model, and the provenance
+mark says so no matter which way it arrived. **The app never applies model output blind:**
+Vorschlag, nie Ausfuehrung.
+
+**The keep-away switch** (`llmOptout`) is the guard for this loop as much as for anything else,
+so the leaf screen offers it whether or not any other assistance is configured. Without it the
+promise above would have no control behind it.
+
 ## Visitor counters (`TENFOLD_STATS_KEY`, off by default)
 
 The server logs nothing. This is the **fourth explicit exception** to that rule, after the VAPID

@@ -681,6 +681,27 @@ export const de = {
   "import.another": "Anderes Bild",
   "import.size": "{n} kB zu senden",
 
+  // -------------------------------------------------------------- copy loop
+  "aihelp.entry": "Mit einer KI weiterdenken",
+  "aihelp.title": "Mit einer KI weiterdenken",
+  "aihelp.scope": "Was mitgeht: dieses Ziel und wo es steht, seine Geschichte, {n} Schritte und die Namen auf den verknüpften Karten. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.scopeOne": "Was mitgeht: dieses Ziel und wo es steht, seine Geschichte, ein Schritt und die Namen auf den verknüpften Karten. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.copy": "Text kopieren",
+  "aihelp.share": "Teilen",
+  "aihelp.copied": "Kopiert. Füg ihn in deine KI ein.",
+  "aihelp.copyByHand": "Dieser Browser hat das Kopieren nicht erlaubt. Der Text ist markiert, nimm ihn von Hand.",
+  "aihelp.paste.entry": "Antwort einfügen",
+  "aihelp.paste.desc": "Die Liste daraus wird zu Schritten unter diesem hier.",
+  "aihelp.paste.hint": "Füg die ganze Antwort ein. Die Einrückung wird zur Ebene, bis zu vier tief.",
+  "aihelp.paste.placeholder": "Hier einfügen.",
+  "aihelp.paste.look": "Ansehen",
+  "aihelp.preview.under": "{n} Schritte kämen unter {title}.",
+  "aihelp.preview.oneUnder": "Ein Schritt käme unter {title}.",
+  "aihelp.preview.more": "und {n} weitere.",
+  "aihelp.preview.nothing": "Da drin liest sich nichts wie eine Liste von Schritten. Es wurde nichts geändert.",
+  "aihelp.preview.apply": "Anlegen",
+  "aihelp.applied": "{n} übernommen.",
+
   // ------------------------------------------------------------------- share
   "share.title": "Mit tenfold geteilt",
   "share.body": "Das kam aus einer anderen App. Es liegt unverschlüsselt auf diesem Gerät, bis du es einsortierst oder verwirfst.",

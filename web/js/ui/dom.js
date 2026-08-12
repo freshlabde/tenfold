@@ -211,6 +211,14 @@ const PATHS = {
     "M8 15.6l4.9 2.6",
   ],
   target: ["M12 4.6v3", "M12 16.4v3", "M4.6 12h3", "M16.4 12h3", "M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z"],
+  // The copy loop: one sheet lying on another. Two rounded rectangles and
+  // nothing inside them - at 15px in the leaf rail any line drawn on the front
+  // sheet turns to mud, and the offset pair already says "there are two of
+  // these now", which is the whole of what copying is.
+  copy: [
+    "M9.2 8.4h9.3a1.9 1.9 0 0 1 1.9 1.9v9.3a1.9 1.9 0 0 1-1.9 1.9H9.2a1.9 1.9 0 0 1-1.9-1.9v-9.3a1.9 1.9 0 0 1 1.9-1.9z",
+    "M4.4 15.6a1.9 1.9 0 0 1-1-1.7V4.6a1.9 1.9 0 0 1 1.9-1.9h9.3a1.9 1.9 0 0 1 1.7 1",
+  ],
   // The context cards on the map: one hollow ring with threads running out to
   // three places at once. Deliberately not the constellation glyph - that one
   // is three bodies pulling on each other, this one is the single thing that

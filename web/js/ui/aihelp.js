@@ -1,0 +1,283 @@
+// ui/aihelp.js - the copy loop, as a sheet.
+//
+// What it does: two halves of one round trip. On the way out it shows the
+// prompt this app built for the goal that is open, says in one line what
+// travels with it, and hands it to the clipboard or the share menu. On the way
+// back it takes whatever was pasted, reads the indentation, and shows what
+// would be created before anything is.
+//
+// What it deliberately does NOT do: it never talks to a model, it never
+// installs anything, it knows no provider and holds no key - the person owns
+// that half of the loop and always will. It never writes to the document
+// either: the pasted lines become nodes through the ordinary mutate path, with
+// origin "llm", and only on the press of Apply. Vorschlag, nie Ausfuehrung:
+// what a model wrote is a proposal until somebody looked at it.
+
+import { el, text, icon, clear } from "./dom.js";
+import { openSheet, closeSheet } from "./sheet.js";
+import { t, getLocale } from "../i18n.js";
+import { buildPrompt, parseOutlineText } from "../aihelp.js";
+
+/** How many of the lines the preview writes out before it counts the rest. */
+export const PREVIEW_LINES = 8;
+
+/**
+ * The entry point, or nothing at all. A step that is kept away from any model
+ * collects no model-made children either, so it has no way into this sheet -
+ * the same rule the prompt builder enforces one layer down.
+ *
+ * Deliberately NOT gated by whether a relay is configured: the copy loop needs
+ * no server, no key and no address. It is the one route to a model that works
+ * on a plane, in a browser with the network off, and on a machine where this
+ * app is the only thing installed.
+ *
+ * @param {Object} ctx the app context
+ * @param {Object} node the node the prompt would be about
+ * @returns {HTMLElement|null}
+ */
+export function aihelpEntry(ctx, node) {
+  const keep = ctx.optout(node.id);
+  if (keep.own || keep.inherited) return null;
+  return el(
+    "button",
+    {
+      class: "leaf-act is-wide",
+      attrs: { type: "button" },
+      dataset: { ai: "copy" },
+      on: { click: () => ctx.aiHelp(node) },
+    },
+    [icon("copy", 15), text(t("aihelp.entry"))],
+  );
+}
+
+/** The clipboard, where there is one. False means: copy it by hand. */
+async function toClipboard(value) {
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // A refused permission is not a failure worth a red line; the text is on
+    // screen in a field that can be selected, which is the older way to copy.
+  }
+  return false;
+}
+
+/** True where the platform has a share menu of its own. */
+function canShare() {
+  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+}
+
+/**
+ * The whole loop in one sheet: read what goes out, take it, bring the answer
+ * back, look at it, keep it.
+ *
+ * @param {Element} layer the overlay host
+ * @param {Object} ctx the app context
+ * @param {Object} node the node the steps will hang under
+ */
+export function openAiHelp(layer, ctx, node) {
+  // Nothing opens for a node that is kept away from models. The entry point
+  // already refuses it; this is the same rule at the door of the sheet, so a
+  // switch thrown from somewhere else cannot leave a way in standing.
+  if (!buildPrompt(ctx.doc, node.id, getLocale())) return;
+  const locale = getLocale();
+  const body = el("div", { class: "assist" });
+  const footer = el("div", { class: "sheet-foot" });
+  /** What was pasted last, so going back and forth does not lose it. */
+  let pasted = "";
+
+  const reset = () => {
+    clear(body);
+    clear(footer);
+  };
+
+  const btn = (label, onClick, primary, extra) =>
+    el(
+      "button",
+      {
+        class: `btn${primary ? " is-primary" : ""}`,
+        attrs: { type: "button" },
+        dataset: extra || null,
+        on: { click: onClick },
+      },
+      [text(label)],
+    );
+
+  // ------------------------------------------------------------ the way out
+
+  function paintPrompt() {
+    reset();
+    const built = buildPrompt(ctx.doc, node.id, locale);
+    if (!built) {
+      // The switch was thrown while the sheet was open. Nothing to show.
+      closeSheet();
+      return;
+    }
+    const steps = built.context.children.length;
+
+    body.appendChild(
+      el("p", { class: "field-hint" }, [
+        text(steps === 1 ? t("aihelp.scopeOne") : t("aihelp.scope", { n: steps })),
+      ]),
+    );
+
+    // A readonly field rather than a block of prose: it can be selected with a
+    // finger and copied the way anything else on a phone is copied, which is
+    // the fallback for every browser that refuses the clipboard call below.
+    const field = el("textarea", {
+      class: "textarea is-prompt",
+      attrs: { rows: "12", readonly: "readonly", spellcheck: "false", "aria-label": t("aihelp.title") },
+      dataset: { ai: "prompt" },
+    });
+    field.value = built.text;
+    body.appendChild(field);
+
+    body.appendChild(
+      el(
+        "button",
+        {
+          class: "setrow",
+          attrs: { type: "button" },
+          dataset: { ai: "paste-open" },
+          on: { click: () => paintPaste() },
+        },
+        [
+          el("span", {}, [
+            el("span", { class: "setrow-label" }, [text(t("aihelp.paste.entry"))]),
+            el("span", { class: "setrow-desc" }, [text(t("aihelp.paste.desc"))]),
+          ]),
+          icon("chevronRight", 18),
+        ],
+      ),
+    );
+
+    const buttons = [];
+    if (canShare()) {
+      buttons.push(
+        btn(
+          t("aihelp.share"),
+          () => {
+            try {
+              const shared = navigator.share({ text: built.text });
+              if (shared && typeof shared.catch === "function") shared.catch(() => {});
+            } catch {
+              // A cancelled share menu is a decision, not an error.
+            }
+          },
+          false,
+          { ai: "share" },
+        ),
+      );
+    }
+    buttons.push(
+      btn(
+        t("aihelp.copy"),
+        async () => {
+          const ok = await toClipboard(built.text);
+          if (!ok) {
+            field.focus();
+            field.select();
+          }
+          ctx.toast(ok ? t("aihelp.copied") : t("aihelp.copyByHand"));
+        },
+        true,
+        { ai: "copy-do" },
+      ),
+    );
+    for (const b of buttons) footer.appendChild(b);
+  }
+
+  // ------------------------------------------------------------- the way back
+
+  function paintPaste() {
+    reset();
+    body.appendChild(el("p", { class: "field-hint" }, [text(t("aihelp.paste.hint"))]));
+    const field = el("textarea", {
+      class: "textarea is-prompt",
+      attrs: { rows: "12", placeholder: t("aihelp.paste.placeholder"), spellcheck: "false" },
+      dataset: { ai: "answer" },
+    });
+    field.value = pasted;
+    field.addEventListener("input", () => {
+      pasted = field.value;
+      look.disabled = !field.value.trim();
+    });
+    body.appendChild(field);
+
+    const look = btn(t("aihelp.paste.look"), () => paintPreview(parseOutlineText(field.value).items), true, {
+      ai: "look",
+    });
+    look.disabled = !field.value.trim();
+    footer.appendChild(btn(t("common.back"), () => paintPrompt()));
+    footer.appendChild(look);
+    queueMicrotask(() => field.focus());
+  }
+
+  /**
+   * What would be created, before it is. Nothing here is editable and nothing
+   * here is checkable: this is the last look, and the two answers to it are
+   * Apply and Cancel.
+   */
+  function paintPreview(items) {
+    reset();
+    if (!items.length) {
+      body.appendChild(el("p", { class: "assist-error" }, [text(t("aihelp.preview.nothing"))]));
+      footer.appendChild(btn(t("common.back"), () => paintPaste()));
+      return;
+    }
+
+    body.appendChild(
+      el("p", { class: "field-hint" }, [
+        text(
+          items.length === 1
+            ? t("aihelp.preview.oneUnder", { title: node.title })
+            : t("aihelp.preview.under", { n: items.length, title: node.title }),
+        ),
+      ]),
+    );
+
+    for (const item of items.slice(0, PREVIEW_LINES)) {
+      body.appendChild(
+        el(
+          "div",
+          {
+            class: "assist-item is-level",
+            dataset: { ai: "preview-item", level: String(item.level) },
+            vars: { "--lvl": String(item.level) },
+          },
+          [
+            el("div", { class: "assist-item-body" }, [
+              el("span", { class: "assist-title is-static" }, [text(item.title)]),
+            ]),
+          ],
+        ),
+      );
+    }
+    if (items.length > PREVIEW_LINES) {
+      body.appendChild(
+        el("p", { class: "field-hint" }, [
+          text(t("aihelp.preview.more", { n: items.length - PREVIEW_LINES })),
+        ]),
+      );
+    }
+
+    footer.appendChild(btn(t("common.cancel"), () => paintPaste(), false, { ai: "cancel" }));
+    footer.appendChild(
+      btn(
+        t("aihelp.preview.apply"),
+        () => {
+          closeSheet();
+          ctx.importTree(node.id, items);
+          ctx.toast(t("aihelp.applied", { n: items.length }));
+        },
+        true,
+        { ai: "apply" },
+      ),
+    );
+  }
+
+  paintPrompt();
+  openSheet(layer, { title: t("aihelp.title"), body, footer, onClose: () => reset() });
+}

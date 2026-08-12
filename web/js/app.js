@@ -63,6 +63,7 @@ import { openEditor } from "./ui/editor.js";
 import { openStoryGuide } from "./ui/storyguide.js";
 import * as assist from "./ui/assist.js";
 import * as imageImport from "./ui/imageimport.js";
+import * as aihelp from "./ui/aihelp.js";
 import { openShareImport } from "./ui/shareimport.js";
 import { openPushOffer } from "./ui/pushoffer.js";
 import { openSupportNudge } from "./ui/supportnudge.js";
@@ -1152,6 +1153,16 @@ const ctx = {
 
   assist(node) {
     assist.openAssist(layerEl, ctx, node);
+  },
+
+  /**
+   * The copy loop: a prompt to carry to whatever AI the person already uses,
+   * and a field to paste the answer back into. It has no settings, no key and
+   * no address, so unlike everything else in this block it does not ask
+   * whether assistance is switched on.
+   */
+  aiHelp(node) {
+    aihelp.openAiHelp(layerEl, ctx, node);
   },
 
   /** The one-time cloud consent; the caller decides what accepting means. */

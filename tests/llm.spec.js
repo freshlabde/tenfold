@@ -485,7 +485,7 @@ test("in off mode not one assistance control exists in the DOM", async ({ page }
   await expect(page.locator(".sheet").getByRole("button", { name: "Assist" })).toHaveCount(0);
   await page.locator(".sheet-head").getByRole("button", { name: "Close" }).click();
 
-  // The step screen: no assist, no opt-out switch.
+  // The step screen: no assist entry, nothing that could reach the relay.
   await page.locator(".row").first().click();
   await page.getByRole("button", { name: /Add the first part/ }).click();
   await page.locator(".composer input").fill("Book the MRI");
@@ -494,6 +494,14 @@ test("in off mode not one assistance control exists in the DOM", async ({ page }
   await page.locator(".list.is-kids .row").first().click();
   await expect(page.locator(".leaf-title")).toHaveText("Book the MRI");
   await expect(page.locator("[data-llm]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Assist", exact: true })).toHaveCount(0);
+
+  // What DOES stand there is the copy loop, and the switch that guards it.
+  // Neither belongs to the relay: carrying a prompt to an AI by hand needs no
+  // mode, no address and no key, and a switch that only existed while a relay
+  // was configured would be a promise this app could not keep for the loop.
+  await expect(page.locator('[data-ai="copy"]')).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Keep away from the model" })).toHaveCount(1);
 
   // The mode switch itself is always there - it IS the switch.
   await page.locator(".crumb-back").click();

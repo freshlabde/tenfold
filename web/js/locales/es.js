@@ -681,6 +681,27 @@ export const es = {
   "import.another": "Otra imagen",
   "import.size": "{n} kB a enviar",
 
+  // -------------------------------------------------------------- copy loop
+  "aihelp.entry": "Seguir pensándolo con una IA",
+  "aihelp.title": "Seguir pensándolo con una IA",
+  "aihelp.scope": "Lo que viaja: este objetivo y dónde está, su historia, {n} pasos y los nombres de las fichas enlazadas. Las fichas que marcaste como sensibles, las notas de las fichas y todo lo que mantienes lejos de un modelo se quedan aquí.",
+  "aihelp.scopeOne": "Lo que viaja: este objetivo y dónde está, su historia, un paso y los nombres de las fichas enlazadas. Las fichas que marcaste como sensibles, las notas de las fichas y todo lo que mantienes lejos de un modelo se quedan aquí.",
+  "aihelp.copy": "Copiar el texto",
+  "aihelp.share": "Compartir",
+  "aihelp.copied": "Copiado. Pégalo en la IA que uses.",
+  "aihelp.copyByHand": "Este navegador no ha permitido copiar. El texto está seleccionado, cógelo a mano.",
+  "aihelp.paste.entry": "Pegar la respuesta",
+  "aihelp.paste.desc": "La lista que escriba pasa a ser pasos bajo este.",
+  "aihelp.paste.hint": "Pega la respuesta entera. La sangría se convierte en el nivel, hasta cuatro de profundidad.",
+  "aihelp.paste.placeholder": "Pégalo aquí.",
+  "aihelp.paste.look": "Verlo",
+  "aihelp.preview.under": "Se escribirían {n} pasos bajo {title}.",
+  "aihelp.preview.oneUnder": "Se escribiría un paso bajo {title}.",
+  "aihelp.preview.more": "y {n} más.",
+  "aihelp.preview.nothing": "Ahí dentro no se lee nada como una lista de pasos. No se ha cambiado nada.",
+  "aihelp.preview.apply": "Escribirlos",
+  "aihelp.applied": "{n} aceptados.",
+
   // ------------------------------------------------------------------- share
   "share.title": "Compartido con tenfold",
   "share.body": "Esto llega desde otra aplicación. Se guarda sin cifrar en este dispositivo hasta que lo archives o lo descartes.",

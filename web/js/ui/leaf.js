@@ -21,6 +21,7 @@ import { formatDate, dueLabel, relativeTime } from "./format.js";
 import { storyDepth } from "../model.js";
 import { detectNames, foldName } from "../entities.js";
 import { entityChips } from "./entity.js";
+import { aihelpEntry } from "./aihelp.js";
 
 /** A minute of slack: below it, "created" and "edited" are the same event. */
 const EDIT_GRACE = 60000;
@@ -148,25 +149,36 @@ function nameHint(ctx, node) {
 }
 
 /**
- * The assistance block. It exists only when assistance is switched on at all -
- * in "off" mode not one of these elements is built. A step that is kept away
- * from the model has no assist entry; a step that inherits that decision says
- * where it came from and offers no switch, because the switch belongs to the
- * goal it was thrown on. Ghost throughout: the accent on this screen belongs
- * to the one cast action in the bar.
+ * The assistance block. Three things can stand here, and each one has its own
+ * condition:
+ *
+ *   - the copy loop, always. It needs no relay, no key and no address, so it
+ *     is not tied to whether assistance is switched on.
+ *   - the built-in assist, only when assistance is switched on at all - in
+ *     "off" mode not one of ITS elements is built.
+ *   - the keep-away switch, which guards both of the above and therefore
+ *     exists whenever either of them could.
+ *
+ * A step that is kept away has neither entry; a step that inherits that
+ * decision says where it came from and offers no switch, because the switch
+ * belongs to the goal it was thrown on. Ghost throughout: the accent on this
+ * screen belongs to the one cast action in the bar.
  */
 function assistBlock(ctx, node) {
-  if (!ctx.llmOn) return null;
   const keep = ctx.optout(node.id);
-  const box = el("section", { class: "assist-foot", dataset: { llm: "leaf" } });
+  const box = el("section", { class: "assist-foot" });
 
-  if (!keep.own && !keep.inherited) {
+  const carry = aihelpEntry(ctx, node);
+  if (carry) box.appendChild(carry);
+
+  if (ctx.llmOn && !keep.own && !keep.inherited) {
     box.appendChild(
       el(
         "button",
         {
           class: "leaf-act",
           attrs: { type: "button" },
+          dataset: { llm: "leaf" },
           on: { click: () => ctx.assist(node) },
         },
         [icon("target", 15), text(t("llm.assist"))],

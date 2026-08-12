@@ -21,7 +21,15 @@ import { openSheet, closeSheet } from "./sheet.js";
 import { t } from "../i18n.js";
 import { callForText, extractJson, llmMode, llmSettings, LlmError } from "../llm.js";
 import { importMessages, parseImportItems } from "../prompts.js";
+import { blockedByRootCap, parentIndexes, subtreeOf } from "../aihelp.js";
 import { thinkingLine, errorLine, WAIT_AFTER_MS } from "./assist.js";
+
+// The shape of an outline - which line hangs under which, and which lines the
+// ten-root rule leaves room for - is no longer owned here. It moved to
+// aihelp.js when the pasted answer became a second way in, because both ways
+// end in the same indented checklist and one of them must not drift from the
+// other. Re-exported so the callers and the specs keep one address for it.
+export { blockedByRootCap, parentIndexes };
 
 /** Refused before a single byte is read. A phone photo is two to five of these. */
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -102,52 +110,6 @@ export async function shrinkImage(file, opts = {}) {
   const dataUrl = canvas.toDataURL("image/jpeg", quality);
   if (!dataUrl.startsWith("data:image/jpeg")) throw new LlmError("unreadable");
   return { dataUrl, bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
-}
-
-// ----------------------------------------------------------------- the tree
-
-/**
- * For each line, the index of the line it hangs under - the nearest earlier
- * line one level up, or -1 for a line at the outer margin.
- */
-export function parentIndexes(items) {
-  const out = [];
-  const open = [];
-  items.forEach((item, i) => {
-    open.length = item.level;
-    out.push(item.level === 0 ? -1 : open[item.level - 1] === undefined ? -1 : open[item.level - 1]);
-    open[item.level] = i;
-  });
-  return out;
-}
-
-/** The indexes below one line: everything after it until the level rises back. */
-function subtreeOf(items, i) {
-  const out = [];
-  for (let j = i + 1; j < items.length && items[j].level > items[i].level; j += 1) out.push(j);
-  return out;
-}
-
-/**
- * Which lines the ten-root rule leaves room for. Only an import into the top
- * level can overflow; under a node there is no such limit. A line at the outer
- * margin that would be the eleventh goal is blocked, and everything written
- * under it is blocked with it - a step without its goal is not an import.
- *
- * @returns {boolean[]} one flag per line, true = cannot be taken over
- */
-export function blockedByRootCap(items, capacity) {
-  const out = [];
-  let taken = 0;
-  let current = false;
-  for (const item of items) {
-    if (item.level === 0) {
-      taken += 1;
-      current = taken > capacity;
-    }
-    out.push(current);
-  }
-  return out;
 }
 
 // ------------------------------------------------------------- the entry point
