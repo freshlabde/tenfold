@@ -607,7 +607,7 @@ export const de = {
   "aihelp.copyByHand": "Dieser Browser hat das Kopieren nicht erlaubt. Der Text ist markiert, nimm ihn von Hand.",
   "aihelp.paste.entry": "Antwort einfügen",
   "aihelp.paste.desc": "Die Liste daraus wird zu Schritten unter diesem hier.",
-  "aihelp.paste.hint": "Füg die ganze Antwort ein. Die Einrückung wird zur Ebene, bis zu vier tief.",
+  "aihelp.paste.hint": "Füg die ganze Antwort ein, mitsamt Gerede. Gelesen wird die Liste am Ende, bis zu vier Ebenen tief.",
   "aihelp.paste.placeholder": "Hier einfügen.",
   "aihelp.paste.look": "Ansehen",
   "aihelp.preview.under": "{n} Schritte kämen unter {title}.",

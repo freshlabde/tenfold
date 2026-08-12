@@ -3,8 +3,8 @@
 // What it does: two halves of one round trip. On the way out it shows the
 // prompt this app built for the goal that is open, says in one line what
 // travels with it, and hands it to the clipboard or the share menu. On the way
-// back it takes whatever was pasted, reads the indentation, and shows what
-// would be created before anything is.
+// back it takes whatever was pasted - the whole chat, prose and all - reads the
+// list out of it, and shows what would be created before anything is.
 //
 // What it deliberately does NOT do: it never talks to a model, it never
 // installs anything, it knows no provider and holds no key - the person owns
@@ -16,7 +16,7 @@
 import { el, text, icon, clear } from "./dom.js";
 import { openSheet, closeSheet } from "./sheet.js";
 import { t, getLocale } from "../i18n.js";
-import { buildPrompt, parseOutlineText } from "../aihelp.js";
+import { buildPrompt, parseAnswer } from "../aihelp.js";
 
 /** How many of the lines the preview writes out before it counts the rest. */
 export const PREVIEW_LINES = 8;
@@ -206,7 +206,7 @@ export function openAiHelp(layer, ctx, node) {
     });
     body.appendChild(field);
 
-    const look = btn(t("aihelp.paste.look"), () => paintPreview(parseOutlineText(field.value).items), true, {
+    const look = btn(t("aihelp.paste.look"), () => paintPreview(parseAnswer(field.value).items), true, {
       ai: "look",
     });
     look.disabled = !field.value.trim();

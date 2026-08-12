@@ -1242,24 +1242,76 @@ steps in it, before anything is copied.
 
 **The prompt itself** lives in `PROMPT` in `web/js/aihelp.js`, en/de/es, and is built in the
 language the app is in (an unknown locale falls back to English). It asks for two things in
-order: at most three clarifying questions first, then a plain indented list of small steps that
-can be pasted straight back. The three catalogues carry the same label, status and instruction
-keys; a spec asserts that, the way the i18n spec asserts it for the UI catalogues.
+order: at most three clarifying questions first, then small steps in the person's own words.
+The three catalogues carry the same label, status and instruction keys; a spec asserts that, the
+way the i18n spec asserts it for the UI catalogues.
+
+**The output contract is the LAST thing in the prompt**, and it asks for exactly one format:
+
+```
+[{"step": "...", "substeps": ["...", ...]}, ...]
+```
+
+one fenced code block (three backticks) at the end of the answer, containing nothing but that
+JSON array. `substeps` is optional; its entries may be strings or the same object again, which
+is how a level below the first one is written. Stated as a deal - *whatever else you write, end
+with that one code block* - so a model is free to think out loud, ask, apologise and summarise,
+as long as the block is there.
+
+Two properties of that paragraph are load-bearing and are pinned by
+`tests/copyloop.spec.js` in all three languages:
+- **It comes last.** Recency wins. The format demand used to sit in the middle of the prompt,
+  ahead of the "small steps, my words" guidance, and that is precisely the instruction a model
+  drops first. Asserted as a position: the demand appears after the questions paragraph.
+- **The drift guard.** One sentence saying that IF the conversation continues, every later
+  answer ends the same way again, with the **complete, updated** list in that same block - not
+  only the part that changed. This is the sentence that addresses the observed failure: the
+  prompt was carried into a chat, the conversation ran two turns, and the second answer came
+  back as flowing prose with the list convention forgotten, leaving the paste-back parser
+  nothing to parse.
+
+The old "indent a sub-step by two spaces" convention is gone from the prompt (a spec asserts its
+absence, in three languages). Two formats asked for at once is how a model picks the wrong one -
+the parser still reads indentation, but nothing asks for it any more.
 
 **Copying out:** clipboard first (`navigator.clipboard.writeText`), the share menu as a secondary
 where the platform has one (`navigator.share`, text only). A browser that refuses the clipboard is
 not a failure: the prompt stands in a readonly field, it gets selected, and one line says to take
 it by hand.
 
-**Pasting back:** `parseOutlineText` reads indentation RELATIVELY - a stack of the widths it has
-seen, so two spaces, four spaces and a tab all mean the same thing as long as one answer is
-consistent with itself. Bullets, numbers, letters, checkboxes, heading hashes and emphasis marks
-are stripped; a trailing colon goes with them. Levels are then clamped by
-`normalizeOutlineItems`, the ONE place the three limits of an outline live (four levels, 100
-lines, 200 characters per line). It was shared with the photo import so the two ways in could
-not drift; since v1.1 there is one way in, and it is still the only place those limits exist.
-Nothing is dropped for looking like prose: a sentence in front of the list becomes a line the
-person sees and cancels on, which is honest where silent swallowing would not be.
+**Pasting back** goes through `parseAnswer(text)`, which reads a paste in ONE fixed order and
+returns `{items, source, fenced}`. What a person actually does is select the whole conversation,
+so the order exists to find the answer inside the chat rather than to demand a clean paste:
+
+1. **Last fenced block wins.** `fencedBlocks()` collects every fenced block (three backticks or
+   three tildes), and if there is one, the LAST one is the answer and everything around it is
+   chat that never reaches a parser. A block that was opened and never closed still counts - a
+   model that ran out of room mid-answer wrote a block, and dropping it would lose exactly the
+   part the person came for.
+2. **JSON inside it, strictly.** `JSON.parse`, top level must be the documented array. No
+   trailing-comma tolerance, no repair pass, no object wrapper: the only slack is surrounding
+   whitespace and a language tag (`json`) a model wrote inside the block instead of on the fence.
+   `step` → title, `substeps` → children one level down, unknown keys ignored. A `step` that is
+   not a string is a **broken entry** - the same strictness the photo path had - so the entry is
+   dropped and what hung under it moves up rather than vanishing with it. Plain strings and bare
+   nested arrays are accepted as well: accept more, never less.
+3. **Indented text after that.** Anything that is not JSON goes through `parseOutlineText` -
+   inside the block when there was one, over the whole paste when there was not. It reads
+   indentation RELATIVELY, a stack of the widths it has seen, so two spaces, four spaces and a
+   tab all mean the same thing as long as one answer is consistent with itself. Bullets, numbers,
+   letters, checkboxes, heading hashes and emphasis marks are stripped; a trailing colon goes
+   with them. An answer that ignored the format entirely is read exactly as it was before this
+   order existed.
+
+Both readers end in `normalizeOutlineItems`, the ONE place the three limits of an outline live
+(four levels, 100 lines, 200 characters per line) - it was shared with the photo import so the
+two ways in could not drift, and it is still the only place those limits exist. JSON recursion
+has a floor of its own (`MAX_JSON_DEPTH`, 12) so a file of nested arrays cannot take the stack
+down; the levels are clamped to four either way. Nothing is dropped for looking like prose: a
+sentence in front of the list becomes a line the person sees and cancels on, which is honest
+where silent swallowing would not be. The **markup canary covers both readers** - a title
+carrying `<img src=x onerror=...>` arrives as characters, in the preview and in the document,
+whether it came out of JSON or out of indented text.
 
 **Preview before apply.** The parsed lines are shown with their indentation, counted, and the
 only two answers are Apply and Cancel. Cancel returns to the field with the text still in it and

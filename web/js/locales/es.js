@@ -607,7 +607,7 @@ export const es = {
   "aihelp.copyByHand": "Este navegador no ha permitido copiar. El texto está seleccionado, cógelo a mano.",
   "aihelp.paste.entry": "Pegar la respuesta",
   "aihelp.paste.desc": "La lista que escriba pasa a ser pasos bajo este.",
-  "aihelp.paste.hint": "Pega la respuesta entera. La sangría se convierte en el nivel, hasta cuatro de profundidad.",
+  "aihelp.paste.hint": "Pega la respuesta entera, con conversación y todo. Se lee la lista del final, hasta cuatro niveles de profundidad.",
   "aihelp.paste.placeholder": "Pégalo aquí.",
   "aihelp.paste.look": "Verlo",
   "aihelp.preview.under": "Se escribirían {n} pasos bajo {title}.",

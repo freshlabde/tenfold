@@ -3,8 +3,10 @@
 // What it does: builds the text a person carries to whatever AI they already
 // use, and reads the answer they bring back. Out is a prompt: the goal, where
 // it sits, its story, the steps under it and the names on the cards linked to
-// it, written in the language the app is in. Back in is an indented outline
-// that becomes steps under the same node.
+// it, written in the language the app is in, ending in the one demand that
+// makes the way back work - a fenced JSON block. Back in is that block, or an
+// indented outline when a model ignored the demand, and either becomes steps
+// under the same node.
 //
 // What it deliberately does NOT do: it does not fetch, does not touch the DOM,
 // does not read storage and holds no state. It is a string builder and a text
@@ -156,8 +158,9 @@ export const PROMPT = {
     ask: [
       "Two things, in this order.",
       "First: ask me up to three questions, and only the ones whose answers would really change what comes next. Then stop and wait for me.",
-      "After I have answered: propose the next steps as a plain indented list I can paste straight back. One step per line, no numbering. A step that belongs under the one above it gets two spaces in front of it. Nothing around the list, nothing between the lines.",
-      "Keep every step small enough to finish in one sitting, and write it in my words and my situation, not as general advice. If something important is missing, say so instead of inventing it.",
+      "After I have answered: propose the next steps. Keep every step small enough to finish in one sitting, and write it in my words and my situation, not as general advice. If something important is missing, say so instead of inventing it.",
+      'Then end your answer with a single code block, fenced with three backticks, holding nothing but a JSON array of those steps, exactly like this:\n\n```\n[{"step": "Call the practice on Monday", "substeps": ["Ask for the earliest slot", "Write the date on the fridge"]}]\n```\n\n"substeps" is optional - a step with nothing under it is just {"step": "..."}. No commentary inside the block, no second block, nothing after it. That is the deal: whatever else you write, end with that one code block.',
+      "And if we keep talking after this, the same holds for every answer that follows: each one ends again with the complete, updated list in that same block - the whole list, not only the part that changed.",
     ],
   },
   de: {
@@ -184,8 +187,9 @@ export const PROMPT = {
     ask: [
       "Zwei Dinge, in dieser Reihenfolge.",
       "Zuerst: stell mir bis zu drei Fragen, und nur die, deren Antworten wirklich etwas daran ändern, was als Nächstes kommt. Dann halt an und warte auf mich.",
-      "Wenn ich geantwortet habe: schlag die nächsten Schritte als einfache eingerückte Liste vor, die ich direkt zurückkopieren kann. Ein Schritt pro Zeile, keine Nummerierung. Ein Schritt, der unter den darüber gehört, bekommt zwei Leerzeichen davor. Nichts um die Liste herum, nichts zwischen den Zeilen.",
-      "Halte jeden Schritt so klein, dass er in einem Zug fertig wird, und schreib ihn in meinen Worten und meiner Lage, nicht als allgemeinen Rat. Wenn etwas Wichtiges fehlt, sag das, statt es zu erfinden.",
+      "Wenn ich geantwortet habe: schlag die nächsten Schritte vor. Halte jeden Schritt so klein, dass er in einem Zug fertig wird, und schreib ihn in meinen Worten und meiner Lage, nicht als allgemeinen Rat. Wenn etwas Wichtiges fehlt, sag das, statt es zu erfinden.",
+      'Beende deine Antwort dann mit genau einem Codeblock, eingerahmt von drei Backticks, und schreib nichts hinein außer einem JSON-Array dieser Schritte, genau so:\n\n```\n[{"step": "Am Montag in der Praxis anrufen", "substeps": ["Nach dem frühesten Termin fragen", "Das Datum an den Kühlschrank schreiben"]}]\n```\n\n"substeps" ist optional - ein Schritt ohne etwas darunter ist einfach {"step": "..."}. Kein Kommentar im Block, kein zweiter Block, nichts danach. Das ist die Abmachung: was du sonst auch schreibst, hör mit diesem einen Codeblock auf.',
+      "Und wenn wir danach weiterreden, gilt das für jede weitere Antwort genauso: jede endet wieder mit der vollständigen, aktualisierten Liste in genau diesem Block - der ganzen Liste, nicht nur dem, was sich geändert hat.",
     ],
   },
   es: {
@@ -212,8 +216,9 @@ export const PROMPT = {
     ask: [
       "Dos cosas, en este orden.",
       "Primero: hazme hasta tres preguntas, solo aquellas cuya respuesta cambiaría de verdad lo que viene después. Luego para y espera.",
-      "Cuando te haya respondido: propón los siguientes pasos como una lista sencilla con sangría que pueda pegar de vuelta tal cual. Un paso por línea, sin numeración. Un paso que va debajo del anterior lleva dos espacios delante. Nada alrededor de la lista, nada entre las líneas.",
-      "Mantén cada paso lo bastante pequeño como para terminarlo de una sentada, y escríbelo con mis palabras y mi situación, no como consejo general. Si falta algo importante, dilo en vez de inventarlo.",
+      "Cuando te haya respondido: propón los siguientes pasos. Mantén cada paso lo bastante pequeño como para terminarlo de una sentada, y escríbelo con mis palabras y mi situación, no como consejo general. Si falta algo importante, dilo en vez de inventarlo.",
+      'Y termina tu respuesta con un único bloque de código, delimitado por tres acentos graves, sin nada dentro más que un array JSON de esos pasos, exactamente así:\n\n```\n[{"step": "Llamar a la consulta el lunes", "substeps": ["Pedir la cita más temprana", "Apuntar la fecha en la nevera"]}]\n```\n\n"substeps" es opcional - un paso sin nada debajo es simplemente {"step": "..."}. Sin comentarios dentro del bloque, sin un segundo bloque, nada después. Ese es el trato: escribas lo que escribas, acaba con ese único bloque de código.',
+      "Y si seguimos hablando después, lo mismo vale para cada respuesta siguiente: cada una termina otra vez con la lista completa y actualizada en ese mismo bloque - la lista entera, no solo lo que ha cambiado.",
     ],
   },
 };
@@ -224,8 +229,10 @@ function wordsFor(locale) {
 }
 
 /**
- * The context as labelled lines, then the instruction. Pure text: no markdown,
- * no fences, nothing a chat window would swallow.
+ * The context as labelled lines, then the instruction. The context half is
+ * plain text with no markup in it; the instruction half ends in a fenced
+ * example, because the format demand is the last thing the model reads and an
+ * example of a code block is best written as one.
  *
  * @param {Object} context the object buildCopyContext returned
  * @param {string} locale
@@ -398,6 +405,146 @@ export function parseOutlineText(text) {
     rows.push({ title, level: stack.length - 1 });
   }
   return { items: normalizeOutlineItems(rows) };
+}
+
+// ------------------------------------------------------- the answer, in order
+
+/**
+ * How deep a JSON answer is followed before the reader stops descending. The
+ * levels are clamped to four either way; this is only a floor under the
+ * recursion, so a hostile file of ten thousand nested arrays cannot take the
+ * stack down with it.
+ */
+export const MAX_JSON_DEPTH = 12;
+
+/** A line that opens or closes a fenced block, with its info string. */
+const FENCE_LINE = /^[ \t]*(`{3,}|~{3,})[ \t]*(.*)$/;
+
+/** A language tag a model wrote on its own line inside the block. */
+const LANGUAGE_TAG = /^\s*(json5?|jsonc|javascript|js)\s*\r?\n/i;
+
+/**
+ * Every fenced code block in a paste, in the order they were written, without
+ * their fences and without the info string on the opening one.
+ *
+ * A block that was opened and never closed still counts: a model that ran out
+ * of room mid-answer wrote a block, and throwing it away would lose exactly the
+ * part the person came for.
+ *
+ * @param {string} text whatever was pasted
+ * @returns {string[]}
+ */
+export function fencedBlocks(text) {
+  const blocks = [];
+  let open = null;
+  for (const raw of String(text || "").split(/\r?\n/)) {
+    const fence = FENCE_LINE.exec(raw);
+    if (!open) {
+      if (fence) open = { marker: fence[1], lines: [] };
+      continue;
+    }
+    // A closing fence is the same character, at least as long, and alone on
+    // its line. Anything else inside the block is content, fence or not.
+    const closes =
+      fence && fence[1][0] === open.marker[0] && fence[1].length >= open.marker.length && !fence[2].trim();
+    if (closes) {
+      blocks.push(open.lines.join("\n"));
+      open = null;
+      continue;
+    }
+    open.lines.push(raw);
+  }
+  if (open && open.lines.length) blocks.push(open.lines.join("\n"));
+  return blocks;
+}
+
+/**
+ * The documented schema, flattened to lines and levels.
+ *
+ * `[{"step": "...", "substeps": ["...", ...]}, ...]` - `substeps` optional, an
+ * entry of it either a string or the same object again. Unknown keys are
+ * ignored. A `step` that is not a string is a broken entry, the way it always
+ * was on the photo path: the row goes in, the shaper drops it, and what hung
+ * under it moves up a level rather than disappearing with it.
+ */
+function collectJsonItems(list, level, rows, depth) {
+  if (!Array.isArray(list) || depth > MAX_JSON_DEPTH) return;
+  for (const entry of list) {
+    if (rows.length >= MAX_OUTLINE_ITEMS) return;
+    if (typeof entry === "string") {
+      rows.push({ title: entry, level });
+      continue;
+    }
+    // A bare nested array is somebody's sublist. Read it rather than refuse it.
+    if (Array.isArray(entry)) {
+      collectJsonItems(entry, level + 1, rows, depth + 1);
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    rows.push({ title: entry.step, level });
+    collectJsonItems(entry.substeps, level + 1, rows, depth + 1);
+  }
+}
+
+/**
+ * The block as JSON, or null when it is not JSON at all.
+ *
+ * Strict: `JSON.parse`, no trailing commas, no repair pass, and the top level
+ * has to be the array the prompt asked for. The only slack is the whitespace
+ * around it and a language tag a model wrote inside the block instead of on
+ * the fence. Anything else falls through to the text parser, which is the more
+ * forgiving reader and was always there.
+ *
+ * @param {string} text the content of one block, or a whole paste
+ * @returns {{title: unknown, level: number}[]|null}
+ */
+function jsonOutlineRows(text) {
+  const body = String(text || "")
+    .replace(LANGUAGE_TAG, "")
+    .trim();
+  if (!body.startsWith("[")) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+  const rows = [];
+  collectJsonItems(parsed, 0, rows, 0);
+  return rows;
+}
+
+/**
+ * What a paste means, in one fixed order. This is the way in for the sheet;
+ * `parseOutlineText` below is one of the two readers it can end up using.
+ *
+ * 1. FENCED BLOCK FIRST. If the paste has fenced blocks, the LAST one is the
+ *    answer and everything around it is chat. This is the whole fix for the
+ *    real failure: a model that asks a question, thinks out loud, apologises,
+ *    and then prints the list still delivers a clean list, because the prose
+ *    never reaches a parser.
+ * 2. JSON INSIDE IT. The block is tried as the documented schema first.
+ * 3. TEXT AFTER THAT. Whatever is not JSON goes through the indented-outline
+ *    parser - inside the block when there was one, over the whole paste when
+ *    there was not. A model that ignored the format entirely is read exactly
+ *    as it was before this order existed.
+ *
+ * Both readers end in `normalizeOutlineItems`, so the four levels, the 100
+ * lines and the 200 characters are enforced once, for every way in. Nothing is
+ * dropped for looking like prose either: what survives to the preview is shown
+ * as the lines it is, and the person cancels on it.
+ *
+ * @param {string} text whatever was pasted
+ * @returns {{items: {title: string, level: number}[], source: string, fenced: boolean}}
+ */
+export function parseAnswer(text) {
+  const blocks = fencedBlocks(text);
+  const fenced = blocks.length > 0;
+  const candidate = fenced ? blocks[blocks.length - 1] : String(text || "");
+  const rows = jsonOutlineRows(candidate);
+  if (rows) return { items: normalizeOutlineItems(rows), source: "json", fenced };
+  return { items: parseOutlineText(candidate).items, source: "text", fenced };
 }
 
 // -------------------------------------------------------------- the tree shape

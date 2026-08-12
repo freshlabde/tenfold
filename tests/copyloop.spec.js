@@ -241,15 +241,92 @@ test("the prompt asks for questions first, in the language the app is in", async
     };
   });
   expect(r.en).toContain("up to three questions");
-  expect(r.en).toContain("two spaces");
   expect(r.de).toContain("bis zu drei Fragen");
-  expect(r.de).toContain("zwei Leerzeichen");
   expect(r.es).toContain("hasta tres preguntas");
-  expect(r.es).toContain("dos espacios");
   // An unknown locale falls back to English rather than to nothing.
   expect(r.unknown).toBe(r.en);
   // A goal without steps says so by leaving the heading out entirely.
   expect(r.en).not.toContain("STEPS SO FAR");
+});
+
+// This test exists because of a failure in the wild. The prompt was carried to
+// Grok, the conversation ran two turns, and the answer came back as sentences -
+// "food write down everything I eat... sport pick the four home-workout days" -
+// with the list instruction, which sat in the MIDDLE of the prompt, quietly
+// forgotten by the second turn. So: the format demand is the last thing the
+// model reads, it asks for one machine-readable thing rather than an
+// indentation convention, and it says out loud that it holds for every later
+// answer too. All three of those properties are asserted here, in three
+// languages, because a prompt is only a contract while its wording holds.
+test("the prompt ends with the fenced-JSON demand and the drift guard, in three languages", async ({ page }) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const aihelp = await import("/web/js/aihelp.js");
+    const model = await import("/web/js/model.js");
+    const doc = {
+      schema: 2,
+      nodes: [model.createNode({ id: "root", title: "Learn to sail", rank: 0 })],
+      entities: [],
+      settings: {},
+    };
+    const out = {};
+    for (const locale of ["en", "de", "es"]) {
+      out[locale] = {
+        text: aihelp.buildPrompt(doc, "root", locale).text,
+        last: aihelp.PROMPT[locale].ask[aihelp.PROMPT[locale].ask.length - 1],
+      };
+    }
+    return out;
+  });
+
+  const phrases = {
+    en: {
+      questions: "up to three questions",
+      fence: "three backticks",
+      deal: "end with that one code block",
+      drift: "every answer that follows",
+      whole: "the whole list, not only the part that changed",
+    },
+    de: {
+      questions: "bis zu drei Fragen",
+      fence: "drei Backticks",
+      deal: "hör mit diesem einen Codeblock auf",
+      drift: "jede weitere Antwort",
+      whole: "der ganzen Liste, nicht nur dem, was sich geändert hat",
+    },
+    es: {
+      questions: "hasta tres preguntas",
+      fence: "tres acentos graves",
+      deal: "acaba con ese único bloque de código",
+      drift: "cada respuesta siguiente",
+      whole: "la lista entera, no solo lo que ha cambiado",
+    },
+  };
+
+  for (const locale of ["en", "de", "es"]) {
+    const text = r[locale].text;
+    const p = phrases[locale];
+    // The schema, spelled out in the prompt itself rather than only in a doc.
+    expect(text, locale).toContain("```");
+    expect(text, locale).toContain('"step"');
+    expect(text, locale).toContain('"substeps"');
+    expect(text, locale).toContain("JSON");
+    expect(text, locale).toContain(p.fence);
+    expect(text, locale).toContain(p.deal);
+    // Recency wins: the demand comes AFTER the dramaturgy, not before it.
+    expect(text.indexOf(p.fence), locale).toBeGreaterThan(text.indexOf(p.questions));
+    // The multi-turn guard, and the fact that it is the last word.
+    expect(text, locale).toContain(p.drift);
+    expect(text.trimEnd().endsWith(r[locale].last.trim()), locale).toBe(true);
+    expect(r[locale].last, locale).toContain(p.whole);
+    // And the dramaturgy is still the dramaturgy: questions first.
+    expect(text, locale).toContain(p.questions);
+    // The old indentation convention is gone from the ask, in every language:
+    // two formats asked for at once is how a model picks the wrong one.
+    expect(text, locale).not.toContain("two spaces");
+    expect(text, locale).not.toContain("zwei Leerzeichen");
+    expect(text, locale).not.toContain("dos espacios");
+  }
 });
 
 // ------------------------------------------------------------------ the parser
@@ -313,6 +390,141 @@ test("an indented answer becomes levels, whatever it was indented with", async (
   expect(r.empty).toEqual([]);
   expect(r.long[0].title).toHaveLength(r.cap);
   expect(r.many).toHaveLength(100);
+});
+
+// The order the sheet reads a paste in: last fenced block, JSON, outline text.
+// Everything a chat window puts AROUND the answer is the enemy here, and every
+// case below is a shape a real model has produced.
+test("the answer is taken from the last fenced block, as JSON first and as an outline after", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const { parseAnswer, fencedBlocks } = await import("/web/js/aihelp.js");
+    const fence = (value, tag) => "```" + (tag || "") + "\n" + value + "\n```";
+    const json = (value, tag) => fence(JSON.stringify(value, null, 2), tag);
+    const steps = [
+      {
+        step: "Call the practice on Monday",
+        substeps: ["Ask for the earliest slot", "Write the date on the fridge"],
+      },
+      { step: "Take the referral out of the drawer" },
+    ];
+    // Thirty levels of nesting: a shape nobody writes by hand.
+    let deep = [{ step: "bottom" }];
+    for (let i = 0; i < 30; i += 1) deep = [{ step: "level " + i, substeps: deep }];
+
+    return {
+      pure: parseAnswer(json(steps, "json")),
+      // The Grok case: a question, some thinking out loud, the block, an offer.
+      grok: parseAnswer(
+        [
+          "Good question. Before the list, one thing I noticed:",
+          "you said the knee still hurts, so I keep Monday light.",
+          "",
+          json(steps),
+          "",
+          "Tell me if you want the second one broken down further.",
+        ].join("\n"),
+      ),
+      twoBlocks: parseAnswer(
+        [
+          json([{ step: "FIRST-BLOCK" }]),
+          "On reflection I would rather do it like this:",
+          json([{ step: "LAST-BLOCK" }]),
+        ].join("\n\n"),
+      ),
+      fencedText: parseAnswer(fence("Call the practice\n  Ask for the slot")),
+      bareJson: parseAnswer(JSON.stringify(steps)),
+      bareText: parseAnswer("Call the practice\n  Ask for the slot"),
+      // What broke in the wild: flowing sentences, no list at all.
+      prose: parseAnswer(
+        "food write down everything I eat and drink for a week, sport pick the four home-workout days",
+      ),
+      tagInside: parseAnswer(fence("json\n" + JSON.stringify(steps))),
+      unclosed: parseAnswer("Here you go:\n\n```json\n" + JSON.stringify(steps)),
+      broken: parseAnswer(fence('[{"step": "Call the practice",]')),
+      wrapper: parseAnswer(json({ steps })),
+      numeric: parseAnswer(json([{ step: 42, substeps: ["Ask for the slot"] }])),
+      strings: parseAnswer(json(["Call the practice", ["Ask for the slot"]])),
+      canary: parseAnswer(json([{ step: '<img src=x onerror="window.XSS=1">' }])),
+      many: parseAnswer(json(Array.from({ length: 140 }, (_, i) => ({ step: "s" + i })))),
+      deep: parseAnswer(json(deep)),
+      long: parseAnswer(json([{ step: "x".repeat(400) }])),
+      emptyArray: parseAnswer(json([])),
+      blocks: fencedBlocks("chat\n```\none\n```\nmore chat\n~~~\ntwo\n~~~\nand more"),
+    };
+  });
+
+  const outline = [
+    { title: "Call the practice on Monday", level: 0 },
+    { title: "Ask for the earliest slot", level: 1 },
+    { title: "Write the date on the fridge", level: 1 },
+    { title: "Take the referral out of the drawer", level: 0 },
+  ];
+
+  // A clean answer, and the same answer with a chat wrapped around it, are the
+  // same four steps. That is the whole fix.
+  expect(r.pure.items).toEqual(outline);
+  expect(r.pure.source).toBe("json");
+  expect(r.grok.items).toEqual(outline);
+  expect(r.grok.source).toBe("json");
+  expect(r.grok.fenced).toBe(true);
+  // Two blocks: the one the model settled on is the last one.
+  expect(r.twoBlocks.items).toEqual([{ title: "LAST-BLOCK", level: 0 }]);
+  // A fence around an indented list is still an indented list.
+  expect(r.fencedText.items).toEqual([
+    { title: "Call the practice", level: 0 },
+    { title: "Ask for the slot", level: 1 },
+  ]);
+  expect(r.fencedText.source).toBe("text");
+  // No fence at all, either way round: JSON is read, and text is read exactly
+  // as it was before this order existed.
+  expect(r.bareJson.items).toEqual(outline);
+  expect(r.bareJson.source).toBe("json");
+  expect(r.bareJson.fenced).toBe(false);
+  expect(r.bareText.items).toEqual([
+    { title: "Call the practice", level: 0 },
+    { title: "Ask for the slot", level: 1 },
+  ]);
+  expect(r.bareText.source).toBe("text");
+  // Prose that ignored the contract is not rescued and not swallowed: it
+  // arrives as the line it is, and the preview is where the person sees that.
+  expect(r.prose.source).toBe("text");
+  expect(r.prose.items).toHaveLength(1);
+  expect(r.prose.items[0].title).toContain("food write down everything");
+
+  // A language tag inside the block instead of on the fence, and a block the
+  // model never closed because it ran out of room.
+  expect(r.tagInside.items).toEqual(outline);
+  expect(r.unclosed.items).toEqual(outline);
+  // Strict JSON: a comma where a value belongs, and an object around the array,
+  // are both "not JSON" and fall through to the forgiving reader rather than
+  // being repaired behind the person's back.
+  expect(r.broken.source).toBe("text");
+  expect(r.wrapper.source).toBe("text");
+  expect(r.wrapper.items.length).toBeGreaterThan(0);
+  // A step that is not a string is a broken entry - the entry goes, what hung
+  // under it moves up rather than vanishing with it.
+  expect(r.numeric.items).toEqual([{ title: "Ask for the slot", level: 0 }]);
+  // Plain strings and a bare nested array are read too: accept more, never less.
+  expect(r.strings.items).toEqual([
+    { title: "Call the practice", level: 0 },
+    { title: "Ask for the slot", level: 1 },
+  ]);
+  // The markup canary on the JSON path: characters, never an element.
+  expect(r.canary.items).toEqual([{ title: '<img src=x onerror="window.XSS=1">', level: 0 }]);
+  // The three limits are the same three limits, whichever reader produced them.
+  expect(r.many.items).toHaveLength(100);
+  expect(r.long.items[0].title).toHaveLength(200);
+  expect(Math.max(...r.deep.items.map((i) => i.level))).toBeLessThanOrEqual(3);
+  expect(r.deep.items).toHaveLength(13);
+  // An empty array is an answer with nothing in it, not a reason to go hunting
+  // through the prose: the preview says so and writes nothing.
+  expect(r.emptyArray.items).toEqual([]);
+  expect(r.emptyArray.source).toBe("json");
+  // Both fence characters, content only, in the order they were written.
+  expect(r.blocks).toEqual(["one", "two"]);
 });
 
 // The outline shaper used to be shared by two ways in - a photographed list and
@@ -510,6 +722,63 @@ test("a pasted title that tries to be markup stays a title", async ({ page }) =>
   const inner = nodes.find((n) => n.title === "<script>window.XSS=2</script>");
   expect(inner.parentId).toBe(outer.id);
   expect(outer.origin).toBe("llm");
+});
+
+// The same failure as the parser test above, but through the sheet: what a
+// person actually does is select the whole conversation and paste it. The chat
+// around the block must not reach the preview, and the block must - including a
+// title that tries to be markup, which is the canary above on the JSON path.
+test("a whole chat pasted back becomes only the steps in its last code block", async ({ page }) => {
+  await goalWithSteps(page);
+  await openLoop(page);
+  const canary = '<img src=x onerror="window.XSS=1">';
+  const list = [
+    { step: "Call the practice on Monday", substeps: ["Ask for the earliest slot"] },
+    { step: canary },
+  ];
+
+  await page.locator('[data-ai="paste-open"]').click();
+  await page.locator('[data-ai="answer"]').fill(
+    [
+      "Before I answer: how many days a week can you actually train?",
+      "",
+      "Three days, understood. food write down everything you eat, sport pick the days.",
+      "",
+      "```json",
+      JSON.stringify(list, null, 2),
+      "```",
+      "",
+      "Say the word and I will break the second one down.",
+    ].join("\n"),
+  );
+  await page.locator('[data-ai="look"]').click();
+
+  await expect(page.locator(".sheet")).toContainText("3 steps would be written under Get the knee fixed");
+  await expect(page.locator('[data-ai="preview-item"]')).toHaveCount(3);
+  // Not one sentence of the conversation, and no JSON punctuation either.
+  await expect(page.locator(".sheet")).not.toContainText("how many days a week");
+  await expect(page.locator(".sheet")).not.toContainText("food write down everything");
+  await expect(page.locator(".sheet")).not.toContainText("substeps");
+  await expect(page.locator('[data-ai="preview-item"]').nth(1)).toHaveAttribute("data-level", "1");
+  // The markup canary holds on this path too: the characters, not an element.
+  await expect(page.locator(".assist-title").nth(2)).toHaveText(canary);
+  expect(await page.locator(".sheet img, .sheet script").count()).toBe(0);
+  expect(await page.evaluate(() => window.XSS)).toBeUndefined();
+
+  await page.locator('[data-ai="apply"]').click();
+  await expect(page.locator("#toast")).toContainText("3 taken over.");
+
+  const nodes = await nodesOf(page);
+  const root = nodes.find((n) => n.title === "Get the knee fixed");
+  const call = nodes.find((n) => n.title === "Call the practice on Monday");
+  const ask = nodes.find((n) => n.title === "Ask for the earliest slot");
+  const marked = nodes.find((n) => n.title === canary);
+  expect(call.parentId).toBe(root.id);
+  expect(ask.parentId).toBe(call.id);
+  expect(marked.parentId).toBe(root.id);
+  for (const made of [call, ask, marked]) expect(made.origin).toBe("llm");
+  expect(await page.evaluate(() => window.XSS)).toBeUndefined();
+  expect(await page.locator("#app img, #app script").count()).toBe(0);
 });
 
 // What replaced the old "in off mode not one assistance control exists in the

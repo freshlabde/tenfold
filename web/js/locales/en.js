@@ -617,7 +617,7 @@ export const en = {
   "aihelp.copyByHand": "This browser did not allow the copy. The text is selected, take it by hand.",
   "aihelp.paste.entry": "Paste the answer",
   "aihelp.paste.desc": "The list it wrote becomes steps under this one.",
-  "aihelp.paste.hint": "Paste the whole answer. The indentation becomes the levels, up to four deep.",
+  "aihelp.paste.hint": "Paste the whole answer, chat and all. The list at the end of it is what gets read, up to four levels deep.",
   "aihelp.paste.placeholder": "Paste it here.",
   "aihelp.paste.look": "Look at it",
   "aihelp.preview.under": "{n} steps would be written under {title}.",
