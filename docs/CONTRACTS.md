@@ -808,6 +808,47 @@ wrong.
   entry point on the lock screen needs.
 - Strings live under the `support.` prefix in all three catalogues.
 
+## The privacy policy (`web/privacy.html`)
+
+The one public document this project ships, and the one page here that SHOULD be
+indexed. App Store Connect takes a single URL and so does a link anywhere else, so
+all three languages live on one page with a three-button toggle (default from
+`navigator.language`, `en` as the fallback, `?lang=xx` wins where it is given).
+Three files would have drifted apart the first time a server rule changed.
+
+- **What it must always reflect** is what the code does, not what would read well:
+  the four things the mailbox stores, deletion requiring the key-derived token, the
+  metadata the server cannot help seeing, the visitor counters *exactly* as the
+  section above defines them (and that they do not exist unless the operator sets
+  the key), the empty push and what the push service therefore sees, the model modes
+  with the operator's relay keeping nothing, the plaintext window of a shared note,
+  and the tip jar learning nothing. When any of that changes on the server, this page
+  changes in the same commit. The date stamp at the top of each language moves with it.
+- **Self-contained, and it carries its own CSP.** Inline style, one inline script,
+  the mark as an inline SVG, no font, no image, no request of any kind.
+  `tools/serve.js` serves it with `default-src 'none'; style-src 'unsafe-inline';
+  script-src 'unsafe-inline'` (`PUBLIC_DOCS`) instead of the app's strict header:
+  the app's rule exists because an injected script there would hold the plaintext
+  and the key at once, and this document has no user content, no fetch and no
+  storage to inject into. Everything it does not need stays refused.
+- **`sw.js` does NOT precache it.** The shell list is what the app needs to open
+  without a network; a policy is a public document that must be current, and a
+  cached copy of a policy is a stale copy of a policy. It is also the one page that
+  has to be readable by somebody who has not installed anything.
+- **The About link is the mirror image of the tip-jar line.** `ui/policy.js` renders
+  one closing line, after the claim and immediately ABOVE the espresso line, and it
+  is present in **every** mode: browser, shell, and during the first-run intro,
+  where the tip jar is deliberately absent. An informational policy link is required
+  where a payment link is a rejection.
+- **Two hrefs, one rule.** In a browser it is the same-origin `./privacy.html`, so
+  every deployment serves its own copy. In the shell it is the absolute
+  `https://tenfold.kairatools.com/privacy.html`, because a same-origin
+  `target="_blank"` is inert there: `WebViewCoordinator.decidePolicyFor` allows an
+  app-origin URL and `createWebViewWith` then returns nil for it, so the tap does
+  nothing. An http(s) link is the shape that reaches `UIApplication.open`, i.e. the
+  system browser. Both strings live in `ui/policy.js` alone and are pinned by
+  `tests/privacy.spec.js`.
+
 ## Zero-knowledge sync (stage 2)
 
 The server is a dumb ciphertext mailbox. It stores the encrypted VaultFile, a version

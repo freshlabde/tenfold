@@ -561,6 +561,7 @@ export const de = {
 
   "about.close.p1": "Neu ist das nicht. Und genau das ist die Stärke. tenfold erfindet keine Methode, es bewahrt eine bewährte und übernimmt die Logistik.",
   "about.claim.p1": "tenfold - get what you want.",
+  "about.policy": "Datenschutz",
 
   // ----------------------------------------------------------- the tip jar
   "support.row": "Spendier einen Espresso",

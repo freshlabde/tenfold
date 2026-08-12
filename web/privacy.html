@@ -1,0 +1,449 @@
+<!doctype html>
+<!--
+  tenfold - the privacy policy, as one public document.
+
+  What it does: says what the software does with what you write, in the three
+  languages the app itself speaks, on ONE URL. App Store Connect wants one
+  address and so does a link in the About screen; three files would have drifted
+  apart the first time a server rule changed.
+
+  What it deliberately does NOT do: it loads nothing. No font, no stylesheet, no
+  script, no image, no analytics, no cookie, no beacon. The style and the six
+  lines that switch the language are inline, which is why tools/serve.js gives
+  this one document a CSP of its own (default-src 'none'). It is a static file
+  with no user content and no storage, and it is the one page in this project
+  that SHOULD be indexed, so it carries no robots directive.
+
+  Every factual claim here must match what the code does. When the server
+  behaviour changes, this page changes in the same commit.
+-->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tenfold privacy policy</title>
+<meta name="description" content="How tenfold handles what you write: encrypted on your device, unreadable to the server. In English, German and Spanish.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0F1115">
+<style>
+  /* The slate skin, dark by default, in the values tokens.css carries. This
+     page cannot import the app's stylesheet without loading something, so the
+     handful of tokens it needs are written out once, here. */
+  :root {
+    --bg: #0F1115;
+    --surface: #171A20;
+    --text: #E9ECF2;
+    --text-2: #97A0AE;
+    --muted: #79828F;
+    --accent: #D6A441;
+    --line: rgba(255, 255, 255, .09);
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, "Helvetica Neue", "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #E4E6EA;
+      --surface: #FFFFFF;
+      --text: #13161B;
+      --text-2: #4B535F;
+      --muted: #656D7A;
+      --accent: #8A6110;
+      --line: rgba(18, 22, 30, .12);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.62;
+    letter-spacing: -.006em;
+    padding: 28px 22px 96px;
+    min-height: 100dvh;
+  }
+  .doc { max-width: 40rem; margin: 0 auto; }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 22px;
+    margin-bottom: 34px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .brand svg { display: block; color: var(--accent); }
+
+  .langs { display: flex; gap: 6px; }
+  .langs button {
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    min-height: 34px;
+  }
+  .langs button:hover { color: var(--text-2); }
+  .langs button[aria-pressed="true"] {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .langs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.12;
+    letter-spacing: -.028em;
+    font-weight: 700;
+  }
+  .stamp {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: var(--font-mono);
+    letter-spacing: .01em;
+  }
+  h2 {
+    margin-top: 42px;
+    margin-bottom: 10px;
+    font-size: 17px;
+    line-height: 1.3;
+    letter-spacing: -.015em;
+    font-weight: 600;
+    color: var(--text);
+  }
+  p { margin-top: 12px; color: var(--text-2); }
+  p.lead { margin-top: 20px; color: var(--text); }
+  ul { margin: 12px 0 0 0; padding: 0; list-style: none; }
+  li {
+    position: relative;
+    padding-left: 18px;
+    margin-top: 8px;
+    color: var(--text-2);
+  }
+  li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: .72em;
+    width: 5px;
+    height: 1px;
+    background: var(--muted);
+  }
+  strong { color: var(--text); font-weight: 600; }
+  a { color: var(--accent); }
+  .foot {
+    margin-top: 52px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  [hidden] { display: none; }
+
+  @media (max-width: 420px) {
+    body { padding: 22px 18px 72px; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="top">
+    <a class="brand" href="./">
+      <!-- The mark: a closed nought for the whole of the list, and a one
+           creased twice into the three levels a goal unfolds through. The same
+           paths web/js/ui/dom.js draws, at the same stroke weight. -->
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M2.8 5V8.1"></path>
+        <path d="M2.8 10.5V13.5"></path>
+        <path d="M2.8 15.9V19"></path>
+        <path d="M14.2 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14"></path>
+      </svg>
+      tenfold
+    </a>
+    <nav class="langs" id="langs" aria-label="Language">
+      <button type="button" data-lang="de" aria-pressed="false">DE</button>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="es" aria-pressed="false">ES</button>
+    </nav>
+  </header>
+
+  <main>
+
+  <!-- ============================== ENGLISH ============================== -->
+  <article id="doc-en" lang="en" data-title="tenfold privacy policy">
+    <h1>Privacy policy</h1>
+    <p class="stamp">tenfold. Last updated 13 August 2026.</p>
+
+    <h2>Who runs this</h2>
+    <p>FRESHLAB IBERIA SL, Alcal&aacute; de Henares, Spain. Questions about this page, about the app, or about anything you want done with your data: <a href="mailto:info@freshlab.es">info@freshlab.es</a>.</p>
+
+    <h2>The short version</h2>
+    <p>Your list is encrypted on your device with keys only you hold. Whoever runs the server cannot read it, and that is not a promise about good behaviour: there is no key on the server, no cipher and no code path that could decrypt anything. What leaves the device is an unreadable block.</p>
+    <p>There is no account. No name, no email address, no password reaches the server, so there is nothing there to link a list to a person. Everything below is the honest remainder: what is left over when the content itself is out of reach.</p>
+
+    <h2>What the server stores when you turn sync on</h2>
+    <p>Synchronisation is off until you switch it on. With it on, one mailbox exists for your vault, and it holds four things:</p>
+    <ul>
+      <li>the encrypted block, plus the last ten versions of it as a rescue net</li>
+      <li>a version number, counted up on every write</li>
+      <li>the hash of a write token, so that only a device able to open the vault can overwrite it</li>
+      <li>the sync id, which is the address of the mailbox. It is generated on your device and derived from no secret of yours</li>
+    </ul>
+    <p>From these the server can derive nothing about the content: not a goal, not a note, not a name, not a date, not how many goals the list holds, and not who you are. It cannot merge two versions either, because merging would mean decrypting. Your device does that and sends the result back.</p>
+    <p><strong>Deletion.</strong> Delete the vault everywhere, in the app settings, removes the server copy first and only then this device. The request has to carry the write token, which is derived from the key: nobody can delete a mailbox they cannot open, including whoever runs the machine. What goes is everything filed under that id, the version history and the reminder subscriptions with it. Nothing is kept afterwards, not even a marker that the id ever existed.</p>
+
+    <h2>What the server sees anyway</h2>
+    <p>Metadata is the part encryption does not cover, so it is named here rather than left out:</p>
+    <ul>
+      <li>that a mailbox exists, when it was last written, and how often it changes</li>
+      <li>the approximate size of the encrypted block</li>
+      <li>IP addresses of requests while they are in flight. They are processed to keep abuse limits working and are never written to disk. Legal basis: legitimate interest in keeping the service available, Art. 6(1)(f) GDPR</li>
+      <li>access log lines, which carry at most the first six characters of a sync id. Never a token, never a body</li>
+    </ul>
+    <p><strong>Visitor counters, only if the operator of this deployment switched them on.</strong> They are off unless a key is configured, and then the page that shows them does not exist either. Switched on, the server keeps per calendar day, in UTC: how many times the app page was loaded, a count of distinct visitors, the hosts of external referrers, the country as the network reports it, one bit for mobile against desktop, and a separate count of bots. The visitor number is a count of hashes of a daily random salt and the IP address; the salt lives in memory only and is gone the next day, and only the number reaches the disk. No IP address, no user agent, no cookie, no session, no identifier and nothing that could link two days of the same person is ever stored. Requests to the app's own interfaces are not counted at all.</p>
+
+    <h2>The daily reminder</h2>
+    <p>Optional, off by default, and content free. The signal the server sends is empty: no text, no title, no date, no count. The sentence you see comes out of the app's own catalogue on your device.</p>
+    <p>To deliver it, your browser issues an endpoint address at its own push service, run by Apple, Google or Mozilla depending on the browser. The server keeps that address and one hour of the day, and nothing else. The push service sees that a message went to your device, when and how large it was; there is no content for it to see. The encryption keys your browser offers with the subscription are deliberately dropped, because an empty message needs none. In the iOS app the reminder is scheduled on the device itself and no push service is involved at all.</p>
+
+    <h2>Model assistance, off by default</h2>
+    <p>With it off, not a single control for it exists in the app: absent, not hidden. There are two ways to switch it on, and both are your choice, which is also the legal basis for them, Art. 6(1)(a) GDPR.</p>
+    <ul>
+      <li><strong>Local:</strong> a model running on your own machine or in your own network. Whoever runs that machine sees what you send while it thinks, and that is you</li>
+      <li><strong>Cloud:</strong> a provider you pick, reached with your own key. What you send is processed by that provider, under their terms and their privacy policy, and it leaves the reach of this app the moment it arrives there</li>
+    </ul>
+    <p>In both modes only the goal being worked on travels: its chain upwards, its immediate neighbours and the context cards linked to it. Never the whole list. A branch you marked to keep away from the model never appears in a request, and cards you marked sensitive stay on the device unless you release them for one single call.</p>
+    <p>The relay in front of the model exists because a browser cannot reach most providers directly. It is a pipe: what passes through it is not stored, not logged, not counted and not kept past the request.</p>
+
+    <h2>Text shared in from another app</h2>
+    <p>When you share a note into tenfold, it waits in plain text until your next unlock. The part of the app that catches a share holds no key and cannot be given one, so it cannot seal what it receives. At the next unlock the text either goes into the encrypted vault or is dropped, and the place it waited in is emptied either way. That window is short, and it is written down here rather than hidden.</p>
+
+    <h2>The tip jar</h2>
+    <p>tenfold has nothing to sell. One quiet screen offers PayPal and two crypto addresses. PayPal is a page outside this app, and opening it is a normal link. The two addresses are fixed text on the screen: nothing is loaded, nothing is counted, and the app never learns whether anybody paid.</p>
+    <p>There are no cookies anywhere in this app, no analytics script, no tracking pixel, no advertising identifier and no third party asset of any kind. Your browser's local storage holds three values about how the screen should look, and, if you enabled unlocking by face or fingerprint, one device local pointer that is not secret and unlocks nothing on its own.</p>
+
+    <h2>Taking your data with you, and destroying it</h2>
+    <ul>
+      <li><strong>Export,</strong> at any time: encrypted as a .tenfold file, or deliberately readable as Markdown</li>
+      <li><strong>Wipe this device,</strong> from the lock screen. Local only</li>
+      <li><strong>Delete everywhere,</strong> in the settings: the server copy first, then this device, the keys and the biometric enrolment</li>
+    </ul>
+    <p>Because there is no account, the usual data requests have very little to act on: tenfold holds no personal data about you on the server beyond what is described above. Access and portability are buttons in the app, and they answer faster than a person could. If you want a person, or want to complain, write to <a href="mailto:info@freshlab.es">info@freshlab.es</a>. In Spain the supervisory authority is the Agencia Espa&ntilde;ola de Protecci&oacute;n de Datos.</p>
+
+    <h2>The iOS app</h2>
+    <p>Same app, same rules: the same encryption, the same server, the same list of what is stored. The iOS app may offer optional purchases, which are processed by Apple and, where one is used, by a payment processor acting on our behalf. We never learn anything about your list from a purchase, and the app never learns anything about your payment.</p>
+
+    <h2>Changes to this page</h2>
+    <p>This page describes what the software actually does, so it changes when the software does, in the same release. The date at the top says when that last happened.</p>
+
+    <p class="foot">FRESHLAB IBERIA SL, Alcal&aacute; de Henares, Spain. <a href="mailto:info@freshlab.es">info@freshlab.es</a></p>
+  </article>
+
+  <!-- ============================== DEUTSCH ============================== -->
+  <article id="doc-de" lang="de" data-title="tenfold Datenschutzerkl&auml;rung" hidden>
+    <h1>Datenschutz</h1>
+    <p class="stamp">tenfold. Stand 13. August 2026.</p>
+
+    <h2>Wer das betreibt</h2>
+    <p>FRESHLAB IBERIA SL, Alcal&aacute; de Henares, Spanien. Fragen zu dieser Seite, zur App oder zu allem, was mit deinen Daten geschehen soll: <a href="mailto:info@freshlab.es">info@freshlab.es</a>.</p>
+
+    <h2>Die kurze Fassung</h2>
+    <p>Deine Liste wird auf deinem Ger&auml;t verschl&uuml;sselt, mit Schl&uuml;sseln, die nur du hast. Wer den Server betreibt, kann sie nicht lesen, und das ist kein Versprechen &uuml;ber gutes Benehmen: auf dem Server liegt kein Schl&uuml;ssel, es gibt keine Chiffre und keinen Codepfad, der irgendetwas entschl&uuml;sseln k&ouml;nnte. Was das Ger&auml;t verl&auml;sst, ist ein unlesbarer Block.</p>
+    <p>Es gibt kein Konto. Kein Name, keine E-Mail-Adresse, kein Passwort erreicht den Server, also liegt dort auch nichts, was eine Liste mit einer Person verbinden k&ouml;nnte. Alles Weitere unten ist der ehrliche Rest: was &uuml;brig bleibt, wenn der Inhalt selbst unerreichbar ist.</p>
+
+    <h2>Was der Server speichert, wenn du die Synchronisation einschaltest</h2>
+    <p>Die Synchronisation ist aus, bis du sie einschaltest. Danach existiert ein Postfach f&uuml;r deinen Tresor, und darin liegen vier Dinge:</p>
+    <ul>
+      <li>der verschl&uuml;sselte Block, dazu die letzten zehn Fassungen davon als Rettungsnetz</li>
+      <li>eine Versionsnummer, die bei jedem Schreiben hochz&auml;hlt</li>
+      <li>der Hash eines Schreibtokens, damit nur ein Ger&auml;t &uuml;berschreiben kann, das den Tresor auch &ouml;ffnen kann</li>
+      <li>die Sync-ID, also die Adresse des Postfachs. Sie entsteht auf deinem Ger&auml;t und ist aus keinem deiner Geheimnisse abgeleitet</li>
+    </ul>
+    <p>Daraus l&auml;sst sich nichts &uuml;ber den Inhalt ableiten: kein Ziel, keine Notiz, kein Name, kein Datum, nicht wie viele Ziele die Liste tr&auml;gt, und nicht wer du bist. Der Server kann auch zwei Fassungen nicht zusammenf&uuml;hren, denn Zusammenf&uuml;hren hiesse Entschl&uuml;sseln. Das macht dein Ger&auml;t und schickt das Ergebnis zur&uuml;ck.</p>
+    <p><strong>L&ouml;schen.</strong> Tresor &uuml;berall l&ouml;schen, in den Einstellungen, entfernt zuerst die Serverkopie und erst danach dieses Ger&auml;t. Die Anfrage muss das Schreibtoken tragen, das aus dem Schl&uuml;ssel abgeleitet ist: niemand kann ein Postfach l&ouml;schen, das er nicht &ouml;ffnen kann, auch nicht, wer die Maschine betreibt. Weg ist alles, was unter dieser ID liegt, samt Versionsverlauf und Erinnerungs-Abonnements. Danach bleibt nichts zur&uuml;ck, nicht einmal ein Vermerk, dass es die ID gab.</p>
+
+    <h2>Was der Server trotzdem sieht</h2>
+    <p>Metadaten sind der Teil, den Verschl&uuml;sselung nicht abdeckt, deshalb stehen sie hier und nicht im Kleingedruckten:</p>
+    <ul>
+      <li>dass ein Postfach existiert, wann es zuletzt beschrieben wurde und wie oft es sich &auml;ndert</li>
+      <li>die ungef&auml;hre Gr&ouml;sse des verschl&uuml;sselten Blocks</li>
+      <li>IP-Adressen von Anfragen, w&auml;hrend sie unterwegs sind. Sie werden verarbeitet, damit die Missbrauchsgrenzen funktionieren, und nie auf die Platte geschrieben. Rechtsgrundlage: berechtigtes Interesse am Betrieb des Dienstes, Art. 6 Abs. 1 lit. f DSGVO</li>
+      <li>Zeilen im Zugriffsprotokoll, die h&ouml;chstens die ersten sechs Zeichen einer Sync-ID tragen. Nie ein Token, nie einen Inhalt</li>
+    </ul>
+    <p><strong>Besucherz&auml;hler, nur wenn der Betreiber dieser Installation sie eingeschaltet hat.</strong> Ohne konfigurierten Schl&uuml;ssel sind sie aus, und dann existiert auch die Seite nicht, die sie zeigt. Eingeschaltet h&auml;lt der Server pro Kalendertag in UTC fest: wie oft die App-Seite geladen wurde, eine Anzahl unterschiedlicher Besucher, die Hosts externer Verweise, das Land, wie das Netz es meldet, ein Bit f&uuml;r mobil gegen Desktop und eine getrennte Zahl f&uuml;r Bots. Die Besucherzahl ist eine Anzahl von Hashes aus einem t&auml;glich neuen Zufallswert und der IP-Adresse; dieser Zufallswert liegt nur im Speicher und ist am n&auml;chsten Tag fort, und nur die Zahl erreicht die Platte. Keine IP-Adresse, kein User-Agent, kein Cookie, keine Sitzung, keine Kennung und nichts, was zwei Tage derselben Person verbinden k&ouml;nnte, wird jemals gespeichert. Anfragen an die Schnittstellen der App werden gar nicht gez&auml;hlt.</p>
+
+    <h2>Die t&auml;gliche Erinnerung</h2>
+    <p>Optional, standardm&auml;ssig aus und inhaltsfrei. Das Signal, das der Server schickt, ist leer: kein Text, kein Titel, kein Datum, keine Zahl. Der Satz, den du siehst, kommt aus dem Katalog der App auf deinem Ger&auml;t.</p>
+    <p>Damit er ankommt, stellt dein Browser eine Endpunkt-Adresse bei seinem eigenen Push-Dienst aus, betrieben von Apple, Google oder Mozilla, je nach Browser. Der Server beh&auml;lt diese Adresse und eine Stunde des Tages, sonst nichts. Der Push-Dienst sieht, dass eine Nachricht an dein Ger&auml;t ging, wann und wie gross sie war; einen Inhalt gibt es f&uuml;r ihn nicht zu sehen. Die Verschl&uuml;sselungsschl&uuml;ssel, die dein Browser dem Abonnement mitgibt, werden bewusst verworfen, denn eine leere Nachricht braucht keine. In der iOS-App wird die Erinnerung auf dem Ger&auml;t selbst geplant, ganz ohne Push-Dienst.</p>
+
+    <h2>Modellunterst&uuml;tzung, standardm&auml;ssig aus</h2>
+    <p>Ausgeschaltet existiert daf&uuml;r kein einziges Bedienelement in der App: nicht versteckt, sondern nicht vorhanden. Es gibt zwei Wege, sie einzuschalten, und beide sind deine Entscheidung, was zugleich die Rechtsgrundlage ist, Art. 6 Abs. 1 lit. a DSGVO.</p>
+    <ul>
+      <li><strong>Lokal:</strong> ein Modell auf deiner eigenen Maschine oder in deinem eigenen Netz. Wer diese Maschine betreibt, sieht w&auml;hrend des Denkens den Klartext, und das bist du</li>
+      <li><strong>Cloud:</strong> ein Anbieter deiner Wahl, erreicht mit deinem eigenen Schl&uuml;ssel. Was du sendest, verarbeitet dieser Anbieter nach seinen Bedingungen und seiner Datenschutzerkl&auml;rung, und es verl&auml;sst den Einflussbereich dieser App in dem Moment, in dem es dort ankommt</li>
+    </ul>
+    <p>In beiden Modi reist nur das Ziel, an dem du gerade arbeitest: seine Kette nach oben, die direkten Nachbarn und die damit verkn&uuml;pften Kontextkarten. Nie die ganze Liste. Ein Zweig, den du vom Modell ferngehalten hast, taucht in keiner Anfrage auf, und als sensibel markierte Karten bleiben auf dem Ger&auml;t, solange du sie nicht f&uuml;r genau einen Aufruf freigibst.</p>
+    <p>Die Weiterleitung vor dem Modell gibt es, weil ein Browser die meisten Anbieter nicht direkt erreichen kann. Sie ist ein Rohr: was hindurchgeht, wird nicht gespeichert, nicht protokolliert, nicht gez&auml;hlt und nicht &uuml;ber die Anfrage hinaus behalten.</p>
+
+    <h2>Text, den eine andere App hereinreicht</h2>
+    <p>Wenn du eine Notiz nach tenfold teilst, wartet sie im Klartext bis zum n&auml;chsten Entsperren. Der Teil der App, der eine geteilte Notiz auff&auml;ngt, hat keinen Schl&uuml;ssel und kann keinen bekommen, also kann er nicht versiegeln, was er entgegennimmt. Beim n&auml;chsten Entsperren wandert der Text entweder in den verschl&uuml;sselten Tresor oder er wird verworfen, und der Wartebereich wird in beiden F&auml;llen geleert. Dieses Fenster ist kurz, und es steht hier, statt verschwiegen zu werden.</p>
+
+    <h2>Das Trinkgeld</h2>
+    <p>tenfold hat nichts zu verkaufen. Ein stiller Bildschirm bietet PayPal und zwei Krypto-Adressen an. PayPal ist eine Seite ausserhalb dieser App, und sie zu &ouml;ffnen ist ein gew&ouml;hnlicher Link. Die beiden Adressen sind fester Text auf dem Bildschirm: nichts wird geladen, nichts gez&auml;hlt, und die App erf&auml;hrt nie, ob jemand gezahlt hat.</p>
+    <p>Es gibt in dieser App keine Cookies, kein Analyseskript, kein Z&auml;hlpixel, keine Werbekennung und keine Fremdinhalte irgendeiner Art. Im lokalen Speicher deines Browsers liegen drei Werte dar&uuml;ber, wie der Bildschirm aussehen soll, und, falls du das Entsperren per Gesicht oder Fingerabdruck eingeschaltet hast, ein ger&auml;telokaler Verweis, der nicht geheim ist und f&uuml;r sich genommen nichts &ouml;ffnet.</p>
+
+    <h2>Daten mitnehmen und vernichten</h2>
+    <ul>
+      <li><strong>Export,</strong> jederzeit: verschl&uuml;sselt als .tenfold-Datei oder bewusst lesbar als Markdown</li>
+      <li><strong>Dieses Ger&auml;t l&ouml;schen,</strong> vom Sperrbildschirm aus. Nur lokal</li>
+      <li><strong>&Uuml;berall l&ouml;schen,</strong> in den Einstellungen: zuerst die Serverkopie, dann dieses Ger&auml;t, die Schl&uuml;ssel und die biometrische Freischaltung</li>
+    </ul>
+    <p>Weil es kein Konto gibt, haben die &uuml;blichen Betroffenenanfragen wenig Angriffsfl&auml;che: tenfold h&auml;lt auf dem Server keine personenbezogenen Daten &uuml;ber dich, die &uuml;ber das oben Beschriebene hinausgehen. Auskunft und Daten&uuml;bertragbarkeit sind Kn&ouml;pfe in der App und antworten schneller, als ein Mensch es k&ouml;nnte. Wenn du einen Menschen willst oder dich beschweren m&ouml;chtest, schreib an <a href="mailto:info@freshlab.es">info@freshlab.es</a>. Zust&auml;ndige Aufsichtsbeh&ouml;rde in Spanien ist die Agencia Espa&ntilde;ola de Protecci&oacute;n de Datos.</p>
+
+    <h2>Die iOS-App</h2>
+    <p>Dieselbe App, dieselben Regeln: dieselbe Verschl&uuml;sselung, derselbe Server, dieselbe Liste dessen, was gespeichert wird. Die iOS-App kann optionale K&auml;ufe anbieten, die &uuml;ber Apple und, wo einer eingesetzt wird, &uuml;ber einen f&uuml;r uns t&auml;tigen Zahlungsdienstleister abgewickelt werden. Wir erfahren aus einem Kauf nichts &uuml;ber deine Liste, und die App erf&auml;hrt nichts &uuml;ber deine Zahlung.</p>
+
+    <h2>&Auml;nderungen an dieser Seite</h2>
+    <p>Diese Seite beschreibt, was die Software tats&auml;chlich tut, also &auml;ndert sie sich, wenn die Software sich &auml;ndert, in derselben Ver&ouml;ffentlichung. Das Datum oben sagt, wann das zuletzt geschehen ist.</p>
+
+    <p class="foot">FRESHLAB IBERIA SL, Alcal&aacute; de Henares, Spanien. <a href="mailto:info@freshlab.es">info@freshlab.es</a></p>
+  </article>
+
+  <!-- ============================== ESPA&Ntilde;OL ============================= -->
+  <article id="doc-es" lang="es" data-title="tenfold pol&iacute;tica de privacidad" hidden>
+    <h1>Privacidad</h1>
+    <p class="stamp">tenfold. Actualizado el 13 de agosto de 2026.</p>
+
+    <h2>Qui&eacute;n lo gestiona</h2>
+    <p>FRESHLAB IBERIA SL, Alcal&aacute; de Henares, Espa&ntilde;a. Preguntas sobre esta p&aacute;gina, sobre la aplicaci&oacute;n o sobre lo que quieras que se haga con tus datos: <a href="mailto:info@freshlab.es">info@freshlab.es</a>.</p>
+
+    <h2>La versi&oacute;n corta</h2>
+    <p>Tu lista se cifra en tu dispositivo con claves que solo tienes t&uacute;. Quien gestiona el servidor no puede leerla, y eso no es una promesa de buena conducta: en el servidor no hay ninguna clave, ning&uacute;n algoritmo de cifrado y ninguna ruta de c&oacute;digo capaz de descifrar nada. Lo que sale del dispositivo es un bloque ilegible.</p>
+    <p>No hay cuenta. Ning&uacute;n nombre, ninguna direcci&oacute;n de correo y ninguna contrase&ntilde;a llegan al servidor, as&iacute; que all&iacute; tampoco hay nada que una una lista con una persona. Todo lo que sigue es el resto honesto: lo que queda cuando el contenido en s&iacute; est&aacute; fuera de alcance.</p>
+
+    <h2>Qu&eacute; guarda el servidor si activas la sincronizaci&oacute;n</h2>
+    <p>La sincronizaci&oacute;n est&aacute; apagada hasta que t&uacute; la enciendes. Con ella encendida existe un buz&oacute;n para tu caja fuerte, y contiene cuatro cosas:</p>
+    <ul>
+      <li>el bloque cifrado, junto a sus diez &uacute;ltimas versiones como red de rescate</li>
+      <li>un n&uacute;mero de versi&oacute;n, que sube en cada escritura</li>
+      <li>el hash de un testigo de escritura, para que solo pueda sobrescribir un dispositivo capaz de abrir la caja</li>
+      <li>el identificador de sincronizaci&oacute;n, que es la direcci&oacute;n del buz&oacute;n. Se genera en tu dispositivo y no deriva de ning&uacute;n secreto tuyo</li>
+    </ul>
+    <p>De todo eso no se deduce nada del contenido: ni una meta, ni una nota, ni un nombre, ni una fecha, ni cu&aacute;ntas metas tiene la lista, ni qui&eacute;n eres. El servidor tampoco puede fusionar dos versiones, porque fusionar significar&iacute;a descifrar. Eso lo hace tu dispositivo y devuelve el resultado.</p>
+    <p><strong>Borrado.</strong> Borrar la caja en todas partes, en los ajustes, elimina primero la copia del servidor y solo despu&eacute;s este dispositivo. La petici&oacute;n debe llevar el testigo de escritura, derivado de la clave: nadie puede borrar un buz&oacute;n que no puede abrir, tampoco quien administra la m&aacute;quina. Se va todo lo archivado bajo ese identificador, con su historial de versiones y las suscripciones al recordatorio. Despu&eacute;s no queda nada, ni siquiera una marca de que ese identificador existi&oacute;.</p>
+
+    <h2>Qu&eacute; ve el servidor de todos modos</h2>
+    <p>Los metadatos son la parte que el cifrado no cubre, y por eso est&aacute;n aqu&iacute; y no en la letra peque&ntilde;a:</p>
+    <ul>
+      <li>que existe un buz&oacute;n, cu&aacute;ndo se escribi&oacute; por &uacute;ltima vez y con qu&eacute; frecuencia cambia</li>
+      <li>el tama&ntilde;o aproximado del bloque cifrado</li>
+      <li>las direcciones IP de las peticiones mientras est&aacute;n en tr&aacute;nsito. Se procesan para que funcionen los l&iacute;mites contra el abuso y no se escriben nunca en disco. Base jur&iacute;dica: inter&eacute;s leg&iacute;timo en mantener el servicio disponible, art. 6.1.f del RGPD</li>
+      <li>las l&iacute;neas del registro de acceso, que llevan como mucho los seis primeros caracteres de un identificador de sincronizaci&oacute;n. Nunca un testigo, nunca un contenido</li>
+    </ul>
+    <p><strong>Contadores de visitas, solo si quien gestiona esta instalaci&oacute;n los ha encendido.</strong> Sin una clave configurada est&aacute;n apagados, y entonces tampoco existe la p&aacute;gina que los muestra. Encendidos, el servidor anota por d&iacute;a natural en UTC: cu&aacute;ntas veces se carg&oacute; la p&aacute;gina de la aplicaci&oacute;n, un recuento de visitantes distintos, los servidores de procedencia externos, el pa&iacute;s tal como lo informa la red, un bit para m&oacute;vil frente a escritorio y una cuenta aparte de bots. La cifra de visitantes es un recuento de hashes de un valor aleatorio diario y la direcci&oacute;n IP; ese valor vive solo en memoria y al d&iacute;a siguiente ya no est&aacute;, y al disco llega &uacute;nicamente el n&uacute;mero. Nunca se almacenan direcciones IP, agentes de usuario, cookies, sesiones, identificadores ni nada que pueda unir dos d&iacute;as de la misma persona. Las peticiones a las interfaces de la aplicaci&oacute;n no se cuentan en absoluto.</p>
+
+    <h2>El recordatorio diario</h2>
+    <p>Opcional, apagado por defecto y sin contenido. La se&ntilde;al que env&iacute;a el servidor est&aacute; vac&iacute;a: sin texto, sin t&iacute;tulo, sin fecha, sin cifras. La frase que ves sale del cat&aacute;logo de la propia aplicaci&oacute;n en tu dispositivo.</p>
+    <p>Para que llegue, tu navegador emite una direcci&oacute;n de destino en su propio servicio de notificaciones, operado por Apple, Google o Mozilla seg&uacute;n el navegador. El servidor guarda esa direcci&oacute;n y una hora del d&iacute;a, nada m&aacute;s. El servicio de notificaciones ve que un mensaje fue a tu dispositivo, cu&aacute;ndo y de qu&eacute; tama&ntilde;o; contenido no hay ninguno que pueda ver. Las claves de cifrado que tu navegador ofrece con la suscripci&oacute;n se descartan a prop&oacute;sito, porque un mensaje vac&iacute;o no las necesita. En la aplicaci&oacute;n de iOS el recordatorio se programa en el propio dispositivo, sin servicio de notificaciones alguno.</p>
+
+    <h2>Asistencia de modelos, apagada por defecto</h2>
+    <p>Apagada, no existe ni un solo control para ella en la aplicaci&oacute;n: no oculto, sino ausente. Hay dos formas de encenderla, y ambas son decisi&oacute;n tuya, que es adem&aacute;s la base jur&iacute;dica, art. 6.1.a del RGPD.</p>
+    <ul>
+      <li><strong>Local:</strong> un modelo que corre en tu propia m&aacute;quina o en tu propia red. Quien gestiona esa m&aacute;quina ve el texto en claro mientras piensa, y ese eres t&uacute;</li>
+      <li><strong>Nube:</strong> un proveedor que eliges t&uacute;, alcanzado con tu propia clave. Lo que env&iacute;as lo procesa ese proveedor bajo sus condiciones y su pol&iacute;tica de privacidad, y sale del alcance de esta aplicaci&oacute;n en cuanto llega all&iacute;</li>
+    </ul>
+    <p>En ambos modos solo viaja la meta en la que est&aacute;s trabajando: su cadena hacia arriba, sus vecinas inmediatas y las fichas de contexto enlazadas con ella. Nunca la lista entera. Una rama que hayas marcado para mantener lejos del modelo no aparece en ninguna petici&oacute;n, y las fichas marcadas como sensibles se quedan en el dispositivo salvo que las liberes para una &uacute;nica llamada.</p>
+    <p>El reenv&iacute;o que hay delante del modelo existe porque un navegador no puede llegar directamente a la mayor&iacute;a de proveedores. Es una tuber&iacute;a: lo que pasa por ella no se guarda, no se registra, no se cuenta y no se conserva m&aacute;s all&aacute; de la petici&oacute;n.</p>
+
+    <h2>Texto que comparte otra aplicaci&oacute;n</h2>
+    <p>Cuando compartes una nota hacia tenfold, espera en texto claro hasta tu pr&oacute;ximo desbloqueo. La parte de la aplicaci&oacute;n que recoge lo compartido no tiene clave y no puede tenerla, as&iacute; que no puede sellar lo que recibe. En el pr&oacute;ximo desbloqueo el texto entra en la caja cifrada o se descarta, y el lugar donde esperaba se vac&iacute;a en ambos casos. Esa ventana es corta, y aparece aqu&iacute; en lugar de callarse.</p>
+
+    <h2>La propina</h2>
+    <p>tenfold no tiene nada que vender. Una pantalla discreta ofrece PayPal y dos direcciones de criptomonedas. PayPal es una p&aacute;gina fuera de esta aplicaci&oacute;n, y abrirla es un enlace corriente. Las dos direcciones son texto fijo en la pantalla: no se carga nada, no se cuenta nada, y la aplicaci&oacute;n nunca sabe si alguien ha pagado.</p>
+    <p>En esta aplicaci&oacute;n no hay cookies, ni scripts de anal&iacute;tica, ni p&iacute;xeles de seguimiento, ni identificadores publicitarios, ni recursos de terceros de ning&uacute;n tipo. En el almacenamiento local de tu navegador hay tres valores sobre el aspecto de la pantalla y, si activaste el desbloqueo por rostro o huella, un puntero local del dispositivo que no es secreto y que por s&iacute; solo no abre nada.</p>
+
+    <h2>Llevarte tus datos y destruirlos</h2>
+    <ul>
+      <li><strong>Exportar,</strong> cuando quieras: cifrado como archivo .tenfold o deliberadamente legible como Markdown</li>
+      <li><strong>Borrar este dispositivo,</strong> desde la pantalla de bloqueo. Solo local</li>
+      <li><strong>Borrar en todas partes,</strong> en los ajustes: primero la copia del servidor, luego este dispositivo, las claves y el registro biom&eacute;trico</li>
+    </ul>
+    <p>Como no hay cuenta, las solicitudes habituales tienen poco sobre lo que actuar: tenfold no guarda en el servidor datos personales sobre ti m&aacute;s all&aacute; de lo descrito arriba. El acceso y la portabilidad son botones dentro de la aplicaci&oacute;n y responden m&aacute;s r&aacute;pido de lo que podr&iacute;a hacerlo una persona. Si prefieres una persona, o quieres reclamar, escribe a <a href="mailto:info@freshlab.es">info@freshlab.es</a>. La autoridad de control en Espa&ntilde;a es la Agencia Espa&ntilde;ola de Protecci&oacute;n de Datos.</p>
+
+    <h2>La aplicaci&oacute;n de iOS</h2>
+    <p>La misma aplicaci&oacute;n y las mismas reglas: el mismo cifrado, el mismo servidor, la misma lista de lo que se guarda. La aplicaci&oacute;n de iOS puede ofrecer compras opcionales, tramitadas por Apple y, donde se use uno, por un proveedor de pagos que act&uacute;a por cuenta nuestra. De una compra no aprendemos nada sobre tu lista, y la aplicaci&oacute;n no aprende nada sobre tu pago.</p>
+
+    <h2>Cambios en esta p&aacute;gina</h2>
+    <p>Esta p&aacute;gina describe lo que el software hace de verdad, as&iacute; que cambia cuando cambia el software, en la misma publicaci&oacute;n. La fecha de arriba dice cu&aacute;ndo ocurri&oacute; por &uacute;ltima vez.</p>
+
+    <p class="foot">FRESHLAB IBERIA SL, Alcal&aacute; de Henares, Espa&ntilde;a. <a href="mailto:info@freshlab.es">info@freshlab.es</a></p>
+  </article>
+
+  </main>
+</div>
+
+<script>
+  // The whole of the behaviour on this page: show one of the three documents.
+  // No dependency, no request, no storage - a reload starts from the browser's
+  // own language again, which is the only preference this page needs to know.
+  (function () {
+    var LANGS = ["en", "de", "es"];
+    var buttons = document.querySelectorAll("#langs button");
+
+    function show(code) {
+      if (LANGS.indexOf(code) < 0) code = "en";
+      for (var i = 0; i < LANGS.length; i++) {
+        var article = document.getElementById("doc-" + LANGS[i]);
+        article.hidden = LANGS[i] !== code;
+      }
+      for (var j = 0; j < buttons.length; j++) {
+        buttons[j].setAttribute("aria-pressed", String(buttons[j].dataset.lang === code));
+      }
+      document.documentElement.lang = code;
+      var title = document.getElementById("doc-" + code).dataset.title;
+      if (title) document.title = title;
+      if (window.history && history.replaceState) {
+        history.replaceState(null, "", "?lang=" + code);
+      }
+    }
+
+    // An explicit choice in the address wins, so a link can point at one
+    // language; otherwise the browser's own, and English where that is
+    // something else entirely.
+    var asked = (location.search.match(/[?&]lang=([a-z]{2})/i) || [])[1];
+    var wanted = (asked || navigator.language || "en").slice(0, 2).toLowerCase();
+    show(LANGS.indexOf(wanted) < 0 ? "en" : wanted);
+
+    for (var k = 0; k < buttons.length; k++) {
+      buttons[k].addEventListener("click", function (event) {
+        show(event.currentTarget.dataset.lang);
+        window.scrollTo(0, 0);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

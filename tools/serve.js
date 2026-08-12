@@ -338,6 +338,30 @@ const SECURITY_HEADERS = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
 
+/**
+ * The public documents under web/ that are not the app, and carry their own
+ * CSP because of it. There is exactly one: the privacy policy.
+ *
+ * The strict header above forbids an inline <style> and an inline <script>,
+ * which is right for the app - an injected script there would hold the
+ * plaintext and the key at once. privacy.html is a static file with no user
+ * content, no fetch, no storage and nothing to inject into; it is
+ * self-contained on purpose, because a policy that pulls in a stylesheet is a
+ * policy that can render naked. So its own two inline blocks are allowed and
+ * EVERYTHING else is refused: default-src 'none' means it cannot load a font,
+ * an image, a frame or an origin even if a future edit tried to.
+ */
+const PUBLIC_DOCS = new Set(["/privacy.html"]);
+
+const PUBLIC_DOC_HEADERS = {
+  "Content-Security-Policy":
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; " +
+    "base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+};
+
 const API_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
@@ -2063,7 +2087,7 @@ const server = createServer(async (req, res) => {
   res.writeHead(200, {
     "Content-Type": TYPES[extname(rel)] || "application/octet-stream",
     "Cache-Control": "no-store",
-    ...(fromApp ? SECURITY_HEADERS : {}),
+    ...(fromApp ? (PUBLIC_DOCS.has(rel) ? PUBLIC_DOC_HEADERS : SECURITY_HEADERS) : {}),
   });
   res.end(body);
 });

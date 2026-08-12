@@ -567,6 +567,7 @@ export const en = {
 
   "about.close.p1": "None of this is new. And that is exactly the strength. tenfold does not invent a method; it keeps a proven one and takes over the logistics.",
   "about.claim.p1": "tenfold - get what you want.",
+  "about.policy": "Privacy policy",
 
   // ----------------------------------------------------------- the tip jar
   "support.row": "Buy me an espresso",

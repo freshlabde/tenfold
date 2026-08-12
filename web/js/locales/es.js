@@ -561,6 +561,7 @@ export const es = {
 
   "about.close.p1": "Nada de esto es nuevo. Y esa es justamente la fuerza. tenfold no inventa un método; conserva uno probado y se encarga de la logística.",
   "about.claim.p1": "tenfold - get what you want.",
+  "about.policy": "Privacidad",
 
   // ----------------------------------------------------------- the tip jar
   "support.row": "Invítame a un café",
