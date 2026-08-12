@@ -263,6 +263,44 @@ towards. Every list built from `nodeRow`/`nodeList` (the ten, a focus screen's p
 gets both swipes; the duel screen has gestures of its own and none of this. Under
 `prefers-reduced-motion` a commit lands without the spring and without the collapse.
 
+## Sheets, and the keyboard (`web/js/ui/sheet.js`)
+
+One sheet at a time, built in one place. Every modal surface in this app - the story guide,
+the editor, the pairing sheet, the copy loop, the entity sheet - goes through `openSheet`, so
+anything true of a sheet is written once and inherited rather than repeated per feature.
+
+**The keyboard is the sheet layer's problem, not the feature's.** Owner report: *"Click auf
+Tell the Story - Eingabefeld taucht hinter Keyboard auf. Ich muss rauf scrollen."* On iOS the
+software keyboard is drawn OVER the page instead of shrinking the layout viewport, so a sheet
+pinned to the bottom keeps sitting exactly where the keys now are. While a sheet is open,
+`sheet.js` listens on `visualViewport` `resize` and `scroll` and sets `--kb-lift` on the panel:
+
+```
+lift = clamp(window.innerHeight - visualViewport.height - visualViewport.offsetTop)
+```
+
+- **`offsetTop` counts.** iOS scrolls the visual viewport down over the layout one to "reveal"
+  a focused field; what is covered is then what is left below it, not the raw height difference.
+- **`KEYBOARD_MIN` (60px) is a floor.** A toolbar sliding away is not a keyboard, and without
+  the floor the sheet would twitch every time the address bar breathed.
+- **`MAX_LIFT_RATIO` (0.75) is a cap**, so a wrong number cannot fling the sheet off the screen.
+- The sheet's `max-height` shrinks by the same amount, so a lifted sheet keeps its own head
+  inside the frame and its body scrolls instead.
+- After a lift the focused control is scrolled into view with `block: "nearest"` **inside the
+  sheet body only**. The frame is `overflow: clip` on purpose: nothing may slide the whole app
+  to reveal a field.
+- **Released on close**, and by the keyboard's own disappearance - the hide fires a resize, the
+  lift computes to 0 and the sheet rides back down on the transition it already had.
+- **Guarded**: a browser without `visualViewport` gets no listener, no transform and no lift -
+  byte-identical behaviour to before. Under `prefers-reduced-motion` the sheet does not animate.
+- `web/index.html` carries `interactive-widget=resizes-content` in the viewport meta: where it
+  is understood (Chromium, Android) the layout viewport shrinks by itself and the lift computes
+  to 0. Safari ignores it, which is the case the lift exists for.
+
+`liftFor(layoutHeight, viewportHeight, offsetTop)` is exported and pure, and `tests/keyboard.spec.js`
+checks it directly plus the wiring against a mocked `visualViewport`. **A real iOS keyboard
+remains a device check** - no desktop browser raises one.
+
 ## The two outside surfaces: app badge and share target
 
 Everything else in this app only exists while it is open. These two are visible

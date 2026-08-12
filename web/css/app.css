@@ -1642,7 +1642,11 @@ a.btn { text-decoration: none; }
 
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0;
-  max-height: 88%;
+  /* Two ceilings, and the lower one wins. 88% is the shape rule: a sheet is a
+     sheet, not a screen. The second one only exists while a keyboard is up -
+     the sheet is about to be pushed up by --kb-lift, so it may not be taller
+     than what is left above the keys, or its own head would leave the frame. */
+  max-height: min(88%, calc(100% - var(--kb-lift, 0px) - 16px));
   display: flex; flex-direction: column;
   border-radius: var(--radius) var(--radius) 0 0;
   background: linear-gradient(180deg, var(--surface-2), var(--bg));
@@ -1651,7 +1655,16 @@ a.btn { text-decoration: none; }
   transform: translateY(100%);
   transition: transform var(--dur) var(--ease-out);
 }
-.sheet.is-open { transform: translateY(0); }
+/* Open is "bottom edge at the bottom edge" - unless something is covering the
+   bottom edge. --kb-lift is set by ui/sheet.js from the visual viewport and is
+   0px everywhere else, so this is the same rule it always was until an iOS
+   keyboard comes up under an open sheet. It rides the transform transition the
+   sheet already had, which is why the lift is a move rather than a jump. */
+.sheet.is-open { transform: translateY(calc(-1 * var(--kb-lift, 0px))); }
+/* Asked for less movement: the sheet arrives and lifts without a tween. The
+   duration token already collapses under the same query - this says it once
+   more at the element, so the lift cannot animate through some other duration. */
+.sheet.is-still { transition: none; }
 .sheet-grip { width: 40px; height: 4px; border-radius: 3px; background: var(--text-4); margin: 2px auto 6px; flex: none; opacity: .6; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: none; padding-bottom: 4px; }
 .sheet-title {

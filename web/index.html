@@ -14,7 +14,12 @@
 <html lang="en" data-skin="slate" data-theme="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <!-- interactive-widget=resizes-content: where it is understood (Chromium,
+       Android) the software keyboard SHRINKS the layout viewport, so a sheet
+       pinned to the bottom is already above the keys and ui/sheet.js has
+       nothing to lift. Safari ignores it and keeps overlaying the keyboard,
+       which is exactly the case the visual-viewport lift is written for. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content">
   <title>tenfold</title>
   <meta name="description" content="tenfold - get what you want.">
   <meta name="color-scheme" content="dark light">
