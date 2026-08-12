@@ -53,28 +53,39 @@ async function stubShell(page, opts = {}) {
     window.__shellMessages = messages;
     window.__shellState = { enabled: false, hour: 8, permission: config.permission };
 
+    // Built exactly the way ReminderStatus.payload() does in
+    // tenfold-ios/Sources/Bridge/Reminders.swift: the reply ECHOES the
+    // request's type, always carries `enabled` and `permission`, carries
+    // `hour` only when something is actually pending (a zero there would read
+    // as midnight), and carries `ok` only for an outcome.
+    function statusPayload(type, ok) {
+      const s = window.__shellState;
+      const reply = { type: type, enabled: s.enabled, permission: s.permission };
+      if (s.enabled) reply.hour = s.hour;
+      if (ok !== undefined) reply.ok = ok;
+      return reply;
+    }
+
     function answer(message) {
       const s = window.__shellState;
       if (message.type === "reminder.schedule") {
         // The real shell asks the operating system for authorization inside
         // this call. `refuse` is the person tapping "Don't Allow".
         if (config.refuse) s.permission = "denied";
-        if (s.permission === "denied") {
-          return { type: "reminder.scheduled", ok: false, permission: "denied", hour: s.hour };
-        }
+        if (s.permission === "denied") return statusPayload(message.type, false);
         s.permission = "granted";
         s.enabled = true;
         s.hour = message.hour;
-        return { type: "reminder.scheduled", ok: true, permission: "granted", hour: s.hour };
+        return statusPayload(message.type, true);
       }
       if (message.type === "reminder.cancel") {
         s.enabled = false;
-        return { type: "reminder.cancelled", ok: true };
+        return statusPayload(message.type, true);
       }
       if (message.type === "reminder.status") {
-        return { type: "reminder.status", enabled: s.enabled, hour: s.hour, permission: s.permission };
+        return statusPayload(message.type);
       }
-      return { ok: false };
+      return { type: message.type, ok: false };
     }
 
     let nextId = 1;
