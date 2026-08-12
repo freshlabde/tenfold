@@ -44,7 +44,14 @@ import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import * as webauthn from "./webauthn.js";
 import * as bio from "./bio.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
-import { transition, nameTransition, clearTransition, clearAllTransitionNames } from "./motion.js";
+import {
+  transition,
+  nameTransition,
+  clearTransition,
+  clearAllTransitionNames,
+  spring,
+  prefersReducedMotion,
+} from "./motion.js";
 import { el, clear, text, icon } from "./ui/dom.js";
 import * as setupScreen from "./ui/setup.js";
 import * as lockScreen from "./ui/lock.js";
@@ -241,10 +248,66 @@ async function lock(auto = false) {
 }
 
 // -------------------------------------------------------------------- toasts
+//
+// Three things the owner asked for after a delete: the pill must not stand on
+// the bottom action bar (it hid "Put in order" for the whole eight seconds the
+// undo was on offer), it must be smaller, and it must be possible to wipe away.
+//
+// The lift is MEASURED, not assumed: the bar's height depends on how many
+// buttons the screen puts in it and on the safe-area inset, and a screen
+// without a bar must keep the toast exactly where it always was. So the CSS
+// owns the resting place and this owns one variable on top of it.
+
+/** Air between the top of the toast pill and the top of the bar underneath. */
+const TOAST_BAR_GAP = 10;
+/** Nothing below this is a gesture - the same slop the duel and the rows use. */
+const TOAST_TAP_SLOP = 9;
+/** Past this the release means "away", the way SWIPE_COMMIT does on a row. */
+const TOAST_COMMIT = 56;
+/** ... and so does a throw, however short. px/s. */
+const TOAST_FLING = 520;
+
+/** Cancel of the spring currently moving the toast, if one is running. */
+let toastSpring = null;
+/** Where the finger (or the spring) currently holds the pill, in px. */
+let toastDx = 0;
+
+/**
+ * Raise the toast clear of the bottom action bar of the screen that is up.
+ * Sets --toast-lift; zero when this screen has no bar.
+ */
+function liftToastAboveBar() {
+  toastEl.style.setProperty("--toast-lift", "0px");
+  const bar = appEl.querySelector(".bar");
+  const frame = toastEl.parentElement;
+  if (!bar || !frame) return;
+  const barBox = bar.getBoundingClientRect();
+  if (!barBox.height) return;
+  // The toast's `bottom` is measured from the frame's bottom edge, so the
+  // distance we want is the one from that edge to the top of the bar.
+  const base = parseFloat(getComputedStyle(toastEl).bottom);
+  if (!Number.isFinite(base)) return;
+  const wanted = frame.getBoundingClientRect().bottom - barBox.top + TOAST_BAR_GAP;
+  const lift = Math.max(0, Math.round(wanted - base));
+  if (lift) toastEl.style.setProperty("--toast-lift", `${lift}px`);
+}
+
+function setToastX(v) {
+  toastDx = v;
+  toastEl.style.transform = v ? `translate3d(${v}px,0,0)` : "";
+}
+
+function stopToastSpring() {
+  if (toastSpring) toastSpring();
+  toastSpring = null;
+}
 
 function toast(message, actionLabel, action) {
   clearTimeout(toastTimer);
+  stopToastSpring();
   clear(toastEl);
+  toastEl.classList.remove("is-dragging");
+  setToastX(0);
   toastEl.appendChild(el("span", {}, [text(message)]));
   if (actionLabel && action) {
     toastEl.appendChild(
@@ -253,14 +316,171 @@ function toast(message, actionLabel, action) {
       ]),
     );
   }
+  liftToastAboveBar();
   toastEl.classList.add("is-open");
   toastTimer = setTimeout(hideToast, actionLabel ? 8000 : 2600);
 }
 
 function hideToast() {
   clearTimeout(toastTimer);
-  toastEl.classList.remove("is-open");
+  stopToastSpring();
+  toastEl.classList.remove("is-open", "is-dragging");
+  setToastX(0);
 }
+
+/**
+ * Put the toast away with no movement at all. Used at the end of a swipe -
+ * the pill is already off the edge, and letting the CSS transition run from
+ * there would drag it back across the screen on a diagonal - and as the whole
+ * of the gesture when the user asked for less movement.
+ */
+function dropToast() {
+  clearTimeout(toastTimer);
+  stopToastSpring();
+  const previous = toastEl.style.transition;
+  toastEl.style.transition = "none";
+  toastEl.classList.remove("is-open", "is-dragging");
+  setToastX(0);
+  void toastEl.offsetHeight; // commit the jump before the transition comes back
+  toastEl.style.transition = previous;
+}
+
+/** The quick way out sideways, after a committed swipe. */
+function flingToast(direction, velocity) {
+  clearTimeout(toastTimer);
+  if (prefersReducedMotion()) {
+    dropToast();
+    return;
+  }
+  const width = toastEl.getBoundingClientRect().width || 240;
+  toastEl.classList.add("is-dragging");
+  toastSpring = spring({
+    from: toastDx,
+    to: direction * (width + 40),
+    velocity: Math.abs(velocity) > 1 ? velocity : direction * 700,
+    stiffness: 300,
+    damping: 30,
+    onUpdate: setToastX,
+    onDone: () => {
+      toastSpring = null;
+      dropToast();
+    },
+  });
+}
+
+/**
+ * Swipe the toast away. Same vocabulary as a row: nothing happens inside the
+ * tap slop, past it the pill follows the finger one to one in either
+ * direction, and a release past the commit distance - or a throw - springs it
+ * out. Dismissing is NOT undo: it says nothing and decides nothing, it only
+ * clears the way to the bar underneath.
+ */
+function wireToastSwipe() {
+  let down = false;
+  let mode = "none"; // none | swipe | off
+  let startX = 0;
+  let startY = 0;
+  let lastX = 0;
+  let lastT = 0;
+  let velocity = 0;
+  let swiped = false;
+
+  toastEl.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    if (!toastEl.classList.contains("is-open")) return;
+    stopToastSpring();
+    down = true;
+    swiped = false;
+    mode = "none";
+    startX = ev.clientX;
+    startY = ev.clientY;
+    lastX = startX;
+    lastT = ev.timeStamp;
+    velocity = 0;
+  });
+
+  toastEl.addEventListener("pointermove", (ev) => {
+    if (!down) return;
+    // A captured mouse can report moves after the button was let go outside
+    // the window - the same belt and braces the rows wear.
+    if (ev.pointerType === "mouse" && ev.buttons === 0) return;
+    const mx = ev.clientX - startX;
+    const my = ev.clientY - startY;
+    if (mode === "none") {
+      if (Math.abs(my) > TOAST_TAP_SLOP && Math.abs(my) > Math.abs(mx)) {
+        mode = "off";
+        return;
+      }
+      if (Math.abs(mx) > TOAST_TAP_SLOP) {
+        mode = "swipe";
+        toastEl.classList.add("is-dragging");
+        // The pill is small and the swipe leaves it almost at once, so the
+        // capture is taken the moment the gesture is one - not before, or a
+        // plain tap on Undo would be delivered to the toast instead.
+        try {
+          toastEl.setPointerCapture(ev.pointerId);
+        } catch {
+          // No capture available: the gesture still works while the pointer
+          // stays over the pill, which is all a mouse test needs.
+        }
+      }
+    }
+    if (mode !== "swipe") return;
+    ev.preventDefault();
+    const dt = Math.max(1, ev.timeStamp - lastT);
+    velocity = ((ev.clientX - lastX) / dt) * 1000;
+    lastX = ev.clientX;
+    lastT = ev.timeStamp;
+    setToastX(mx);
+  });
+
+  const release = () => {
+    if (!down) return;
+    down = false;
+    if (mode !== "swipe") {
+      mode = "none";
+      return;
+    }
+    mode = "none";
+    swiped = true;
+    const dx = toastDx;
+    if (Math.abs(dx) > TOAST_COMMIT || Math.abs(velocity) > TOAST_FLING) {
+      flingToast(dx < 0 || (dx === 0 && velocity < 0) ? -1 : 1, velocity);
+      return;
+    }
+    toastSpring = spring({
+      from: dx,
+      to: 0,
+      velocity,
+      stiffness: 420,
+      damping: 34,
+      onUpdate: setToastX,
+      onDone: () => {
+        toastSpring = null;
+        setToastX(0);
+        toastEl.classList.remove("is-dragging");
+      },
+    });
+  };
+
+  toastEl.addEventListener("pointerup", release);
+  toastEl.addEventListener("pointercancel", release);
+
+  // A swipe must not also count as a tap on Undo: the click arrives after
+  // pointerup, and this catches it on the way down to the button.
+  toastEl.addEventListener(
+    "click",
+    (ev) => {
+      if (!swiped) return;
+      swiped = false;
+      ev.preventDefault();
+      ev.stopPropagation();
+    },
+    true,
+  );
+}
+
+wireToastSwipe();
 
 function live(message) {
   liveEl.textContent = message;

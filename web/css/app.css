@@ -128,12 +128,12 @@ input[type="search"]::-webkit-search-decoration {
      duel keeps the phone canvas whatever the frame does. */
   .screen > .duel { max-width: var(--frame-phone); }
 
-  /* Both are absolutely positioned with their two horizontal edges pinned, so
-     once max-width takes them below the available width the auto margins
-     centre them - no left/right/transform change that would fight the
-     open/close animation. */
+  /* Absolutely positioned with both horizontal edges pinned, so once max-width
+     takes it below the available width the auto margins centre it - no
+     left/right/transform change that would fight the open/close animation.
+     The toast used to be in this rule; it is a max-content pill now and
+     carries its own centring at every width. */
   .sheet { max-width: 560px; margin-inline: auto; }
-  .toast { max-width: var(--content-max); margin-inline: auto; }
 }
 
 .grain {
@@ -1664,31 +1664,70 @@ a.btn { text-decoration: none; }
 
 /* --------------------------------------------------------------------- toast */
 
+/* A pill, not a banner, and it never stands on the bottom bar.
+ *
+ * The owner's report: "After delete Undo Button über put in order. Lässt sich
+ * nicht wegwischen. Kleiner und nicht Button sperren". Three faults in one
+ * line - the toast sat across the full width, it covered "Put in order" for
+ * the whole eight seconds it was offering the undo, and there was no way to
+ * put it away early. So: max-content width centred in the gutter box, and a
+ * --toast-lift that app.js measures against the bar that is actually on the
+ * screen. No bar, no lift: on the setup and lock screens the toast sits where
+ * it always sat. The lift is measured rather than guessed because the bar's
+ * height depends on how many buttons it carries and on the safe-area inset,
+ * neither of which a hardcoded number survives.
+ *
+ * touch-action keeps the vertical scroll with the page and hands the
+ * horizontal axis to the dismiss gesture in app.js. */
 .toast {
+  --toast-lift: 0px;
   position: absolute;
   left: var(--gutter); right: var(--gutter);
-  bottom: calc(max(12px, var(--sa-bot)) + 14px);
+  bottom: calc(max(12px, var(--sa-bot)) + 14px + var(--toast-lift));
+  width: max-content;
+  max-width: min(340px, calc(100% - var(--gutter) * 2));
+  margin-inline: auto;
   z-index: 60;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 12px 12px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 6px 6px 6px 14px;
   border-radius: var(--radius-m);
   background: linear-gradient(180deg, var(--surface), var(--surface-2));
   box-shadow: inset 0 1px 0 var(--edge), var(--shadow);
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 13px;
+  touch-action: pan-y;
   transform: translateY(calc(100% + 30px));
   opacity: 0;
   pointer-events: none;
   transition: transform var(--dur) var(--ease-out), opacity var(--dur) var(--ease);
 }
 .toast.is-open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+/* One line. A message too long for the pill is cut, not wrapped: the toast is
+   a receipt, and the screen behind it is the actual answer. */
+.toast > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* While a finger owns the transform, the transition must not fight it. */
+.toast.is-dragging { transition: none; }
 .toast button {
+  position: relative;
   flex: none; border: 0; border-radius: var(--radius-s);
-  padding: 9px 12px; min-height: 38px;
+  padding: 7px 11px; min-height: 32px;
   background: var(--sunk); box-shadow: var(--shadow-sunk);
   color: var(--accent);
   font-size: 12.5px; font-weight: 700;
   cursor: pointer;
+}
+/* The pill shrank, the thumb did not. The plate is 32px so the toast stays
+   one compact line; the hit area is grown back past 44px with a pseudo, which
+   costs no layout and no pixel. */
+.toast button::after {
+  content: "";
+  position: absolute;
+  inset: -7px -8px;
 }
 
 /* ------------------------------------------------------------------ the map */
