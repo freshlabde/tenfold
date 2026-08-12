@@ -464,14 +464,21 @@ test("the welcome headline sets as two lines in every language, on small phones 
     await page.waitForSelector(".lock-title.is-welcome");
     for (const lang of ["English", "Deutsch", "Español"]) {
       await page.locator(".lang-switch").getByRole("button", { name: lang }).click();
-      const lines = await page.locator(".lock-title.is-welcome").evaluate((n) => {
-        const cs = getComputedStyle(n);
-        // Right after navigation lineHeight can still read "normal" (NaN) for
-        // one frame - fall back to the rule's own factor over the font size.
-        const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.14;
-        return Math.round(n.getBoundingClientRect().height / lh);
-      });
-      expect(lines, `${lang} at ${width}px`).toBeLessThanOrEqual(2);
+      // The language click re-renders the screen through a view transition;
+      // a one-shot measurement can catch the OUTGOING node, whose computed
+      // style is empty (NaN). Poll until a settled, finite reading holds.
+      await expect
+        .poll(
+          () =>
+            page.locator(".lock-title.is-welcome").evaluate((n) => {
+              const cs = getComputedStyle(n);
+              const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.14;
+              const lines = n.getBoundingClientRect().height / lh;
+              return Number.isFinite(lines) ? Math.round(lines) : 99;
+            }),
+          { timeout: 10_000, message: `${lang} at ${width}px` },
+        )
+        .toBeLessThanOrEqual(2);
     }
   }
 });
