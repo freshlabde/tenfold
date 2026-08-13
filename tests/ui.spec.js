@@ -1127,6 +1127,7 @@ test("no emoji anywhere in the shipped source", async () => {
     ...(await jsFiles(join(ROOT, "web", "js"))),
     join(ROOT, "web", "index.html"),
     join(ROOT, "web", "privacy.html"),
+    join(ROOT, "web", "method.html"),
     join(ROOT, "web", "css", "tokens.css"),
     join(ROOT, "web", "css", "app.css"),
   ];
@@ -1145,7 +1146,7 @@ test("no emoji anywhere in the shipped source", async () => {
 // quietly puts one back. The dash the catalogues are guarded against lives in
 // tests/i18n.spec.js; this is the same rule for the docs on disk.
 test("no em dash in the documents that describe the product", async () => {
-  for (const name of ["README.md", "docs/CONTRACTS.md", "web/privacy.html"]) {
+  for (const name of ["README.md", "docs/CONTRACTS.md", "web/privacy.html", "web/method.html"]) {
     const body = await readFile(join(ROOT, name), "utf8");
     const line = body.split("\n").findIndex((l) => l.includes("—")) + 1;
     expect(line, `${name} carries an em dash on line ${line}`).toBe(0);

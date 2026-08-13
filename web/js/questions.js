@@ -38,6 +38,16 @@ export const QUESTIONS = [
   { key: "question.q14", label: "question.l14" },
   { key: "question.q15", label: "question.l15" },
   { key: "question.q16", label: "question.l16" },
+  { key: "question.q17", label: "question.l17" },
+  { key: "question.q18", label: "question.l18" },
+  { key: "question.q19", label: "question.l19" },
+  { key: "question.q20", label: "question.l20" },
+  { key: "question.q21", label: "question.l21" },
+  { key: "question.q22", label: "question.l22" },
+  { key: "question.q23", label: "question.l23" },
+  { key: "question.q24", label: "question.l24" },
+  { key: "question.q25", label: "question.l25" },
+  { key: "question.q26", label: "question.l26" },
 ];
 
 function nowOf(opts) {

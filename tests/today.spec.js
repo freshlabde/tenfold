@@ -287,8 +287,8 @@ test("the daily question is deterministic and never random", async ({ page }) =>
   expect(picks.reversedKey).toBe(picks.keys[0]);
   expect(picks.day).toBe("20260407");
   expect(picks.otherDay).toBe("20260408");
-  expect(picks.catalogue).toBe(16);
-  expect(picks.spread).toBe(16);
+  expect(picks.catalogue).toBe(26);
+  expect(picks.spread).toBe(26);
 });
 
 test("the question card writes the answer into that node's story", async ({ page }) => {

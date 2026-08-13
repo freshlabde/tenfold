@@ -1560,11 +1560,13 @@ a.btn { text-decoration: none; }
 }
 .support-line:active { color: var(--text-2); }
 
-/* The policy link, in the same closing register as the line above. It is an
-   anchor rather than a button, so it carries none of the button reset - only
-   the tone. Where both lines stand together the second one drops the rule, so
-   the pair reads as one quiet block and not as two footers. */
-.policy-line {
+/* The two public-document links, in the same closing register as the line
+   above. They are anchors rather than buttons, so they carry none of the
+   button reset - only the tone. Where the lines stand together every one after
+   the first drops the rule, so the block reads as one quiet footer and not as
+   three. */
+.policy-line,
+.method-line {
   display: block;
   margin-top: 26px; padding: 14px 0 2px;
   border-top: 1px solid var(--line);
@@ -1573,8 +1575,11 @@ a.btn { text-decoration: none; }
   color: var(--muted);
   text-decoration: none;
 }
-.policy-line:active { color: var(--text-2); }
-.policy-line + .support-line { margin-top: 2px; padding-top: 4px; border-top: 0; }
+.policy-line:active,
+.method-line:active { color: var(--text-2); }
+.policy-line + .method-line,
+.policy-line + .support-line,
+.method-line + .support-line { margin-top: 2px; padding-top: 4px; border-top: 0; }
 
 /* Input plus its one side action - the scan button next to the typed code. */
 .field-row { display: flex; align-items: center; gap: 8px; }

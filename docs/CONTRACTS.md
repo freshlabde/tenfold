@@ -120,8 +120,13 @@ Anyone who wants to change an interface changes this file first.
   zero, singular keys of their own - and opens the Today screen. A hint, not a banner: no
   icon, no plate, nothing that outshouts rank one. With nothing due it is **absent from the
   DOM**, not hidden.
-- **`web/js/questions.js`**: a catalogue of 16 calm coaching questions (i18n keys, all three
-  locales; each question carries a short label its answer is filed under). The daily question
+- **`web/js/questions.js`**: a catalogue of 26 calm coaching questions (i18n keys, all three
+  locales; each question carries a short label its answer is filed under). One sentence each,
+  answerable in a minute, never accusatory: the ten added with the method page ask what a
+  week of behaviour says, what gets complained about and never changed, what an unchanged
+  five years looks like, what would be true on the finished day, and what finishing costs.
+  The catalogue may grow; `questionFor` takes the length modulo the hash, so growing it
+  changes which question a given day and node get, and nothing else. The daily question
   picks deterministically (`dayKey` YYYYMMDD + the open node with the thinnest `storyDepth`,
   ties by root rank then own rank then age then id); the answer is appended to that node's
   story as a labelled line. `settings.dailyDismissed` (YYYYMMDD) puts it away until tomorrow.
@@ -1037,8 +1042,8 @@ the shape of the reminder offer: the title asks whether tenfold is being enjoyed
 
 ## The privacy policy (`web/privacy.html`)
 
-The one public document this project ships, and the one page here that SHOULD be
-indexed. App Store Connect takes a single URL and so does a link anywhere else, so
+One of the two public documents this project ships, and one of the two pages here that
+SHOULD be indexed. App Store Connect takes a single URL and so does a link anywhere else, so
 all three languages live on one page with a three-button toggle (default from
 `navigator.language`, `en` as the fallback, `?lang=xx` wins where it is given).
 Three files would have drifted apart the first time a server rule changed.
@@ -1063,10 +1068,10 @@ Three files would have drifted apart the first time a server rule changed.
   cached copy of a policy is a stale copy of a policy. It is also the one page that
   has to be readable by somebody who has not installed anything.
 - **The About link is the mirror image of the tip-jar line.** `ui/policy.js` renders
-  one closing line, after the claim and immediately ABOVE the espresso line, and it
-  is present in **every** mode: browser, shell, and during the first-run intro,
-  where the tip jar is deliberately absent. An informational policy link is required
-  where a payment link is a rejection.
+  one closing line, after the claim and ABOVE the espresso line (with the method line
+  between the two), and it is present in **every** mode: browser, shell, and during
+  the first-run intro, where the tip jar is deliberately absent. An informational
+  policy link is required where a payment link is a rejection.
 - **Two hrefs, one rule.** In a browser it is the same-origin `./privacy.html`, so
   every deployment serves its own copy. In the shell it is the absolute
   `https://tenfold.kairatools.com/privacy.html`, because a same-origin
@@ -1075,6 +1080,52 @@ Three files would have drifted apart the first time a server rule changed.
   nothing. An http(s) link is the shape that reaches `UIApplication.open`, i.e. the
   system browser. Both strings live in `ui/policy.js` alone and are pinned by
   `tests/privacy.spec.js`.
+
+## The method page (`web/method.html`)
+
+The second public document, and the long form of what the About screen says short. About
+answers *what is this*; this page answers *how does the method work and how do I run it*,
+including for somebody who never installs the app. Same shape as the policy for the same
+reasons: all three languages on one URL with a three-button toggle (default from
+`navigator.language`, `en` as the fallback, `?lang=xx` wins where it is given), indexable,
+and self-contained.
+
+- **What it must always reflect.** The method as the app actually implements it, or the
+  two documents drift and the app becomes the liar. Concretely: exactly ten as a *limit*
+  that forces a refusal; the order as the hard part and the reason the duel compares
+  pairs; unfolding until a step is doable, with the same test at every level; done goals
+  keeping their place until the next paper ritual; the daily question picking the goal
+  that carries the least story and never being a streak. When one of those changes in
+  `model.js`, `prioritize.js` or `questions.js`, this page changes in the same commit.
+- **Attribution is part of the document, not a courtesy.** Raymond Hull by name, *How to
+  Get What You Want* (1969) by title and year, in all three languages, plus the same
+  honest demarcation the About screen makes: the ordered list and the writing ritual are
+  his, the rest of the book is not taken, and the limit of exactly ten is ours. The
+  modern additions (the anti-vision, reading behaviour instead of statements, identity as
+  part of the story) are credited as ideas that have circulated in this area for years
+  and belong to nobody in particular. **No living creator is named or linked**: naming one
+  would be an endorsement, and the ideas are not that person's invention either. Where
+  there is a real lineage it is named and it is old: Adler on goal-directed behaviour,
+  Maltz on the self-image, Csikszentmihalyi on a clear goal plus immediate feedback.
+- **Tone, and what stays out.** Sober and adult. No promise of transformation, no
+  timescale claim, no ego-development ladder, and no gamification metaphor of any kind:
+  the app does not nag, does not score and does not keep streaks, so a page describing it
+  must not borrow that vocabulary. It closes by saying it is a method and not a promise.
+- **Self-contained, and it carries its own CSP.** Inline style, one inline script, the
+  mark as an inline SVG, no font, no image, no request of any kind, and no `https?://`
+  anywhere in the source at all. `tools/serve.js` lists it in `PUBLIC_DOCS` beside the
+  policy and serves both with `default-src 'none'; style-src 'unsafe-inline'; script-src
+  'unsafe-inline'` instead of the app's strict header.
+- **`sw.js` does NOT precache it**, for the same reason the policy is not precached: a
+  cached public document is a stale public document.
+- **The two documents cross-link in their footers**, once per language, and nowhere else.
+- **The About link follows the policy line's rules, not the tip jar's.** `ui/policy.js`
+  renders it as `a.method-line` directly below `a.policy-line` and above the espresso
+  line, present in every mode including the first-run intro. Its own class, so a spec can
+  count the two lines separately and neither can be turned into the other unnoticed. Two
+  hrefs under the same rule as the policy: `./method.html` in a browser,
+  `https://tenfold.kairatools.com/method.html` in the shell, both living in
+  `ui/policy.js` alone and pinned by `tests/method.spec.js`.
 
 ## Zero-knowledge sync (stage 2)
 

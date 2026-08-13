@@ -1,7 +1,8 @@
-// ui/policy.js - the one link out of this app that has to exist.
+// ui/policy.js - the links out of this app that have to exist.
 //
-// What it does: the closing line of the About screen, pointing at
-// web/privacy.html, the public policy page. It is here rather than inline in
+// What it does: the two closing lines of the About screen, pointing at
+// web/privacy.html, the public policy page, and at web/method.html, the long
+// form of the method the app is built on. They are here rather than inline in
 // about.js because the href is not the same string in both places the app
 // runs, and that difference is a rule worth having one file for.
 //
@@ -36,12 +37,46 @@ export const POLICY_PATH = "./privacy.html";
  */
 export const POLICY_URL = "https://tenfold.kairatools.com/privacy.html";
 
+/** The method page, under the same two-hrefs rule as the policy. */
+export const METHOD_PATH = "./method.html";
+export const METHOD_URL = "https://tenfold.kairatools.com/method.html";
+
 /**
  * Where the link points from here.
  * @returns {string}
  */
 export function policyHref() {
   return inShell() ? POLICY_URL : POLICY_PATH;
+}
+
+/**
+ * The same, for the method page.
+ * @returns {string}
+ */
+export function methodHref() {
+  return inShell() ? METHOD_URL : METHOD_PATH;
+}
+
+/**
+ * One quiet closing line, as a real anchor. Used for both public documents,
+ * each with a class of its own: the specs count `a.policy-line` and
+ * `a.method-line` separately, so neither line can be quietly turned into the
+ * other.
+ */
+function docLine(cls, href, label) {
+  return el(
+    "a",
+    {
+      class: cls,
+      attrs: {
+        href,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        referrerpolicy: "no-referrer",
+      },
+    },
+    [text(label)],
+  );
 }
 
 /**
@@ -53,17 +88,16 @@ export function policyHref() {
  * @returns {HTMLElement}
  */
 export function policyAboutLine() {
-  return el(
-    "a",
-    {
-      class: "policy-line",
-      attrs: {
-        href: policyHref(),
-        target: "_blank",
-        rel: "noopener noreferrer",
-        referrerpolicy: "no-referrer",
-      },
-    },
-    [text(t("about.policy"))],
-  );
+  return docLine("policy-line", policyHref(), t("about.policy"));
+}
+
+/**
+ * The line beneath it: the method in full, on the public page. It follows the
+ * policy line's rules exactly, not the tip jar's - present in every mode and
+ * during the first-run intro too, because somebody deciding whether to trust
+ * this app is entitled to read what it is asking them to do.
+ * @returns {HTMLElement}
+ */
+export function methodAboutLine() {
+  return docLine("method-line", methodHref(), t("about.method"));
 }

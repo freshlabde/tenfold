@@ -110,20 +110,35 @@ test("the policy loads nothing from anywhere", async () => {
   expect(html).not.toMatch(/url\(\s*["']?(?!data:)[a-z0-9./]/i);
 
   // The only href that leaves this page is the contact address; the only other
-  // one is the way back into the app.
+  // two are the way back into the app and the sibling public document.
   const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
   expect(hrefs.length).toBeGreaterThan(0);
   for (const href of hrefs) {
-    expect(href === "./" || href.startsWith("mailto:"), `unexpected href ${href}`).toBe(true);
+    const ok = href === "./" || href === "./method.html" || href.startsWith("mailto:");
+    expect(ok, `unexpected href ${href}`).toBe(true);
   }
 
   // No inline event attribute; the toggle is wired with addEventListener.
   expect(html.replace(/<!--[\s\S]*?-->/g, "")).not.toMatch(/\son[a-z]+\s*=\s*["']/i);
 });
 
-test("the policy carries its own CSP and the app keeps the strict one", async ({ request }) => {
-  // Served at the root, which is where a deployment serves it - and the only
-  // path where the security headers apply at all.
+test("the public documents carry their own CSP and the app keeps the strict one", async ({
+  request,
+}) => {
+  // Served at the root, which is where a deployment serves them - and the only
+  // path where the security headers apply at all. Both public documents are on
+  // the PUBLIC_DOCS list in tools/serve.js, and both are asserted here: the
+  // exception is per path, so a page added to the pair without being added to
+  // that list would ship as naked markup.
+  for (const path of ["/privacy.html", "/method.html"]) {
+    const doc = await request.get(path);
+    expect(doc.status(), path).toBe(200);
+    const docCsp = doc.headers()["content-security-policy"];
+    expect(docCsp, path).toContain("default-src 'none'");
+    expect(docCsp, path).toContain("style-src 'unsafe-inline'");
+    expect(docCsp, path).toContain("script-src 'unsafe-inline'");
+  }
+
   const policy = await request.get("/privacy.html");
   expect(policy.status()).toBe(200);
   const csp = policy.headers()["content-security-policy"];
@@ -240,18 +255,20 @@ test("the About screen links the policy in both modes, where the tip jar exists 
   expect(rel).toContain("noreferrer");
   await expect(page.locator(".support-line")).toHaveCount(1);
 
-  // Order: after the claim, and immediately above the tip jar.
+  // Order: after the claim, then the method line, then the tip jar last.
   const order = await page.evaluate(() => {
     const kids = [...document.querySelector(".prose").children];
     return {
       claim: kids.findIndex((n) => n.classList.contains("claim")),
       policy: kids.findIndex((n) => n.classList.contains("policy-line")),
+      method: kids.findIndex((n) => n.classList.contains("method-line")),
       support: kids.findIndex((n) => n.classList.contains("support-line")),
       last: kids.length - 1,
     };
   });
   expect(order.policy).toBe(order.claim + 1);
-  expect(order.support).toBe(order.policy + 1);
+  expect(order.method).toBe(order.policy + 1);
+  expect(order.support).toBe(order.method + 1);
   expect(order.support).toBe(order.last);
 
   // It opens the page, in a tab of its own.

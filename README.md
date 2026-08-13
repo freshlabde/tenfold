@@ -393,6 +393,8 @@ web/            the app: index.html, sw.js, css/, js/ (pure ES modules, no bundl
   js/locales/   en, de, es, with identical key sets
   js/ui/        one file per screen and per sheet
 tools/serve.js  the whole server: static files, vault mailbox, push
+web/method.html the method in full, and web/privacy.html the policy: the two public
+                documents, each three languages on one URL, each loading nothing
 docs/CONTRACTS.md  the binding interface contract between all of the above
 design/         the three skins as static pages, plus screenshots
 tests/          Playwright specs

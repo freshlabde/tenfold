@@ -16,7 +16,7 @@
 import { el, text, icon, brandMark } from "./dom.js";
 import { t } from "../i18n.js";
 import { supportAboutLine } from "./support.js";
-import { policyAboutLine } from "./policy.js";
+import { policyAboutLine, methodAboutLine } from "./policy.js";
 
 const INTRO = ["about.intro.p1", "about.intro.p2", "about.intro.p3"];
 const WALK_TOP = ["about.walk.p1", "about.walk.p2"];
@@ -112,6 +112,12 @@ export function render(ctx) {
     // intro as well, because it is an informational link somebody deciding
     // whether to trust this app is entitled to before they decide.
     policyAboutLine(),
+
+    // The method in full, on the public page, under the same rules as the
+    // line above it. This screen is the short version on purpose; the long one
+    // does not belong inside a reading screen somebody opens before they have
+    // decided to use the app at all.
+    methodAboutLine(),
 
     // The tip jar, after the claim and in the quietest tone on the screen.
     // Not during the intro: the first run is somebody deciding whether to

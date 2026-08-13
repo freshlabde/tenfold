@@ -257,18 +257,19 @@ const SECURITY_HEADERS = {
 
 /**
  * The public documents under web/ that are not the app, and carry their own
- * CSP because of it. There is exactly one: the privacy policy.
+ * CSP because of it. There are two: the privacy policy and the method page.
  *
  * The strict header above forbids an inline <style> and an inline <script>,
  * which is right for the app - an injected script there would hold the
- * plaintext and the key at once. privacy.html is a static file with no user
- * content, no fetch, no storage and nothing to inject into; it is
- * self-contained on purpose, because a policy that pulls in a stylesheet is a
- * policy that can render naked. So its own two inline blocks are allowed and
- * EVERYTHING else is refused: default-src 'none' means it cannot load a font,
- * an image, a frame or an origin even if a future edit tried to.
+ * plaintext and the key at once. Both of these are static files with no user
+ * content, no fetch, no storage and nothing to inject into; they are
+ * self-contained on purpose, because a public document that pulls in a
+ * stylesheet is a document that can render naked. So their own two inline
+ * blocks are allowed and EVERYTHING else is refused: default-src 'none' means
+ * they cannot load a font, an image, a frame or an origin even if a future
+ * edit tried to.
  */
-const PUBLIC_DOCS = new Set(["/privacy.html"]);
+const PUBLIC_DOCS = new Set(["/privacy.html", "/method.html"]);
 
 const PUBLIC_DOC_HEADERS = {
   "Content-Security-Policy":

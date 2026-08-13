@@ -1,0 +1,485 @@
+<!doctype html>
+<!--
+  tenfold - the method, as one public document.
+
+  What it does: explains the ten-goals method itself, at the length the About
+  screen inside the app deliberately does not have. Same shape as privacy.html
+  and for the same reasons: three languages on ONE URL, because a link in the
+  About screen and a link somebody sends to a friend have to be one address,
+  and three files would drift apart the first time a paragraph was corrected.
+
+  What it deliberately does NOT do: it loads nothing. No font, no stylesheet,
+  no script, no image, no analytics, no cookie, no beacon. The style and the
+  few lines that switch the language are inline, which is why tools/serve.js
+  gives this document the same CSP of its own the policy gets (default-src
+  'none'). It is a static file with no user content and no storage, and it is
+  one of the two pages in this project that SHOULD be indexed, so it carries
+  no robots directive.
+
+  It does not repeat the About screen. About says what tenfold is; this says
+  how the method works and how to run it on paper, whether or not anybody ever
+  opens the app. Where the two touch (ten as a limit, the paper ritual, Hull),
+  the claims have to agree.
+-->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>tenfold, the method</title>
+<meta name="description" content="The ten-goals method after Raymond Hull: ten goals, an honest order, unfolded until a step is doable. How to run it on paper. In English, German and Spanish.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0F1115">
+<style>
+  /* The slate skin, dark by default, in the values tokens.css carries. This
+     page cannot import the app's stylesheet without loading something, so the
+     handful of tokens it needs are written out once, here. Kept identical to
+     privacy.html on purpose: the two public documents are one pair. */
+  :root {
+    --bg: #0F1115;
+    --surface: #171A20;
+    --text: #E9ECF2;
+    --text-2: #97A0AE;
+    --muted: #79828F;
+    --accent: #D6A441;
+    --line: rgba(255, 255, 255, .09);
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, "Helvetica Neue", "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #E4E6EA;
+      --surface: #FFFFFF;
+      --text: #13161B;
+      --text-2: #4B535F;
+      --muted: #656D7A;
+      --accent: #8A6110;
+      --line: rgba(18, 22, 30, .12);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.62;
+    letter-spacing: -.006em;
+    padding: 28px 22px 96px;
+    min-height: 100dvh;
+  }
+  .doc { max-width: 40rem; margin: 0 auto; }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 22px;
+    margin-bottom: 34px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .brand svg { display: block; color: var(--accent); }
+
+  .langs { display: flex; gap: 6px; }
+  .langs button {
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    min-height: 34px;
+  }
+  .langs button:hover { color: var(--text-2); }
+  .langs button[aria-pressed="true"] {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .langs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  h1 {
+    font-size: 30px;
+    line-height: 1.12;
+    letter-spacing: -.028em;
+    font-weight: 700;
+  }
+  .stamp {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: var(--font-mono);
+    letter-spacing: .01em;
+  }
+  h2 {
+    margin-top: 42px;
+    margin-bottom: 10px;
+    font-size: 17px;
+    line-height: 1.3;
+    letter-spacing: -.015em;
+    font-weight: 600;
+    color: var(--text);
+  }
+  p { margin-top: 12px; color: var(--text-2); }
+  p.lead { margin-top: 20px; color: var(--text); }
+  ul { margin: 12px 0 0 0; padding: 0; list-style: none; }
+  li {
+    position: relative;
+    padding-left: 18px;
+    margin-top: 8px;
+    color: var(--text-2);
+  }
+  li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: .72em;
+    width: 5px;
+    height: 1px;
+    background: var(--muted);
+  }
+  strong { color: var(--text); font-weight: 600; }
+  em { font-style: italic; }
+  a { color: var(--accent); }
+  .foot {
+    margin-top: 52px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  [hidden] { display: none; }
+
+  @media (max-width: 420px) {
+    body { padding: 22px 18px 72px; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="top">
+    <a class="brand" href="./">
+      <!-- The mark: a closed nought for the whole of the list, and a one
+           creased twice into the three levels a goal unfolds through. The same
+           paths web/js/ui/dom.js draws, at the same stroke weight. -->
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M2.8 5V8.1"></path>
+        <path d="M2.8 10.5V13.5"></path>
+        <path d="M2.8 15.9V19"></path>
+        <path d="M14.2 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14"></path>
+      </svg>
+      tenfold
+    </a>
+    <nav class="langs" id="langs" aria-label="Language">
+      <button type="button" data-lang="de" aria-pressed="false">DE</button>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="es" aria-pressed="false">ES</button>
+    </nav>
+  </header>
+
+  <main>
+
+  <!-- ============================== ENGLISH ============================== -->
+  <article id="doc-en" lang="en" data-title="tenfold, the method">
+    <h1>The method</h1>
+    <p class="stamp">tenfold. The ten-goals method, in full.</p>
+
+    <p class="lead">Ten goals, in an honest order, each one unfolded until a step is doable. That is the whole method. It comes from Raymond Hull, who wrote it down in <em>How to Get What You Want</em> in 1969, and it has lasted because it asks for a decision rather than for enthusiasm.</p>
+    <p>This page is the long version. The About screen inside the app says what tenfold does; this one says how the method works and how to run it yourself, on paper, whether or not you ever open the app.</p>
+
+    <h2>What the method is</h2>
+    <p>Three demands, and they are harder than they look.</p>
+    <p>The first is a number. Exactly ten things you want, written down. Not the ten you should want, and not the ten that would look reasonable to somebody reading over your shoulder.</p>
+    <p>The second is an order. Not groups, not priorities A, B and C, but a single line from one to ten in which every entry is genuinely ahead of the one below it.</p>
+    <p>The third is depth. A goal stays a wish until it has been broken into what it actually asks of you, and then broken again, until something is standing there that you could do this week without preparing for it first.</p>
+    <p>Everything else in this method exists to serve those three.</p>
+
+    <h2>Why ten</h2>
+    <p>Ten is a limit, not a target. Its work is done the moment you have eleven candidates and have to lose one. If the list could be twenty, nothing is ever refused, and a list that refuses nothing is a list of everything you have ever thought about, which is another way of saying it is not a list.</p>
+    <p>Most people name three or four things without hesitating and then slow down. That slowdown is useful. What arrives after it tends to be the part that was never said out loud, and it is frequently more accurate than the fast part.</p>
+    <p>There is no virtue in the number itself. It is small enough to hold in your head and large enough that a whole life fits: work, money, health, the people you live with, and the things you would do if nobody were watching.</p>
+
+    <h2>Why the order matters more than the list</h2>
+    <p>Two people can write the same ten entries and live completely different years, because the difference is not what is on the list. It is what comes first.</p>
+    <p>An unordered list of ten important things behaves badly. Every entry has a claim on the same evening. You give each of them a tenth of your attention, everything moves at a tenth of the speed it could, and after a year the honest report is that nothing finished. That feels like effort. It is not.</p>
+    <p>Ordering is uncomfortable, and the reason is worth saying. Putting a goal in seventh place means stating, in writing, that six others come before it, and some of those sevenths are things you tell people matter to you. The discomfort is the method working. Nothing is deleted; it is placed.</p>
+    <p>Comparing ten things at once is beyond anybody. Comparing two is easy. That is why the order is built in pairs, one question at a time, and why an order arrived at that way survives its first Tuesday.</p>
+
+    <h2>Why unfolding beats planning</h2>
+    <p>A plan is written in advance and describes a route you have not walked. It is usually wrong somewhere in the middle, which is where you find out.</p>
+    <p>Unfolding asks the smaller question: what is the next level down? Under "learn to sail" sits something like "able to take a small boat out alone, in a bay I know, in light wind". Under that sit the course, the money, the two weekends, and the person who could come along the first time. Under that sits the phone call. The phone call is doable. Nothing above it was.</p>
+    <p>You only ever unfold the part you are working on. The rest of the list keeps its shape and waits. Goal number nine does not need a step this month, and inventing one for it is the kind of work that looks like progress.</p>
+    <p>The test at every level is the same: could somebody start this without a preparation of its own? If not, there is another level underneath.</p>
+
+    <h2>The paper ritual</h2>
+    <p>Once a month, or whenever something in your life shifts and you can feel that the list has aged, the method wants an hour and a sheet of paper.</p>
+    <p>Sit somewhere you will not be interrupted. Write ten lines. Do not edit while writing: no crossing out, no renumbering, no dismissing an entry as unrealistic, and no stopping at seven because nothing else comes. Sit with the gap until it fills. What arrives late is the interesting part.</p>
+    <p>Then order them. Take the first two and ask which of the two matters more to you. Not which is more urgent, more responsible or easier: which one you would keep if you could only have one of the two. Then take the third and compare it against the ones already placed, and so on down. Ten entries cost about twenty-five of those questions and two or three minutes, and it works because you are never asked to hold more than two things in mind at once.</p>
+    <p>Write the ordered list out again, cleanly, and read it. That reading is the point of the whole hour. A list you disagree with is a useful result: it usually means one entry belongs to somebody else, and the ritual is where that gets noticed.</p>
+    <p>Then bring it in here, or do not. The method is half a century older than this app and works on paper. What the app adds is depth and memory: it holds the levels under each goal, it keeps what you told it about your circumstances, and it does not leave the list in the other jacket.</p>
+    <p>Between rituals the paper stays closed. You do not rewrite the list on a bad Wednesday. That is what the next ritual is for, and knowing it is coming is what makes it safe to leave the list alone.</p>
+
+    <h2>When you cannot name your ten</h2>
+    <p>Very few people can say on demand what they want, and it is not a defect of character. The question asks for an ambition and a language for it in the same moment. The way through is to stop asking it directly.</p>
+    <p>Three approaches, and they fit into the same hour.</p>
+    <p><strong>Describe the day you do not want.</strong> Take a Wednesday five years from now, in a life where nothing was decided and nothing changed. Write it as an ordinary day, in the present tense and in detail: what wakes you, what you do before nine, who you speak to, what you eat, what you are worrying about at four in the afternoon, what you do with the evening, what you think about before you sleep. Do not write a catastrophe. A catastrophe is easy to reject and tells you nothing. Write the plausible version, the one that arrives by nothing happening.</p>
+    <p>Then read it and mark the parts you refuse. Each one is information. "I am still explaining the same thing to the same people" is a goal about work, upside down. "Nobody in that day knows me well" is a goal about the people you live with. Turn each refusal around and you have candidates, found from the direction you can actually feel.</p>
+    <p>This works because dread is more specific than desire. Ask somebody what they want and you get a slogan. Ask what they are afraid their life will end up looking like and you get a scene, with furniture in it.</p>
+    <p><strong>Write down the complaint you have made more than three times.</strong> Almost everybody has one or two sentences they say regularly, to different people, always with the same resigned ending, and have never once acted on. The complaint is a goal that was declared unreachable and filed under conversation. Not all of them belong on the list, and some really are outside your reach. But a complaint repeated for years and never tested is worth one honest look at what a first move would even be.</p>
+    <p><strong>Ask what your behaviour says.</strong> Imagine somebody who has never spoken to you and has only watched the last three months: your calendar, your money, what you did with the free evenings. What would they conclude you were after? Write their answer down plainly, without defending yourself.</p>
+    <p>The gap between that answer and the list you wrote is the most useful thing on the page. It is not a verdict. Sometimes it shows that your real priorities are fine and only your description of them was wrong. Sometimes it shows an entry you have carried for years and do not actually want, which is worth knowing before you spend another year on it.</p>
+    <p>And if the list still has holes: what would you keep doing if nobody ever found out you were doing it? Ambitions that exist only in front of an audience come apart at that question, and what is left standing is yours.</p>
+    <p>Ten is a limit at this stage too. If these exercises produce fifteen candidates, that is normal and it is the better problem. Order them and keep the first ten; the others are not lost, they are simply below the line until the next ritual.</p>
+
+    <h2>Writing a goal so it can be unfolded</h2>
+    <p>"Get fit" appears on more lists than anything else and moves less than anything else, because it gives you nothing to do on Tuesday. The wording of a goal decides whether it can be broken down at all.</p>
+    <p><strong>The finished-when test.</strong> Write the sentence that would be true on the day this is done. If you cannot write it, what you have is a direction and not yet a goal. "Get fit" fails. "I can climb four flights of stairs without stopping" passes: it says what changed, it can be checked, and it is obvious when you are not there yet.</p>
+    <p>A direction is not worthless. It is the heading under which a goal can be found. Keep it if you like it, but write the finished-when sentence next to it, because that is the one that unfolds.</p>
+    <p><strong>The story is not decoration.</strong> A goal on its own cannot be broken down sensibly, because the same words mean different things in different lives. "Get fit" at twenty-eight, with working knees and free evenings, is a different problem than at sixty-one, with a desk job, a bad knee and no energy after eight. Same sentence, different first step. The circumstances decide the step, so they have to be written down somewhere.</p>
+    <p>Three things are worth having under every goal: why now (what makes it this year rather than one of the last ten), what you already tried and what it taught you, and what is actually in the way. The third is the honest one. If the answer is money, say the number. If it is a person, say so. A goal whose obstacle is unnamed produces steps that go around the obstacle, and that is how a list stays busy for years without moving.</p>
+    <p>There is a fourth thing that belongs there and is uncomfortable to write: what kind of person the finished version of this makes you, and whether you believe it. Goals fail on that line more often than on any tactic. Somebody who says they want to write a book but does not see themselves as a person who writes will produce the plan and not the pages. You do not have to resolve this. You have to write it down, because a goal you do not believe in should either be argued with or moved down the order, and both of those are better than carrying it silently.</p>
+    <p><strong>What a written goal does.</strong> An ordered list changes what you notice. That is not mysticism, it is the ordinary working of attention. Somebody who has decided on one particular car starts seeing that car everywhere, and the only thing that changed is what their attention was set to. A goal in first place does the same to opportunities: a passing conversation turns into a lead, a paragraph in an article turns into an address. The effect is only available to goals specific enough to be recognised. "Be more successful" gives attention nothing to match against. That is the quiet argument for the honest order: your attention is going to filter the year regardless, and the list decides what it filters for.</p>
+
+    <h2>Keeping it alive</h2>
+    <p>A list rewritten every month and consulted never is a diary. What keeps it inside the year is small and daily.</p>
+    <p><strong>One question a day.</strong> tenfold takes the goal that knows the least about itself and asks a single question about it. A minute of honest typing, then closed. It is not a streak and there is nothing to keep alive; a question skipped is skipped. The point is that a goal accumulates its own story over weeks, and that story is what makes the next step obvious.</p>
+    <p><strong>When a goal stalls.</strong> Stalling is information, not a discipline problem, and it usually has one of three causes. The step is too big, in which case a level underneath it was skipped. Or the obstacle is not the one the story names, in which case the story needs rewriting rather than the plan. Or the goal is in the wrong place in the order and is quietly losing, every day, to something above it. The third is the common case and the last one people diagnose.</p>
+    <p><strong>When to drop one.</strong> Not on the day it feels heavy. At the ritual, and with a reason you would say out loud: it was somebody else's, it has resolved itself in a form you did not expect, the circumstances that made it urgent are gone, or you have looked at your behaviour and admitted you are not going to do it. Dropping a goal for a stated reason is a decision. Letting it fall silently is drift, and drift comes back next year in the same words.</p>
+    <p><strong>What happens to a finished goal.</strong> It is marked, and it stays where it is until the next ritual. It is not deleted and the list does not slide up to fill the space. Partly because a list that reorders itself the moment something finishes never gives you the pause to look at what finishing changed; partly because a finished entry sitting in third place is the only honest account of a year you are going to get. What takes its place is decided at the next ritual.</p>
+    <p><strong>How often to look.</strong> Daily is the question. Monthly is the paper. And if you want a rhythm in between: once a week, one look at the top three and nothing else. Reading the whole list every day does not help. It turns a decision into a worry.</p>
+
+    <h2>Where this comes from</h2>
+    <p>Raymond Hull (1919 to 1985) was a British-Canadian writer living in Vancouver, best known as the co-author of <em>The Peter Principle</em>. In the same year he published <em>How to Get What You Want</em>, 1969, and that is where the method on this page comes from: the handwritten list, the honest ranking, the regular rewrite, and the argument that most people are held back not by ability but by never having settled what they are aiming at. The book also contains material of its time, exercises in self-suggestion that read differently now. What survived is the list and the ritual. The limit of exactly ten is ours.</p>
+    <p>What has been added here comes from ideas that have been circulating in this area for years and belong to nobody in particular: describing the life you do not want in order to locate the one you do, reading behaviour rather than statements, and treating the identity behind a goal as part of the goal. They are worth having, and they are not new.</p>
+    <p>Where they do have a lineage, it is older than any of us. Alfred Adler argued in the 1910s and 1920s that behaviour is best understood by the end it is aimed at rather than by the cause behind it, which is the whole reason an ordered list explains a year better than a list of intentions does. Maxwell Maltz, a plastic surgeon who noticed that patients whose faces had changed often went on behaving as though nothing had, wrote <em>Psycho-Cybernetics</em> in 1960 about the self-image doing the deciding. And Mihaly Csikszentmihalyi's work from the 1970s onward on absorbed attention kept finding the same two conditions: a clear goal, and immediate feedback about whether you are getting closer. That is a fair description of what an unfolded list is for.</p>
+
+    <h2>A method, not a promise</h2>
+    <p>This will not repair a life in an afternoon, and nobody should sell it as though it could. What it does is smaller and duller: it makes you decide what comes first, it turns the top of that decision into something you can do this week, and it brings you back to the page often enough that the decision stays yours instead of defaulting to whatever was loudest. The writing is yours, the ordering is yours, and the ten are yours. There is no part of this that anybody, or any piece of software, can do on your behalf.</p>
+
+    <p class="foot">tenfold. The method after Raymond Hull, <em>How to Get What You Want</em> (1969). <a href="./privacy.html">Privacy policy</a></p>
+  </article>
+
+  <!-- ============================== DEUTSCH ============================== -->
+  <article id="doc-de" lang="de" data-title="tenfold, die Methode" hidden>
+    <h1>Die Methode</h1>
+    <p class="stamp">tenfold. Die Zehn-Ziele-Methode, ausf&uuml;hrlich.</p>
+
+    <p class="lead">Zehn Ziele, in einer ehrlichen Reihenfolge, jedes so weit aufgeklappt, bis ein Schritt machbar ist. Das ist die ganze Methode. Sie stammt von Raymond Hull, der sie 1969 in <em>How to Get What You Want</em> aufgeschrieben hat, und sie hat sich gehalten, weil sie eine Entscheidung verlangt und keine Begeisterung.</p>
+    <p>Diese Seite ist die lange Fassung. Der Bildschirm &uuml;ber die App sagt, was tenfold tut; hier steht, wie die Methode funktioniert und wie du sie selbst durchf&uuml;hrst, auf Papier, ganz gleich ob du die App je &ouml;ffnest.</p>
+
+    <h2>Was die Methode ist</h2>
+    <p>Drei Forderungen, und sie sind schwerer, als sie aussehen.</p>
+    <p>Die erste ist eine Zahl. Genau zehn Dinge, die du willst, aufgeschrieben. Nicht die zehn, die du wollen solltest, und nicht die zehn, die vern&uuml;nftig aussehen, wenn jemand dir &uuml;ber die Schulter schaut.</p>
+    <p>Die zweite ist eine Reihenfolge. Keine Gruppen, keine Priorit&auml;ten A, B und C, sondern eine einzige Linie von eins bis zehn, in der jeder Eintrag wirklich vor dem darunter steht.</p>
+    <p>Die dritte ist Tiefe. Ein Ziel bleibt ein Wunsch, bis es in das zerlegt ist, was es tats&auml;chlich von dir verlangt, und dann noch einmal zerlegt, bis etwas dasteht, das du diese Woche tun k&ouml;nntest, ohne dich erst darauf vorzubereiten.</p>
+    <p>Alles Weitere in dieser Methode dient diesen drei Forderungen.</p>
+
+    <h2>Warum zehn</h2>
+    <p>Zehn ist eine Grenze, kein Ziel. Ihre Arbeit ist getan, sobald du elf Kandidaten hast und einen davon verlieren musst. D&uuml;rften es zwanzig sein, wird nie etwas abgelehnt, und eine Liste, die nichts ablehnt, ist eine Liste von allem, woran du je gedacht hast, also keine Liste.</p>
+    <p>Die meisten nennen drei oder vier Dinge ohne Z&ouml;gern und werden dann langsamer. Diese Verlangsamung ist n&uuml;tzlich. Was nach ihr kommt, ist oft das, was nie ausgesprochen wurde, und es trifft h&auml;ufig genauer als das Schnelle.</p>
+    <p>An der Zahl selbst ist nichts Besonderes. Sie ist klein genug, um sie im Kopf zu behalten, und gross genug, dass ein ganzes Leben hineinpasst: Arbeit, Geld, Gesundheit, die Menschen, mit denen du lebst, und die Dinge, die du t&auml;test, wenn niemand zusieht.</p>
+
+    <h2>Warum die Reihenfolge mehr z&auml;hlt als die Liste</h2>
+    <p>Zwei Menschen k&ouml;nnen dieselben zehn Eintr&auml;ge schreiben und v&ouml;llig verschiedene Jahre leben, denn der Unterschied liegt nicht darin, was auf der Liste steht. Er liegt darin, was zuerst kommt.</p>
+    <p>Eine ungeordnete Liste aus zehn wichtigen Dingen verh&auml;lt sich schlecht. Jeder Eintrag erhebt Anspruch auf denselben Abend. Du gibst jedem ein Zehntel deiner Aufmerksamkeit, alles bewegt sich mit einem Zehntel der m&ouml;glichen Geschwindigkeit, und nach einem Jahr lautet der ehrliche Bericht, dass nichts fertig geworden ist. Das f&uuml;hlt sich nach Anstrengung an. Es ist keine.</p>
+    <p>Das Ordnen ist unangenehm, und der Grund geh&ouml;rt ausgesprochen. Ein Ziel auf Platz sieben zu setzen heisst, schriftlich zu sagen, dass sechs andere davor kommen, und manche dieser Siebenen sind Dinge, von denen du anderen erz&auml;hlst, dass sie dir wichtig sind. Das Unbehagen ist die Methode bei der Arbeit. Nichts wird gel&ouml;scht, es wird eingeordnet.</p>
+    <p>Zehn Dinge auf einmal zu vergleichen &uuml;berfordert jeden. Zwei zu vergleichen ist leicht. Deshalb entsteht die Reihenfolge paarweise, eine Frage nach der anderen, und deshalb h&auml;lt eine so gebaute Ordnung ihrem ersten Dienstag stand.</p>
+
+    <h2>Warum Aufklappen besser ist als Planen</h2>
+    <p>Ein Plan wird im Voraus geschrieben und beschreibt einen Weg, den du nicht gegangen bist. In der Mitte stimmt er meistens nicht mehr, und genau dort merkst du es.</p>
+    <p>Aufklappen stellt die kleinere Frage: Was ist die n&auml;chste Ebene darunter? Unter "segeln lernen" steht etwas wie "allein mit einem kleinen Boot in einer Bucht, die ich kenne, bei leichtem Wind hinausfahren k&ouml;nnen". Darunter stehen der Kurs, das Geld, die zwei Wochenenden und die Person, die beim ersten Mal mitkommen k&ouml;nnte. Darunter steht der Anruf. Der Anruf ist machbar. Nichts dar&uuml;ber war es.</p>
+    <p>Aufgeklappt wird immer nur der Teil, an dem du gerade arbeitest. Der Rest der Liste beh&auml;lt seine Form und wartet. Ziel Nummer neun braucht diesen Monat keinen Schritt, und sich einen auszudenken ist die Art von Arbeit, die wie Fortschritt aussieht.</p>
+    <p>Die Pr&uuml;fung ist auf jeder Ebene dieselbe: K&ouml;nnte jemand damit anfangen, ohne sich erst darauf vorzubereiten? Wenn nicht, liegt darunter noch eine Ebene.</p>
+
+    <h2>Das Ritual auf Papier</h2>
+    <p>Einmal im Monat, oder wenn sich in deinem Leben etwas verschiebt und du sp&uuml;rst, dass die Liste gealtert ist, will die Methode eine Stunde und ein Blatt Papier.</p>
+    <p>Setz dich irgendwohin, wo dich niemand unterbricht. Schreib zehn Zeilen. Bearbeite nichts w&auml;hrend des Schreibens: nicht streichen, nicht umnummerieren, keinen Eintrag als unrealistisch verwerfen und nicht bei sieben aufh&ouml;ren, weil nichts mehr kommt. Halt die L&uuml;cke aus, bis sie sich f&uuml;llt. Was sp&auml;t kommt, ist der interessante Teil.</p>
+    <p>Dann ordne sie. Nimm die ersten beiden und frage, welches der beiden dir mehr bedeutet. Nicht welches dringender, vern&uuml;nftiger oder leichter ist, sondern welches du beh&auml;ltst, wenn du nur eines von beiden haben k&ouml;nntest. Dann nimm das dritte und vergleiche es mit den bereits einsortierten, und so weiter nach unten. Zehn Eintr&auml;ge kosten etwa f&uuml;nfundzwanzig solcher Fragen und zwei bis drei Minuten, und es funktioniert, weil du nie mehr als zwei Dinge gleichzeitig im Kopf halten musst.</p>
+    <p>Schreib die geordnete Liste noch einmal sauber ab und lies sie. Dieses Lesen ist der Sinn der ganzen Stunde. Eine Liste, mit der du nicht einverstanden bist, ist ein brauchbares Ergebnis: meistens heisst es, dass ein Eintrag jemand anderem geh&ouml;rt, und das Ritual ist der Ort, an dem das auff&auml;llt.</p>
+    <p>Dann trag sie hier ein, oder lass es. Die Methode ist ein halbes Jahrhundert &auml;lter als diese App und funktioniert auf Papier. Was die App hinzuf&uuml;gt, sind Tiefe und Ged&auml;chtnis: Sie h&auml;lt die Ebenen unter jedem Ziel fest, sie beh&auml;lt, was du ihr &uuml;ber deine Umst&auml;nde erz&auml;hlt hast, und sie l&auml;sst die Liste nicht in der anderen Jacke liegen.</p>
+    <p>Zwischen zwei Ritualen bleibt das Papier zu. Du schreibst die Liste nicht an einem schlechten Mittwoch um. Daf&uuml;r ist das n&auml;chste Ritual da, und dass es kommt, macht es sicher, die Liste in Ruhe zu lassen.</p>
+
+    <h2>Wenn du deine zehn nicht benennen kannst</h2>
+    <p>Die wenigsten k&ouml;nnen auf Zuruf sagen, was sie wollen, und das ist kein Charakterfehler. Die Frage verlangt im selben Moment einen Wunsch und eine Sprache daf&uuml;r. Der Weg hindurch besteht darin, sie nicht direkt zu stellen.</p>
+    <p>Drei Zug&auml;nge, und sie passen in dieselbe Stunde.</p>
+    <p><strong>Beschreib den Tag, den du nicht willst.</strong> Nimm einen Mittwoch in f&uuml;nf Jahren, in einem Leben, in dem nichts entschieden wurde und sich nichts ge&auml;ndert hat. Schreib ihn als ganz gew&ouml;hnlichen Tag, im Pr&auml;sens und mit Einzelheiten: was dich weckt, was du vor neun tust, mit wem du sprichst, was du isst, was dir um vier Uhr nachmittags Sorgen macht, was du mit dem Abend anf&auml;ngst, woran du denkst, bevor du einschl&auml;fst. Schreib keine Katastrophe. Eine Katastrophe l&auml;sst sich leicht ablehnen und sagt nichts. Schreib die plausible Fassung, die entsteht, wenn einfach nichts geschieht.</p>
+    <p>Dann lies ihn und markiere, was du ablehnst. Jede Stelle ist eine Auskunft. "Ich erkl&auml;re immer noch dasselbe denselben Leuten" ist ein Ziel &uuml;ber die Arbeit, von hinten gelesen. "Niemand an diesem Tag kennt mich gut" ist ein Ziel &uuml;ber die Menschen, mit denen du lebst. Dreh jede Ablehnung um, und du hast Kandidaten, gefunden aus der Richtung, die du tats&auml;chlich sp&uuml;rst.</p>
+    <p>Das funktioniert, weil Abneigung genauer ist als Wunsch. Frag jemanden, was er will, und du bekommst eine Parole. Frag, wovor ihm beim eigenen Leben graut, und du bekommst eine Szene mit M&ouml;beln darin.</p>
+    <p><strong>Schreib die Klage auf, die du mehr als dreimal gef&uuml;hrt hast.</strong> Fast jeder hat ein oder zwei S&auml;tze, die er regelm&auml;ssig sagt, verschiedenen Leuten gegen&uuml;ber, immer mit demselben resignierten Ende, und noch nie ist etwas darauf gefolgt. Die Klage ist ein Ziel, das f&uuml;r unerreichbar erkl&auml;rt und unter Konversation abgelegt wurde. Nicht jede geh&ouml;rt auf die Liste, und manches liegt wirklich ausserhalb deiner Reichweite. Aber eine Klage, die seit Jahren wiederholt und nie gepr&uuml;ft wurde, ist einen ehrlichen Blick darauf wert, wie ein erster Zug &uuml;berhaupt aussehen w&uuml;rde.</p>
+    <p><strong>Frag, was dein Verhalten sagt.</strong> Stell dir jemanden vor, der nie ein Wort mit dir gewechselt und nur die letzten drei Monate beobachtet hat: deinen Kalender, dein Geld, und was du mit den freien Abenden gemacht hast. Worauf, w&uuml;rde er schliessen, hast du es abgesehen? Schreib seine Antwort n&uuml;chtern auf, ohne dich zu verteidigen.</p>
+    <p>Der Abstand zwischen dieser Antwort und der Liste, die du geschrieben hast, ist das N&uuml;tzlichste auf dem Blatt. Er ist kein Urteil. Manchmal zeigt er, dass deine wirklichen Priorit&auml;ten in Ordnung sind und nur deine Beschreibung davon falsch war. Manchmal zeigt er einen Eintrag, den du seit Jahren mittr&auml;gst und gar nicht willst, und das zu wissen lohnt sich, bevor du ein weiteres Jahr hineinsteckst.</p>
+    <p>Und wenn die Liste dann noch L&uuml;cken hat: Was w&uuml;rdest du weiter tun, wenn niemand je erf&uuml;hre, dass du es tust? Vorhaben, die es nur vor Publikum gibt, fallen bei dieser Frage auseinander, und was stehen bleibt, geh&ouml;rt dir.</p>
+    <p>Zehn ist auch hier eine Grenze. Wenn diese &Uuml;bungen f&uuml;nfzehn Kandidaten hervorbringen, ist das normal und das bessere Problem. Ordne sie und behalte die ersten zehn; die anderen sind nicht verloren, sie stehen nur bis zum n&auml;chsten Ritual unter dem Strich.</p>
+
+    <h2>Ein Ziel so schreiben, dass es sich aufklappen l&auml;sst</h2>
+    <p>"Fit werden" steht auf mehr Listen als alles andere und bewegt sich weniger als alles andere, weil es dir f&uuml;r Dienstag nichts zu tun gibt. Die Formulierung eines Ziels entscheidet, ob es sich &uuml;berhaupt zerlegen l&auml;sst.</p>
+    <p><strong>Die Fertig-wenn-Probe.</strong> Schreib den Satz, der an dem Tag wahr w&auml;re, an dem das erledigt ist. Wenn du ihn nicht schreiben kannst, hast du eine Richtung und noch kein Ziel. "Fit werden" f&auml;llt durch. "Ich komme vier Stockwerke hoch, ohne stehen zu bleiben" besteht: Der Satz sagt, was sich ge&auml;ndert hat, er l&auml;sst sich pr&uuml;fen, und es ist offensichtlich, wenn du noch nicht dort bist.</p>
+    <p>Eine Richtung ist nichts Wertloses. Sie ist die &Uuml;berschrift, unter der sich ein Ziel finden l&auml;sst. Behalte sie, wenn sie dir gef&auml;llt, aber schreib den Fertig-wenn-Satz daneben, denn das ist der, der sich aufklappen l&auml;sst.</p>
+    <p><strong>Die Geschichte ist kein Schmuck.</strong> Ein Ziel allein l&auml;sst sich nicht vern&uuml;nftig zerlegen, weil dieselben Worte in verschiedenen Leben Verschiedenes bedeuten. "Fit werden" mit achtundzwanzig, gesunden Knien und freien Abenden ist ein anderes Problem als mit einundsechzig, Schreibtischarbeit, einem kaputten Knie und keiner Kraft nach acht. Gleicher Satz, anderer erster Schritt. Die Umst&auml;nde entscheiden &uuml;ber den Schritt, also m&uuml;ssen sie irgendwo stehen.</p>
+    <p>Drei Dinge lohnen sich unter jedem Ziel: warum jetzt (was dieses Jahr zu dem Jahr macht und nicht eines der letzten zehn), was du schon versucht hast und was du daraus gelernt hast, und was tats&auml;chlich im Weg steht. Das dritte ist das ehrliche. Wenn die Antwort Geld ist, nenn die Summe. Wenn es eine Person ist, sag es. Ein Ziel, dessen Hindernis unbenannt bleibt, erzeugt Schritte, die um das Hindernis herumf&uuml;hren, und so bleibt eine Liste jahrelang besch&auml;ftigt, ohne sich zu bewegen.</p>
+    <p>Es gibt ein viertes, das dort hingeh&ouml;rt und unangenehm zu schreiben ist: welcher Mensch die fertige Fassung dieses Ziels aus dir macht, und ob du das glaubst. An dieser Zeile scheitern Ziele h&auml;ufiger als an jeder Taktik. Wer sagt, er wolle ein Buch schreiben, sich selbst aber nicht als jemanden sieht, der schreibt, wird den Plan hervorbringen und nicht die Seiten. Du musst das nicht aufl&ouml;sen. Du musst es aufschreiben, denn ein Ziel, an das du nicht glaubst, geh&ouml;rt entweder bestritten oder weiter nach unten, und beides ist besser, als es stumm mitzutragen.</p>
+    <p><strong>Was ein aufgeschriebenes Ziel tut.</strong> Eine geordnete Liste ver&auml;ndert, was dir auff&auml;llt. Das ist keine Mystik, sondern die gew&ouml;hnliche Arbeitsweise der Aufmerksamkeit. Wer sich f&uuml;r ein bestimmtes Auto entschieden hat, sieht dieses Auto pl&ouml;tzlich &uuml;berall, und ge&auml;ndert hat sich nur, worauf seine Aufmerksamkeit eingestellt ist. Ein Ziel auf Platz eins tut dasselbe mit Gelegenheiten: Aus einem beil&auml;ufigen Gespr&auml;ch wird ein Hinweis, aus einem Absatz in einem Artikel eine Adresse. Dieser Effekt steht nur Zielen offen, die genau genug sind, um wiedererkannt zu werden. "Erfolgreicher sein" gibt der Aufmerksamkeit nichts, womit sie vergleichen k&ouml;nnte. Das ist das leise Argument f&uuml;r die ehrliche Reihenfolge: Deine Aufmerksamkeit filtert das Jahr ohnehin, und die Liste entscheidet, wonach.</p>
+
+    <h2>Die Liste am Leben halten</h2>
+    <p>Eine Liste, die monatlich neu geschrieben und nie gelesen wird, ist ein Tagebuch. Was sie im Jahr h&auml;lt, ist klein und t&auml;glich.</p>
+    <p><strong>Eine Frage am Tag.</strong> tenfold nimmt das Ziel, das am wenigsten &uuml;ber sich selbst weiss, und stellt eine einzige Frage dazu. Eine Minute ehrliches Tippen, dann zu. Es ist keine Serie und es gibt nichts am Leben zu erhalten; eine ausgelassene Frage ist ausgelassen. Der Sinn ist, dass ein Ziel &uuml;ber Wochen seine eigene Geschichte ansammelt, und diese Geschichte macht den n&auml;chsten Schritt offensichtlich.</p>
+    <p><strong>Wenn ein Ziel stehen bleibt.</strong> Stillstand ist eine Auskunft und kein Disziplinproblem, und er hat meist eine von drei Ursachen. Der Schritt ist zu gross, dann fehlt darunter eine Ebene. Oder das Hindernis ist ein anderes als das, was die Geschichte nennt, dann geh&ouml;rt die Geschichte umgeschrieben und nicht der Plan. Oder das Ziel steht an der falschen Stelle der Reihenfolge und verliert jeden Tag leise gegen etwas dar&uuml;ber. Das dritte ist der h&auml;ufige Fall und der, den man zuletzt vermutet.</p>
+    <p><strong>Wann ein Ziel gestrichen wird.</strong> Nicht an dem Tag, an dem es schwer wirkt. Beim Ritual, und mit einem Grund, den du laut aussprechen w&uuml;rdest: Es war das Ziel eines anderen, es hat sich in einer Form erledigt, die du nicht erwartet hast, die Umst&auml;nde, die es dringend machten, gibt es nicht mehr, oder du hast dein Verhalten angesehen und zugegeben, dass du es nicht tun wirst. Ein Ziel mit genanntem Grund zu streichen ist eine Entscheidung. Es stumm fallen zu lassen ist Abdriften, und Abgedriftetes kommt im n&auml;chsten Jahr mit denselben Worten zur&uuml;ck.</p>
+    <p><strong>Was mit einem erledigten Ziel geschieht.</strong> Es wird markiert und bleibt, wo es steht, bis zum n&auml;chsten Ritual. Es wird nicht gel&ouml;scht, und die Liste r&uuml;ckt nicht nach. Zum einen, weil eine Liste, die sich beim ersten Erfolg sofort neu ordnet, dir nie die Pause l&auml;sst, hinzusehen, was dieser Erfolg ver&auml;ndert hat; zum anderen, weil ein erledigter Eintrag auf Platz drei die einzige ehrliche Bilanz eines Jahres ist, die du bekommst. Was an seine Stelle tritt, entscheidet das n&auml;chste Ritual.</p>
+    <p><strong>Wie oft man hinsieht.</strong> T&auml;glich ist die Frage. Monatlich ist das Papier. Und wenn du einen Rhythmus dazwischen willst: einmal in der Woche ein Blick auf die obersten drei und sonst nichts. Die ganze Liste jeden Tag zu lesen hilft nicht. Es macht aus einer Entscheidung eine Sorge.</p>
+
+    <h2>Woher das kommt</h2>
+    <p>Raymond Hull (1919 bis 1985) war ein britisch-kanadischer Autor, der in Vancouver lebte und vor allem als Mitautor von <em>The Peter Principle</em> bekannt ist. Im selben Jahr erschien <em>How to Get What You Want</em>, 1969, und daher stammt die Methode auf dieser Seite: die handgeschriebene Liste, die ehrliche Rangfolge, das regelm&auml;ssige Neuschreiben und das Argument, dass die meisten Menschen nicht am K&ouml;nnen scheitern, sondern daran, nie geregelt zu haben, worauf sie zielen. Das Buch enth&auml;lt auch Zeitgebundenes, &Uuml;bungen zur Selbstsuggestion, die sich heute anders lesen. Geblieben sind die Liste und das Ritual. Die Grenze von genau zehn ist unsere.</p>
+    <p>Was hier hinzugekommen ist, stammt aus Gedanken, die in diesem Feld seit Jahren umlaufen und niemandem im Besonderen geh&ouml;ren: das Leben zu beschreiben, das man nicht will, um das zu finden, das man will; Verhalten zu lesen statt Aussagen; und die Identit&auml;t hinter einem Ziel als Teil des Ziels zu behandeln. Sie sind es wert, und neu sind sie nicht.</p>
+    <p>Wo sie eine Herkunft haben, ist die &auml;lter als wir alle. Alfred Adler argumentierte in den 1910er und 1920er Jahren, Verhalten verstehe man am besten von dem Zweck her, auf den es zielt, und nicht von der Ursache dahinter, und genau deshalb erkl&auml;rt eine geordnete Liste ein Jahr besser als eine Liste von Vors&auml;tzen. Maxwell Maltz, ein plastischer Chirurg, dem auffiel, dass Patienten mit ver&auml;ndertem Gesicht sich oft weiter verhielten, als h&auml;tte sich nichts ge&auml;ndert, schrieb 1960 in <em>Psycho-Cybernetics</em> dar&uuml;ber, dass das Selbstbild entscheidet. Und Mihaly Csikszentmihalyi fand ab den 1970er Jahren in seiner Arbeit &uuml;ber versunkene Aufmerksamkeit immer wieder dieselben zwei Bedingungen: ein klares Ziel und eine unmittelbare R&uuml;ckmeldung dar&uuml;ber, ob man n&auml;her kommt. Das ist eine faire Beschreibung dessen, wof&uuml;r eine aufgeklappte Liste da ist.</p>
+
+    <h2>Eine Methode, kein Versprechen</h2>
+    <p>Das repariert kein Leben an einem Nachmittag, und niemand sollte es so verkaufen. Was es tut, ist kleiner und n&uuml;chterner: Es zwingt dich zu entscheiden, was zuerst kommt, es macht aus der Spitze dieser Entscheidung etwas, das du diese Woche tun kannst, und es bringt dich oft genug zur&uuml;ck auf das Blatt, dass die Entscheidung deine bleibt und nicht an das f&auml;llt, was gerade am lautesten war. Das Schreiben ist deins, das Ordnen ist deins, und die zehn sind deine. Es gibt daran keinen Teil, den irgendjemand oder irgendeine Software f&uuml;r dich &uuml;bernehmen kann.</p>
+
+    <p class="foot">tenfold. Die Methode nach Raymond Hull, <em>How to Get What You Want</em> (1969). <a href="./privacy.html">Datenschutz</a></p>
+  </article>
+
+  <!-- ============================== ESPA&Ntilde;OL ============================= -->
+  <article id="doc-es" lang="es" data-title="tenfold, el m&eacute;todo" hidden>
+    <h1>El m&eacute;todo</h1>
+    <p class="stamp">tenfold. El m&eacute;todo de las diez metas, en detalle.</p>
+
+    <p class="lead">Diez metas, en un orden honesto, cada una desplegada hasta que un paso sea realizable. Ese es todo el m&eacute;todo. Viene de Raymond Hull, que lo escribi&oacute; en <em>How to Get What You Want</em> en 1969, y ha durado porque pide una decisi&oacute;n y no entusiasmo.</p>
+    <p>Esta p&aacute;gina es la versi&oacute;n larga. La pantalla sobre la aplicaci&oacute;n dice qu&eacute; hace tenfold; aqu&iacute; se explica c&oacute;mo funciona el m&eacute;todo y c&oacute;mo llevarlo t&uacute; mismo, en papel, abras o no la aplicaci&oacute;n alguna vez.</p>
+
+    <h2>Qu&eacute; es el m&eacute;todo</h2>
+    <p>Tres exigencias, y son m&aacute;s duras de lo que parecen.</p>
+    <p>La primera es un n&uacute;mero. Exactamente diez cosas que quieres, por escrito. No las diez que deber&iacute;as querer, ni las diez que quedar&iacute;an razonables si alguien leyera por encima de tu hombro.</p>
+    <p>La segunda es un orden. No grupos, no prioridades A, B y C, sino una sola l&iacute;nea del uno al diez en la que cada entrada va de verdad por delante de la siguiente.</p>
+    <p>La tercera es profundidad. Una meta sigue siendo un deseo hasta que se parte en lo que de verdad te pide, y luego se vuelve a partir, hasta que queda algo que podr&iacute;as hacer esta semana sin prepararte antes.</p>
+    <p>Todo lo dem&aacute;s del m&eacute;todo est&aacute; al servicio de esas tres.</p>
+
+    <h2>Por qu&eacute; diez</h2>
+    <p>Diez es un l&iacute;mite, no una meta. Su trabajo termina en el momento en que tienes once candidatas y hay que perder una. Si pudieran ser veinte, nunca se rechaza nada, y una lista que no rechaza nada es una lista de todo lo que se te ha pasado por la cabeza, que es otra forma de decir que no es una lista.</p>
+    <p>Casi todo el mundo nombra tres o cuatro cosas sin dudar y despu&eacute;s se frena. Ese fren&oacute;n es &uacute;til. Lo que llega despu&eacute;s suele ser lo que nunca se dijo en voz alta, y a menudo es m&aacute;s exacto que lo r&aacute;pido.</p>
+    <p>El n&uacute;mero en s&iacute; no tiene ning&uacute;n m&eacute;rito. Es peque&ntilde;o para caber en la cabeza y bastante grande para que quepa una vida entera: el trabajo, el dinero, la salud, las personas con las que vives y las cosas que har&iacute;as si nadie te viera.</p>
+
+    <h2>Por qu&eacute; el orden importa m&aacute;s que la lista</h2>
+    <p>Dos personas pueden escribir las mismas diez entradas y vivir a&ntilde;os completamente distintos, porque la diferencia no est&aacute; en lo que hay en la lista. Est&aacute; en lo que va primero.</p>
+    <p>Una lista desordenada de diez cosas importantes se porta mal. Cada entrada reclama la misma tarde. Le das a cada una una d&eacute;cima parte de tu atenci&oacute;n, todo avanza a una d&eacute;cima de la velocidad que podr&iacute;a, y al cabo de un a&ntilde;o el informe honesto es que no se termin&oacute; nada. Eso parece esfuerzo. No lo es.</p>
+    <p>Ordenar resulta inc&oacute;modo, y conviene decir por qu&eacute;. Poner una meta en el s&eacute;ptimo lugar es decir, por escrito, que otras seis van antes, y algunas de esas s&eacute;ptimas son cosas que vas contando por ah&iacute; que te importan. La incomodidad es el m&eacute;todo funcionando. No se borra nada: se coloca.</p>
+    <p>Comparar diez cosas a la vez supera a cualquiera. Comparar dos es f&aacute;cil. Por eso el orden se construye por parejas, una pregunta cada vez, y por eso un orden hecho as&iacute; aguanta su primer martes.</p>
+
+    <h2>Por qu&eacute; desplegar funciona mejor que planificar</h2>
+    <p>Un plan se escribe por adelantado y describe un camino que no has recorrido. Suele fallar por la mitad, que es justo donde te enteras.</p>
+    <p>Desplegar hace la pregunta m&aacute;s peque&ntilde;a: &iquest;cu&aacute;l es el nivel de abajo? Bajo "aprender a navegar" hay algo como "poder salir solo con un barco peque&ntilde;o, en una bah&iacute;a que conozco, con viento flojo". Debajo est&aacute;n el curso, el dinero, los dos fines de semana y la persona que podr&iacute;a venir la primera vez. Debajo est&aacute; la llamada. La llamada es realizable. Nada de lo de arriba lo era.</p>
+    <p>Solo se despliega la parte en la que est&aacute;s trabajando. El resto de la lista conserva su forma y espera. La meta n&uacute;mero nueve no necesita un paso este mes, e invent&aacute;rselo es de esa clase de trabajo que se parece al avance.</p>
+    <p>La prueba es la misma en cada nivel: &iquest;podr&iacute;a alguien empezar esto sin prepararse antes? Si no, debajo hay otro nivel.</p>
+
+    <h2>El ritual en papel</h2>
+    <p>Una vez al mes, o cuando algo en tu vida se mueve y notas que la lista ha envejecido, el m&eacute;todo pide una hora y una hoja de papel.</p>
+    <p>Si&eacute;ntate donde nadie te interrumpa. Escribe diez l&iacute;neas. No corrijas mientras escribes: nada de tachar, nada de renumerar, nada de descartar una entrada por poco realista y nada de parar en siete porque no se te ocurre m&aacute;s. Aguanta el hueco hasta que se llene. Lo que llega tarde es la parte interesante.</p>
+    <p>Luego ord&eacute;nalas. Coge las dos primeras y preg&uacute;ntate cu&aacute;l de las dos te importa m&aacute;s. No cu&aacute;l es m&aacute;s urgente, m&aacute;s sensata o m&aacute;s f&aacute;cil, sino con cu&aacute;l te quedar&iacute;as si solo pudieras tener una. Luego coge la tercera y comp&aacute;rala con las ya colocadas, y as&iacute; hasta el final. Diez entradas cuestan unas veinticinco preguntas de esas y dos o tres minutos, y funciona porque nunca se te pide sostener m&aacute;s de dos cosas a la vez.</p>
+    <p>Copia la lista ordenada en limpio y l&eacute;ela. Esa lectura es el sentido de toda la hora. Una lista con la que no est&aacute;s de acuerdo es un resultado &uacute;til: casi siempre significa que una entrada es de otra persona, y el ritual es el sitio donde eso se descubre.</p>
+    <p>Despu&eacute;s tr&aacute;ela aqu&iacute;, o no. El m&eacute;todo tiene medio siglo m&aacute;s que esta aplicaci&oacute;n y funciona en papel. Lo que la aplicaci&oacute;n a&ntilde;ade son la profundidad y la memoria: guarda los niveles bajo cada meta, recuerda lo que le contaste de tus circunstancias y no deja la lista en la otra chaqueta.</p>
+    <p>Entre un ritual y otro el papel queda cerrado. La lista no se reescribe un mi&eacute;rcoles malo. Para eso est&aacute; el pr&oacute;ximo ritual, y saber que llega es lo que permite dejar la lista en paz.</p>
+
+    <h2>Cuando no sabes nombrar tus diez</h2>
+    <p>Casi nadie sabe responder de golpe qu&eacute; quiere, y no es un defecto de car&aacute;cter. La pregunta pide en el mismo momento una ambici&oacute;n y un lenguaje para ella. La salida es dejar de hacerla directamente.</p>
+    <p>Tres v&iacute;as, y caben en la misma hora.</p>
+    <p><strong>Describe el d&iacute;a que no quieres.</strong> Coge un mi&eacute;rcoles dentro de cinco a&ntilde;os, en una vida donde no se decidi&oacute; nada y no cambi&oacute; nada. Escr&iacute;belo como un d&iacute;a corriente, en presente y con detalle: qu&eacute; te despierta, qu&eacute; haces antes de las nueve, con qui&eacute;n hablas, qu&eacute; comes, qu&eacute; te preocupa a las cuatro de la tarde, qu&eacute; haces con la noche, en qu&eacute; piensas antes de dormir. No escribas una cat&aacute;strofe. Una cat&aacute;strofe se rechaza f&aacute;cil y no dice nada. Escribe la versi&oacute;n plausible, la que llega sin que pase nada.</p>
+    <p>Luego l&eacute;elo y marca las partes que rechazas. Cada una es informaci&oacute;n. "Sigo explicando lo mismo a la misma gente" es una meta sobre el trabajo, del rev&eacute;s. "Nadie en ese d&iacute;a me conoce bien" es una meta sobre las personas con las que vives. Dale la vuelta a cada rechazo y tienes candidatas, encontradas desde el lado que s&iacute; se nota.</p>
+    <p>Funciona porque el rechazo es m&aacute;s concreto que el deseo. Preg&uacute;ntale a alguien qu&eacute; quiere y te dar&aacute; un lema. Preg&uacute;ntale a qu&eacute; teme que acabe pareci&eacute;ndose su vida y te dar&aacute; una escena, con muebles dentro.</p>
+    <p><strong>Escribe la queja que has repetido m&aacute;s de tres veces.</strong> Casi todo el mundo tiene una o dos frases que dice con regularidad, a personas distintas, siempre con el mismo final resignado, y sobre las que nunca ha hecho nada. La queja es una meta declarada inalcanzable y archivada como conversaci&oacute;n. No todas merecen entrar en la lista, y algunas quedan de verdad fuera de tu alcance. Pero una queja repetida durante a&ntilde;os y nunca puesta a prueba merece una mirada honesta a c&oacute;mo ser&iacute;a siquiera el primer movimiento.</p>
+    <p><strong>Preg&uacute;ntate qu&eacute; dice tu conducta.</strong> Imagina a alguien que nunca ha hablado contigo y solo ha mirado los tres &uacute;ltimos meses: tu calendario, tu dinero, y qu&eacute; hiciste con las tardes libres. &iquest;Qu&eacute; concluir&iacute;a que buscas? Escribe su respuesta tal cual, sin defenderte.</p>
+    <p>La distancia entre esa respuesta y la lista que escribiste es lo m&aacute;s &uacute;til de la hoja. No es un veredicto. A veces muestra que tus prioridades reales est&aacute;n bien y lo &uacute;nico equivocado era c&oacute;mo las contabas. A veces muestra una entrada que llevas a&ntilde;os cargando y que en realidad no quieres, y eso conviene saberlo antes de dedicarle otro a&ntilde;o.</p>
+    <p>Y si a&uacute;n quedan huecos: &iquest;qu&eacute; seguir&iacute;as haciendo si nadie llegara a enterarse nunca de que lo haces? Las ambiciones que solo existen ante p&uacute;blico se deshacen con esa pregunta, y lo que queda en pie es tuyo.</p>
+    <p>Diez tambi&eacute;n es un l&iacute;mite en esta fase. Si estos ejercicios producen quince candidatas, es normal y es el problema bueno. Ord&eacute;nalas y qu&eacute;date con las diez primeras; las dem&aacute;s no se pierden, solo quedan bajo la l&iacute;nea hasta el pr&oacute;ximo ritual.</p>
+
+    <h2>Escribir una meta para que pueda desplegarse</h2>
+    <p>"Ponerme en forma" aparece en m&aacute;s listas que ninguna otra cosa y se mueve menos que ninguna, porque no te da nada que hacer el martes. La redacci&oacute;n de una meta decide si se puede partir siquiera.</p>
+    <p><strong>La prueba del terminado.</strong> Escribe la frase que ser&iacute;a verdad el d&iacute;a en que esto est&eacute; hecho. Si no puedes escribirla, lo que tienes es una direcci&oacute;n y todav&iacute;a no una meta. "Ponerme en forma" no pasa. "Subo cuatro pisos sin pararme" s&iacute;: dice qu&eacute; ha cambiado, se puede comprobar y es evidente cuando a&uacute;n no est&aacute;s ah&iacute;.</p>
+    <p>Una direcci&oacute;n no es in&uacute;til. Es el t&iacute;tulo bajo el que se puede encontrar una meta. Cons&eacute;rvala si te gusta, pero escribe al lado la frase del d&iacute;a en que estar&aacute; terminada, porque esa es la que se despliega.</p>
+    <p><strong>La historia no es adorno.</strong> Una meta sola no se puede partir con sentido, porque las mismas palabras significan cosas distintas en vidas distintas. "Ponerme en forma" a los veintiocho, con rodillas sanas y tardes libres, es otro problema que a los sesenta y uno, con trabajo de oficina, una rodilla mala y ninguna energ&iacute;a despu&eacute;s de las ocho. Misma frase, otro primer paso. Las circunstancias deciden el paso, as&iacute; que tienen que estar escritas en alguna parte.</p>
+    <p>Bajo cada meta merecen estar tres cosas: por qu&eacute; ahora (qu&eacute; hace que sea este a&ntilde;o y no uno de los diez anteriores), qu&eacute; has intentado ya y qu&eacute; aprendiste, y qu&eacute; est&aacute; de verdad en medio. La tercera es la honesta. Si la respuesta es dinero, di la cifra. Si es una persona, dilo. Una meta con el obst&aacute;culo sin nombrar produce pasos que lo rodean, y as&iacute; una lista pasa a&ntilde;os ocupada sin moverse.</p>
+    <p>Hay una cuarta que pertenece ah&iacute; y cuesta escribir: en qui&eacute;n te convierte la versi&oacute;n terminada de esto, y si te lo crees. Las metas fracasan en esa l&iacute;nea m&aacute;s que en ninguna t&aacute;ctica. Quien dice que quiere escribir un libro pero no se ve como alguien que escribe producir&aacute; el plan y no las p&aacute;ginas. No hace falta que lo resuelvas. Hace falta que lo escribas, porque una meta en la que no crees o se discute o baja en el orden, y las dos cosas son mejores que cargarla en silencio.</p>
+    <p><strong>Lo que hace una meta escrita.</strong> Una lista ordenada cambia lo que ves. No es misticismo, es el funcionamiento corriente de la atenci&oacute;n. Quien decide comprar un coche concreto empieza a ver ese coche por todas partes, y lo &uacute;nico que cambi&oacute; fue a qu&eacute; estaba ajustada su atenci&oacute;n. Una meta en el primer puesto hace lo mismo con las oportunidades: una conversaci&oacute;n de paso se convierte en una pista, un p&aacute;rrafo de un art&iacute;culo en una direcci&oacute;n. Ese efecto solo est&aacute; al alcance de metas lo bastante concretas como para ser reconocidas. "Tener m&aacute;s &eacute;xito" no le da a la atenci&oacute;n nada con qu&eacute; comparar. Ese es el argumento silencioso a favor del orden honesto: tu atenci&oacute;n va a filtrar el a&ntilde;o de todos modos, y la lista decide con qu&eacute; criterio.</p>
+
+    <h2>Mantenerla viva</h2>
+    <p>Una lista que se reescribe cada mes y no se consulta nunca es un diario. Lo que la mantiene dentro del a&ntilde;o es peque&ntilde;o y diario.</p>
+    <p><strong>Una pregunta al d&iacute;a.</strong> tenfold toma la meta que menos sabe de s&iacute; misma y hace una sola pregunta sobre ella. Un minuto escribiendo con honestidad, y se cierra. No es una racha y no hay nada que mantener vivo; una pregunta saltada queda saltada. El sentido es que una meta va acumulando su propia historia a lo largo de semanas, y esa historia es la que vuelve obvio el paso siguiente.</p>
+    <p><strong>Cuando una meta se queda parada.</strong> Pararse es informaci&oacute;n, no un problema de disciplina, y suele tener una de tres causas. El paso es demasiado grande, y entonces falta un nivel debajo. O el obst&aacute;culo no es el que nombra la historia, y entonces hay que reescribir la historia y no el plan. O la meta est&aacute; en el lugar equivocado del orden y pierde en silencio, cada d&iacute;a, contra algo que tiene encima. Este tercero es el caso frecuente y el &uacute;ltimo que se diagnostica.</p>
+    <p><strong>Cu&aacute;ndo retirar una.</strong> No el d&iacute;a en que pesa. En el ritual, y con una raz&oacute;n que dir&iacute;as en voz alta: era de otra persona, se ha resuelto de una forma que no esperabas, las circunstancias que la hac&iacute;an urgente ya no est&aacute;n, o has mirado tu conducta y has admitido que no vas a hacerlo. Retirar una meta con una raz&oacute;n dicha es una decisi&oacute;n. Dejarla caer en silencio es deriva, y lo que deriva vuelve al a&ntilde;o siguiente con las mismas palabras.</p>
+    <p><strong>Qu&eacute; pasa con una meta terminada.</strong> Se marca y se queda donde est&aacute; hasta el pr&oacute;ximo ritual. No se borra y la lista no sube a rellenar el hueco. En parte porque una lista que se reordena en cuanto algo termina no te deja nunca la pausa para mirar qu&eacute; cambi&oacute; al terminarlo; en parte porque ver una entrada terminada en el tercer puesto es el &uacute;nico balance honesto de un a&ntilde;o que vas a tener. Qu&eacute; ocupa su lugar lo decide el pr&oacute;ximo ritual.</p>
+    <p><strong>Cada cu&aacute;nto mirar.</strong> A diario, la pregunta. Cada mes, el papel. Y si quieres un ritmo intermedio: una vez por semana, un vistazo a las tres primeras y nada m&aacute;s. Leer la lista entera todos los d&iacute;as no ayuda. Convierte una decisi&oacute;n en una preocupaci&oacute;n.</p>
+
+    <h2>De d&oacute;nde viene esto</h2>
+    <p>Raymond Hull (1919 a 1985) fue un escritor brit&aacute;nico-canadiense afincado en Vancouver, conocido sobre todo como coautor de <em>The Peter Principle</em>. Ese mismo a&ntilde;o public&oacute; <em>How to Get What You Want</em>, 1969, y de ah&iacute; viene el m&eacute;todo de esta p&aacute;gina: la lista escrita a mano, la clasificaci&oacute;n honesta, la reescritura peri&oacute;dica y el argumento de que a la mayor&iacute;a no la frena la capacidad, sino no haber resuelto nunca hacia d&oacute;nde apunta. El libro tambi&eacute;n contiene material de su &eacute;poca, ejercicios de autosugesti&oacute;n que hoy se leen de otra manera. Lo que qued&oacute; es la lista y el ritual. El l&iacute;mite de exactamente diez es nuestro.</p>
+    <p>Lo que se ha a&ntilde;adido aqu&iacute; viene de ideas que llevan a&ntilde;os circulando en este terreno y que no son de nadie en particular: describir la vida que no quieres para localizar la que s&iacute;, leer la conducta en lugar de las declaraciones, y tratar la identidad detr&aacute;s de una meta como parte de la meta. Merecen la pena, y nuevas no son.</p>
+    <p>Donde s&iacute; tienen linaje, es m&aacute;s antiguo que cualquiera de nosotros. Alfred Adler sostuvo en los a&ntilde;os diez y veinte del siglo pasado que la conducta se entiende mejor por el fin al que apunta que por la causa que hay detr&aacute;s, y esa es la raz&oacute;n de que una lista ordenada explique un a&ntilde;o mejor que una lista de prop&oacute;sitos. Maxwell Maltz, cirujano pl&aacute;stico que observ&oacute; que muchos pacientes con la cara cambiada segu&iacute;an comport&aacute;ndose como si nada hubiera cambiado, escribi&oacute; en 1960 <em>Psycho-Cybernetics</em> sobre la autoimagen como la que decide. Y el trabajo de Mihaly Csikszentmihalyi desde los a&ntilde;os setenta sobre la atenci&oacute;n absorta encontr&oacute; una y otra vez las mismas dos condiciones: una meta clara y una respuesta inmediata sobre si te est&aacute;s acercando. Esa es una descripci&oacute;n justa de para qu&eacute; sirve una lista desplegada.</p>
+
+    <h2>Un m&eacute;todo, no una promesa</h2>
+    <p>Esto no arregla una vida en una tarde, y nadie deber&iacute;a venderlo como si pudiera. Lo que hace es m&aacute;s peque&ntilde;o y m&aacute;s sobrio: te obliga a decidir qu&eacute; va primero, convierte la parte de arriba de esa decisi&oacute;n en algo que puedes hacer esta semana, y te devuelve a la hoja con la frecuencia suficiente para que la decisi&oacute;n siga siendo tuya en vez de caer en lo que sonara m&aacute;s fuerte. La escritura es tuya, el orden es tuyo y las diez son tuyas. No hay ninguna parte de esto que nadie, ni ning&uacute;n programa, pueda hacer en tu lugar.</p>
+
+    <p class="foot">tenfold. El m&eacute;todo seg&uacute;n Raymond Hull, <em>How to Get What You Want</em> (1969). <a href="./privacy.html">Privacidad</a></p>
+  </article>
+
+  </main>
+</div>
+
+<script>
+  // The whole of the behaviour on this page: show one of the three documents.
+  // The same six lines privacy.html carries, and deliberately not shared with
+  // it: a shared file would be a loaded file, and neither page loads anything.
+  (function () {
+    var LANGS = ["en", "de", "es"];
+    var buttons = document.querySelectorAll("#langs button");
+
+    function show(code) {
+      if (LANGS.indexOf(code) < 0) code = "en";
+      for (var i = 0; i < LANGS.length; i++) {
+        var article = document.getElementById("doc-" + LANGS[i]);
+        article.hidden = LANGS[i] !== code;
+      }
+      for (var j = 0; j < buttons.length; j++) {
+        buttons[j].setAttribute("aria-pressed", String(buttons[j].dataset.lang === code));
+      }
+      document.documentElement.lang = code;
+      var title = document.getElementById("doc-" + code).dataset.title;
+      if (title) document.title = title;
+      if (window.history && history.replaceState) {
+        history.replaceState(null, "", "?lang=" + code);
+      }
+    }
+
+    // An explicit choice in the address wins, so a link can point at one
+    // language; otherwise the browser's own, and English where that is
+    // something else entirely.
+    var asked = (location.search.match(/[?&]lang=([a-z]{2})/i) || [])[1];
+    var wanted = (asked || navigator.language || "en").slice(0, 2).toLowerCase();
+    show(LANGS.indexOf(wanted) < 0 ? "en" : wanted);
+
+    for (var k = 0; k < buttons.length; k++) {
+      buttons[k].addEventListener("click", function (event) {
+        show(event.currentTarget.dataset.lang);
+        window.scrollTo(0, 0);
+      });
+    }
+  })();
+</script>
+</body>
+</html>
