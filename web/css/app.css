@@ -1631,27 +1631,68 @@ a.btn { text-decoration: none; }
 
 /* The biometric way in, above the field it does not replace. */
 .lock-bio { margin: 26px 0 4px; }
-/* Three entries now, and the narrowest phone in the matrix is 360px wide: the
-   row is allowed to breathe with a gap rather than pushing its ends into each
-   other, and the labels never break inside a word. tests/method.spec.js
-   measures it at 360 in all three languages instead of trusting this comment. */
+/* The foot of this screen used to be four rows of unrelated things, each as
+   loud as the next: the recovery key, the two documents, the languages and
+   the wipe, stacked (owner: "Den unteren Bereich login Page auch schoener
+   machen"). Nothing has been taken away. What changed is which entries stand
+   together and how far apart the kinds are.
+ *
+ *   .lock-alt    the other way IN. It belongs to the field above it, not to a
+ *                row of links, so it stands directly under the button.
+ *   .lock-foot   the two things to READ, centred as one pair.
+ *   .lang-switch a setting, unchanged.
+ *   .lock-reset  the one entry that cannot be undone: last, quietest, and
+ *                with real distance in front of it.
+ */
+
+/* Somebody who cannot get in is still trying to get in. The other way in is
+   one quiet line under the button it substitutes for - the shortest possible
+   distance from the field it serves. */
+.lock-alt { flex: none; display: flex; justify-content: center; padding: 0 var(--gutter); }
+.lock-alt .btn-ghost { font-size: 13px; padding: 10px 8px; }
+
+/* Two entries of one kind - what this is, and how the method works - centred
+   together with room to breathe, so they read as a pair instead of as two of
+   four competing rows. The narrowest phone in the matrix is 360px wide and
+   the labels never break inside a word; tests/method.spec.js measures the row
+   at 360 in all three languages instead of trusting this comment. */
+/* The distances are the grouping: 4px from the button to the way in that
+   substitutes for it, 22px before the reading pair, 22px again before the
+   wipe. Even gaps would say these four rows are four of a kind, which is
+   exactly what the foot used to say. */
 .lock-foot {
-  flex: none; padding: 14px var(--gutter) 0;
-  display: flex; justify-content: space-between; align-items: center;
-  gap: 6px;
+  flex: none; padding: 22px var(--gutter) 0;
+  display: flex; justify-content: center; align-items: center;
+  gap: 22px;
 }
 .lock-foot > * { flex: 0 1 auto; min-width: 0; text-align: center; }
-/* The escape hatch under the language row: present, but never loud. */
-.lock-reset { flex: none; display: flex; justify-content: center; padding: 0 var(--gutter) 4px; }
-.lock-reset .btn-ghost { font-size: 12px; color: var(--text-4); }
+/* The escape hatch under the language row: present, but never loud, and now
+   with enough space in front of it that a thumb reaching for the languages
+   cannot land on it. */
+.lock-reset { flex: none; display: flex; justify-content: center; padding: 22px var(--gutter) 2px; }
+.lock-reset .btn-ghost { font-size: 12px; color: var(--text-4); padding: 10px 8px; }
+
+/* The bottom inset belongs to whichever element is actually last. On this
+   screen the action bar and the language row both sit in the MIDDLE of the
+   stack, and their own home-indicator padding opened two dead gaps on a
+   notched phone while the wipe line - the real last element - had none of it.
+   .app has already reserved max(12px, --sa-bot) for the column as a whole, so
+   here the two middle rows give it back. */
+.screen.is-lock .bar { padding-bottom: 6px; }
+.screen.is-lock .lang-switch { padding: 14px var(--gutter) 2px; }
 
 /* The quiet language row on the lock and setup screens. */
 .lang-switch {
   flex: none; display: flex; justify-content: center; gap: 4px;
   padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom, 0px));
 }
+/* A 28px-tall target sat in a foot that was already being reached for in a
+   hurry. The type stays exactly where it was; only the box it is centred in
+   grows to the tap size the rest of the app uses. */
 .lang-opt {
   appearance: none; border: 0; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--tap);
   font: 500 12px/1 var(--font-mono); letter-spacing: 0.06em;
   color: var(--muted); padding: 8px 10px; border-radius: var(--radius-s);
 }

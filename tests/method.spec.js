@@ -328,14 +328,15 @@ test("the lock screen offers the method, and opens it", async ({ page, context }
   const rel = await link.getAttribute("rel");
   expect(rel).toContain("noopener");
 
-  // Between the two buttons that were already there, not instead of either.
+  // The reading pair, and only the reading pair. The recovery key used to
+  // share this row and now stands under the button it substitutes for; the
+  // assertion below is what keeps it from drifting back in.
   const row = await page.evaluate(() =>
     [...document.querySelector(".lock-foot").children].map((n) => n.tagName + ":" + n.textContent),
   );
-  expect(row.length).toBe(3);
-  expect(row[0]).toContain("Use the recovery key");
-  expect(row[1]).toBe("A:The method");
-  expect(row[2]).toContain("About");
+  expect(row.length).toBe(2);
+  expect(row[0]).toBe("A:The method");
+  expect(row[1]).toContain("About");
 
   const opened = await Promise.all([context.waitForEvent("page"), link.click()]);
   const tab = opened[0];
@@ -356,7 +357,80 @@ test("inside the shell the lock screen keeps the entry, at the public address", 
   await expect(link).toHaveAttribute("target", "_blank");
 });
 
-test("the lock footer still fits a 360px phone, in all three languages", async ({ page }) => {
+/**
+ * The four groups the foot of the lock screen is built from, top to bottom.
+ * The redesign moved entries BETWEEN these groups; it moved none of them off
+ * the screen, and the two tests below are what say so.
+ */
+const FOOT_GROUPS = [".lock-alt", ".lock-foot", ".lang-switch", ".lock-reset"];
+
+/** Every entry in those groups, measured, in the order it is painted. */
+function readFoot(page, groups) {
+  return page.evaluate(
+    (sels) =>
+      sels.flatMap((sel) =>
+        [...document.querySelector(sel).children].map((n) => {
+          const r = n.getBoundingClientRect();
+          return {
+            group: sel,
+            tag: n.tagName,
+            text: (n.textContent || "").trim(),
+            left: r.left,
+            right: r.right,
+            top: r.top,
+            bottom: r.bottom,
+            width: r.width,
+            height: r.height,
+          };
+        }),
+      ),
+    groups,
+  );
+}
+
+test("the foot of the lock screen keeps every entry, grouped by kind", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  const foot = await readFoot(page, FOOT_GROUPS);
+  const say = (sel) => foot.filter((n) => n.group === sel).map((n) => n.text);
+
+  // Four kinds, four places, nothing lost. The recovery key is an action and
+  // sits with the button; the two documents are reading and sit together; the
+  // languages are a setting; the wipe is destructive and is last.
+  expect(say(".lock-alt")).toEqual(["Use the recovery key"]);
+  expect(say(".lock-foot")).toEqual(["The method", "About"]);
+  expect(say(".lang-switch")).toEqual(["English", "Deutsch", "Español"]);
+  expect(say(".lock-reset")).toEqual(["Delete the vault and start over"]);
+
+  // In that order down the screen, and the wipe furthest from the rest: the
+  // gap in front of it is the whole point of moving it.
+  const tops = foot.map((n) => n.top);
+  expect([...tops].sort((a, b) => a - b)).toEqual(tops);
+  const reset = foot.find((n) => n.group === ".lock-reset");
+  const langs = foot.filter((n) => n.group === ".lang-switch");
+  const lastLang = Math.max(...langs.map((n) => n.bottom));
+  expect(reset.top - lastLang).toBeGreaterThan(10);
+
+  // Every one of them is a real tap target and every one of them still works.
+  for (const entry of foot) {
+    expect(entry.height, entry.text).toBeGreaterThanOrEqual(34);
+    expect(entry.width, entry.text).toBeGreaterThan(0);
+  }
+  await expect(page.locator(".lock-alt button")).toBeEnabled();
+  await expect(page.locator(".lock-reset button")).toBeEnabled();
+
+  // The action still is the action: it swaps the field for the recovery key
+  // and back, from where it now stands.
+  await page.locator(".lock-alt button").click();
+  await expect(page.locator("input.is-mono")).toHaveCount(1);
+  await expect(page.locator(".lock-alt button")).toHaveText("Use the passphrase");
+  await page.locator(".lock-alt button").click();
+  await expect(page.locator("input.is-mono")).toHaveCount(0);
+});
+
+test("the lock foot fits a 360px phone, in all three languages", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await freshApp(page);
   await page.setViewportSize({ width: 360, height: 780 });
@@ -372,44 +446,92 @@ test("the lock footer still fits a 360px phone, in all three languages", async (
     await page.waitForSelector(".lock-foot");
     await expect(page.locator(`.lang-switch button[lang="${code}"]`)).toHaveText(native);
 
-    const box = await page.evaluate(() => {
-      const foot = document.querySelector(".lock-foot");
-      const rect = foot.getBoundingClientRect();
-      const kids = [...foot.children].map((n) => {
-        const r = n.getBoundingClientRect();
-        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, text: n.textContent };
-      });
-      return {
-        rect: { left: rect.left, right: rect.right, height: rect.height },
-        kids,
+    const kids = await readFoot(page, FOOT_GROUPS);
+    const box = await page.evaluate(
+      (sels) => ({
         docWidth: document.documentElement.scrollWidth,
         viewport: window.innerWidth,
-      };
-    });
+        rows: sels.map((sel) => {
+          const r = document.querySelector(sel).getBoundingClientRect();
+          return { sel, left: r.left, right: r.right };
+        }),
+      }),
+      FOOT_GROUPS,
+    );
+    box.kids = kids;
 
-    // Measured, not eyeballed: nothing sticks out of the row, the three
-    // entries do not overlap each other, and the page does not scroll
-    // sideways because of them.
-    expect(box.kids.length, code).toBe(3);
+    // Measured, not eyeballed: nothing sticks out of its row, entries in one
+    // row do not overlap each other, and the page does not scroll sideways.
     expect(box.docWidth, code).toBeLessThanOrEqual(box.viewport);
     for (const kid of box.kids) {
-      expect(kid.left, `${code}: ${kid.text} starts left of the row`).toBeGreaterThanOrEqual(
-        box.rect.left - 0.5,
+      const row = box.rows.find((r) => r.sel === kid.group);
+      expect(kid.left, `${code}: ${kid.text} starts left of ${kid.group}`).toBeGreaterThanOrEqual(
+        row.left - 0.5,
       );
-      expect(kid.right, `${code}: ${kid.text} runs past the row`).toBeLessThanOrEqual(
-        box.rect.right + 0.5,
+      expect(kid.right, `${code}: ${kid.text} runs past ${kid.group}`).toBeLessThanOrEqual(
+        row.right + 0.5,
       );
     }
-    for (let i = 1; i < box.kids.length; i += 1) {
-      expect(box.kids[i].left, `${code}: entries overlap`).toBeGreaterThanOrEqual(
-        box.kids[i - 1].right - 0.5,
-      );
+    for (const sel of [".lock-foot", ".lang-switch"]) {
+      const kids = box.kids.filter((k) => k.group === sel);
+      for (let i = 1; i < kids.length; i += 1) {
+        expect(kids[i].left, `${code}: ${sel} entries overlap`).toBeGreaterThanOrEqual(
+          kids[i - 1].right - 0.5,
+        );
+      }
     }
     // One line each. A label that wrapped would make its entry taller than a
-    // single tap target, which is the shape the owner asked not to see.
-    const tallest = Math.max(...box.kids.map((k) => k.bottom - k.top));
-    expect(tallest, `${code}: an entry wrapped to a second line`).toBeLessThan(56);
+    // single tap target, which is the shape the owner asked not to see - and
+    // "Delete the vault and start over" in German is the longest string on
+    // the screen, so it is the one that would break first.
+    for (const kid of box.kids) {
+      expect(kid.height, `${code}: "${kid.text}" wrapped to a second line`).toBeLessThan(48);
+    }
   }
+});
+
+test("the foot clears the home indicator on a notched phone", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  // No headless browser has a notch, so the inset is written into the property
+  // the app reads it through and the layout is measured against it.
+  await page.evaluate(() => document.documentElement.style.setProperty("--sa-bot", "34px"));
+  await page.waitForTimeout(50);
+
+  const r = await page.evaluate(() => {
+    const reset = document.querySelector(".lock-reset").getBoundingClientRect();
+    const bar = document.querySelector(".bar").getBoundingClientRect();
+    const alt = document.querySelector(".lock-alt").getBoundingClientRect();
+    return {
+      resetBottom: reset.bottom,
+      frame: document.querySelector(".frame").getBoundingClientRect().bottom,
+      // The action and the alternative to it belong together: the bar's own
+      // home-indicator padding used to open a 34px hole between them.
+      gap: alt.top - bar.bottom,
+    };
+  });
+
+  // The last entry on the screen ends above the band the home indicator sits
+  // in - it is the entry that used to sit closest to it.
+  expect(r.frame - r.resetBottom).toBeGreaterThanOrEqual(34);
+  expect(r.gap).toBeLessThan(16);
+});
+
+test("the wipe still asks first, from its new place", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  // Quiet and last is not the same as easy: the one irreversible entry on the
+  // screen still goes through the sheet, and cancelling leaves the vault.
+  await page.locator(".lock-reset button").click();
+  await expect(page.locator(".sheet")).toBeVisible();
+  await expect(page.locator(".sheet-title")).toHaveText("Start over?");
+  await expect(page.getByRole("button", { name: "Delete on this device" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator(".lock-foot")).toBeVisible();
 });
 
 test("the settings offer the method as a sibling of About", async ({ page, context }) => {

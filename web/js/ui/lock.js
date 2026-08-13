@@ -154,7 +154,24 @@ export function render(ctx) {
 
   queueMicrotask(() => input.focus());
 
-  return el("section", { class: "screen" }, [
+  // The foot of this screen carries four different kinds of thing, and it used
+  // to carry them as four equally loud rows. They are still all here and all
+  // reachable; what changed is the grouping.
+  //
+  //   the recovery key   an ACTION for somebody who cannot get in. It now
+  //                      stands directly under the unlock button, because it
+  //                      belongs to the field above it and not to a row of
+  //                      links it has nothing in common with.
+  //   method / About     two things to READ, and the only pair on the screen.
+  //                      Centred together, in one quiet line.
+  //   the languages      a setting. Unchanged.
+  //   the wipe           destructive and irreversible: last, quietest, and
+  //                      with real distance in front of it.
+  //
+  // No entry was added, removed, renamed or hidden behind another tap, and no
+  // string was invented for a grouping label - the kinds separate by position
+  // and distance, which is cheaper than a heading and says the same thing.
+  return el("section", { class: "screen is-lock" }, [
     el("div", { class: "lock" }, [
       el("div", { class: "lock-mark" }, [icon("mark", 34)]),
       el("h1", { class: "lock-title" }, [text(t("lock.title"))]),
@@ -167,7 +184,8 @@ export function render(ctx) {
       err,
     ]),
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [unlock]),
-    el("div", { class: "lock-foot" }, [toggle, method, about]),
+    el("div", { class: "lock-alt" }, [toggle]),
+    el("div", { class: "lock-foot" }, [method, about]),
     langSwitch(ctx),
     // The way out when the passphrase is truly gone and no key exists:
     // wipe this device's copy and start over. Deliberately quiet - it is
