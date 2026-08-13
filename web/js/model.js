@@ -408,13 +408,25 @@ function startOfDay(ts) {
 }
 
 /**
- * Everything the today rule is allowed to consider: living, still-open, and a
- * LEAF - a node with living children is a goal, not a task. Its own function
- * because two callers depend on the same answer (the list and the app badge),
- * and two definitions of "still to be done" would drift apart within a week.
+ * Whether the today rule is allowed to look at this node at all: living,
+ * still-open, and a LEAF - a node with living children is a goal, not a task.
+ *
+ * Exported because a third caller wants the same answer for ONE node rather
+ * than for a list: the tree prompt marks a single step overdue or due today,
+ * and it has to mark exactly the steps `dueCounts` counted. Asking this
+ * question in two places would be two rules within a week.
+ */
+export function isOpenLeaf(nodes, node) {
+  return !!node && !node.deletedAt && OPEN_STATUSES.has(node.status) && isLeaf(nodes, node.id);
+}
+
+/**
+ * Everything the today rule is allowed to consider - the same question over a
+ * whole list. Its own function because two callers depend on the same answer
+ * (the list and the app badge).
  */
 function openLeaves(nodes) {
-  return nodes.filter((n) => !n.deletedAt && OPEN_STATUSES.has(n.status) && isLeaf(nodes, n.id));
+  return nodes.filter((n) => isOpenLeaf(nodes, n));
 }
 
 /**

@@ -630,8 +630,10 @@ export const en = {
   // The same loop, but for the whole list at once: a review to read, never
   // steps to import. Opened from the title of the outline screen.
   "aihelp.tree.title": "Look at the whole list with an AI",
-  "aihelp.tree.scope": "What travels: your {n} goals in their order, with their status, a short piece of each story, what is due under them and how far each one got. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
-  "aihelp.tree.scopeOne": "What travels: your one goal with its status, a short piece of its story, what is due under it and how far it got. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.tree.scope": "What travels: your {g} goals in their order and the {n} steps under them, indented as they stand, each with its status and what is due on it, plus a short piece of every story you have written. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.tree.scopeOne": "What travels: your one goal and the {n} steps under it, indented as they stand, each with its status and what is due on it, plus a short piece of every story you have written. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.tree.scopeBare": "What travels: your {g} goals in their order, with their status, a short piece of each story and what is due under them. There is nothing under them yet. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
+  "aihelp.tree.scopeBareOne": "What travels: your one goal with its status, a short piece of its story and what is due under it. There is nothing under it yet. Cards you marked sensitive, the notes on cards and anything you keep away from a model stay here.",
   "aihelp.tree.noPaste": "This one comes back as reading, not as steps. Nothing from the answer is pasted into your list.",
 
   // ------------------------------------------------------------------- share

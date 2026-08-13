@@ -313,14 +313,21 @@ export function openAiHelpTree(layer, ctx) {
   if (!built) return;
 
   const goals = built.context.goals.length;
+  // The honest line has to count what actually travels, and what travels is now
+  // the tree: the goals AND the steps listed under them. A list with nothing
+  // under it yet says that instead of claiming zero steps.
+  const parts = built.context.partCount;
+  const scopeKey = parts
+    ? goals === 1
+      ? "aihelp.tree.scopeOne"
+      : "aihelp.tree.scope"
+    : goals === 1
+      ? "aihelp.tree.scopeBareOne"
+      : "aihelp.tree.scopeBare";
   const body = el("div", { class: "assist" });
   const footer = el("div", { class: "sheet-foot" });
 
-  body.appendChild(
-    el("p", { class: "field-hint" }, [
-      text(goals === 1 ? t("aihelp.tree.scopeOne") : t("aihelp.tree.scope", { n: goals })),
-    ]),
-  );
+  body.appendChild(el("p", { class: "field-hint" }, [text(t(scopeKey, { g: goals, n: parts }))]));
 
   const field = el("textarea", {
     class: "textarea is-prompt",

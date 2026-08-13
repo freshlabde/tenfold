@@ -9,8 +9,9 @@
 // under the same node.
 //
 // There is a SECOND prompt in here, and it is not that loop. The tree review
-// takes the whole list - every root goal, its story in excerpt, what is due
-// under it and how far it got - and asks for a reading of it: what collides,
+// takes the whole list - every goal, its story in excerpt, what is due under it
+// and how far it got, and under each one the whole living tree as an indented
+// outline - and asks for a reading of it: what collides,
 // what is too vague to unfold, what has no story yet, whether the order is
 // honest, which one deserves the coming week. It ends in prose and has no way
 // home: nothing that comes back from it is parsed, previewed or written. Two
@@ -29,7 +30,15 @@
 // sync id, the recovery material and the settings have no representation in
 // this file at all; they cannot be forgotten out because they were never in.
 
-import { ancestorsOf, childrenOf, descendantsOf, dueCounts, isOptedOut } from "./model.js";
+import {
+  ancestorsOf,
+  childrenOf,
+  descendantsOf,
+  dueCounts,
+  dueGroupOf,
+  isOpenLeaf,
+  isOptedOut,
+} from "./model.js";
 import { entityById } from "./entities.js";
 
 /** The neighbourhood is a neighbourhood, not a tree walk. */
@@ -49,6 +58,36 @@ export const MAX_ENTITIES = 12;
  * be asked for.
  */
 export const MAX_STORY_EXCERPT = 240;
+
+/**
+ * How much of a STEP's story travels in the same prompt.
+ *
+ * Most steps have no story at all - the guide is written for goals - so this
+ * budget is spent rarely, and where it is spent it means somebody sat down and
+ * thought about that one step. That is worth showing the model, because it is
+ * exactly where the thinking already happened; a whole page of it is not, at
+ * seventy steps. 120 characters is a sentence and a half: enough to see WHAT
+ * was thought, not enough to bury the outline it hangs in.
+ */
+export const MAX_CHILD_STORY_EXCERPT = 120;
+
+/**
+ * How many steps the whole prompt may carry, and how many any one goal may.
+ *
+ * Owner's field test, with a real vault: "Der große Prompt mit dem Baum hat bei
+ * weitem nicht alle Unterzweige dabei. Das LLM versteht nur einen kleinen Teil
+ * vom Ganzen." He has seventy steps, and every one of them fits. Somebody else
+ * will have eight hundred, and a prompt of eight hundred lines is a prompt
+ * whose ask is skimmed - the same failure the story excerpt exists to avoid.
+ *
+ * So: 400 lines in total, 60 under any single goal. The per-goal cap is the
+ * more important of the two - without it one runaway goal eats the budget and
+ * the nine below it arrive as bare titles. What a cap cuts is SAID, in place,
+ * on the line where it was cut, so a model reads a subset as a subset instead
+ * of concluding that a goal has four steps when it has sixty-four.
+ */
+export const MAX_TREE_NODES = 400;
+export const MAX_GOAL_NODES = 60;
 
 /** Four levels deep, 0..3 - the depth a real outline reaches. */
 export const MAX_OUTLINE_LEVEL = 3;
@@ -100,14 +139,21 @@ function collectCards(entities, refs, omitted) {
  * inside a list of ten that shape turns the block into a wall, so the excerpt
  * is one run of text. The cut is reported by the caller, never hidden.
  */
-function excerptOf(story) {
+function excerptOf(story, cap = MAX_STORY_EXCERPT) {
   const flat = line(story).replace(/\s+/g, " ");
-  if (flat.length <= MAX_STORY_EXCERPT) return flat;
-  const cut = flat.slice(0, MAX_STORY_EXCERPT);
+  if (flat.length <= cap) return flat;
+  const cut = flat.slice(0, cap);
   const space = cut.lastIndexOf(" ");
   // Only break at a space that is actually near the end; a story without one
   // (a long single word, a pasted URL) is cut where the limit falls.
-  return (space > MAX_STORY_EXCERPT * 0.6 ? cut.slice(0, space) : cut).trim();
+  return (space > cap * 0.6 ? cut.slice(0, space) : cut).trim();
+}
+
+/** One story as it travels: the excerpt, and whether anything was left behind. */
+function storyOf(raw, cap) {
+  const full = line(raw).replace(/\s+/g, " ");
+  const excerpt = excerptOf(raw, cap);
+  return { story: excerpt, hasStory: !!full, storyCut: excerpt.length < full.length };
 }
 
 // ------------------------------------------------------------ what may travel
@@ -178,6 +224,39 @@ export function buildCopyContext(doc, nodeId) {
 }
 
 /**
+ * Everything living under one goal that may travel, in DOCUMENT order.
+ *
+ * Depth-first, not the breadth-first walk `descendantsOf` does, because the
+ * result is going to be printed as an outline and an outline is depth-first by
+ * definition - a step has to stand under the step it belongs to.
+ *
+ * An opted-out node is not descended into: the branch is absent, exactly as a
+ * whole opted-out goal is absent, and its children are not quietly promoted a
+ * level. Cyclic parent links (a corrupt file) are guarded the way the model's
+ * own walk guards them.
+ *
+ * Depth-first also makes the caps safe: every parent comes before its child, so
+ * cutting the list at any point leaves a forest with no orphans in it.
+ *
+ * @returns {{node: Object, level: number}[]} level 1 = a step under the goal
+ */
+function partsUnder(nodes, rootId) {
+  const out = [];
+  const seen = new Set([rootId]);
+  const walk = (id, level) => {
+    for (const child of childrenOf(nodes, id)) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      if (isOptedOut(nodes, child.id)) continue;
+      out.push({ node: child, level });
+      walk(child.id, level + 1);
+    }
+  };
+  walk(rootId, 1);
+  return out;
+}
+
+/**
  * The WHOLE list, once - the other prompt this app can build.
  *
  * Owner's question: "Click auf The Ten soll mir Think it through with an AI
@@ -186,15 +265,29 @@ export function buildCopyContext(doc, nodeId) {
  * and ends in a format contract, this one REVIEWS ten and ends in prose. What
  * comes back is read, not imported, which is why nothing here has a way home.
  *
+ * It carries the WHOLE living tree, not the roots of it. The first version sent
+ * ten titles with a count of steps under each, and the owner field-tested it on
+ * his own vault - nine goals, seventy steps, three levels deep: "Der große
+ * Prompt mit dem Baum hat bei weitem nicht alle Unterzweige dabei. Das LLM
+ * versteht nur einen kleinen Teil vom Ganzen." A review of a list whose content
+ * is hidden is a review of nine titles, and "which of these is too vague to
+ * unfold" cannot be answered by a model that was never shown what somebody
+ * already unfolded. So every living step travels, indented, in document order.
+ *
  * Scoped by exactly the rules the leaf prompt is scoped by, and for the same
  * reason - the text leaves this device by hand:
  *  - a root kept away from any model is ABSENT, not reduced, and counted;
- *  - so is an opted-out branch under a root, including from its own counts;
+ *  - so is an opted-out branch under a root, WITH everything under it, out of
+ *    the outline and out of that root's counts;
  *  - a card marked sensitive is dropped, the notes on any card never travel;
- *  - a story longer than MAX_STORY_EXCERPT is cut, and the cut is declared.
+ *  - a story longer than its cap is cut, and the cut is declared.
  *
  * The ranks are the ranks in the document, so a withheld goal leaves a gap the
  * "left out on purpose" line explains rather than a silently renumbered list.
+ *
+ * The caps (MAX_TREE_NODES, MAX_GOAL_NODES) trim from the END of a goal's own
+ * outline and report what they took, per goal, so a trimmed list can never be
+ * mistaken for a complete one.
  *
  * @param {Object} doc the open document
  * @param {{now?: number}} [opts] injectable clock, as everywhere else
@@ -208,38 +301,64 @@ export function buildTreeContext(doc, opts = {}) {
   const roots = childrenOf(nodes, null);
   if (!roots.length) return null;
 
-  const omitted = { optout: 0, sensitive: 0, notes: false };
+  // `optout` stays the sum both prompts have always reported; the tree prompt
+  // needs the split, because "one goal and four steps" is a different fact for
+  // a reader than "five things".
+  const omitted = { optout: 0, optoutGoals: 0, optoutSteps: 0, sensitive: 0, notes: false };
   const goals = [];
   const refs = [];
   let cutStories = 0;
+  let listedTotal = 0;
+  let stepsTotal = 0;
+  let trimmedTotal = 0;
 
   roots.forEach((root, index) => {
     if (isOptedOut(nodes, root.id)) {
-      omitted.optout += 1;
+      omitted.optoutGoals += 1;
       return;
     }
     const living = descendantsOf(nodes, root.id).filter((n) => !n.deletedAt);
-    const open = living.filter((n) => !isOptedOut(nodes, n.id));
-    omitted.optout += living.length - open.length;
+    const parts = partsUnder(nodes, root.id);
+    const open = parts.map((p) => p.node);
+    omitted.optoutSteps += living.length - open.length;
 
     // The due split is the model's own definition, not a second one: the same
     // primitive the badge, the Today list and the outline hint already share.
     const { overdue, today } = dueCounts([root, ...open], { now });
-    const story = line(root.story);
-    const excerpt = excerptOf(story);
-    if (excerpt.length < story.replace(/\s+/g, " ").length) cutStories += 1;
+    const told = storyOf(root.story, MAX_STORY_EXCERPT);
+    if (told.storyCut) cutStories += 1;
+
+    // Two caps, whichever bites first. The remaining total is what the goals
+    // above this one left; a goal that gets nothing still says how much it had.
+    const room = Math.max(0, Math.min(MAX_GOAL_NODES, MAX_TREE_NODES - listedTotal));
+    const shown = parts.slice(0, room);
+    listedTotal += shown.length;
+    stepsTotal += parts.length;
+    trimmedTotal += parts.length - shown.length;
 
     goals.push({
       rank: index + 1,
       title: line(root.title),
       status: root.status,
-      story: excerpt,
-      hasStory: !!story,
-      storyCut: excerpt.length < story.replace(/\s+/g, " ").length,
+      ...told,
       overdue,
       today,
       done: open.filter((n) => n.status === "done").length,
       steps: open.length,
+      // The outline itself. `due` is the today rule's own answer for one node,
+      // so the markers on the lines and the count on the PRESSURE line above
+      // them can never disagree.
+      parts: shown.map(({ node, level }) => {
+        const group = isOpenLeaf(nodes, node) ? dueGroupOf(node, now) : 2;
+        return {
+          level,
+          title: line(node.title),
+          status: node.status,
+          due: group === 0 ? "overdue" : group === 1 ? "today" : null,
+          ...storyOf(node.story, MAX_CHILD_STORY_EXCERPT),
+        };
+      }),
+      partsTrimmed: parts.length - shown.length,
     });
 
     for (const id of Array.isArray(root.entityRefs) ? root.entityRefs : []) {
@@ -251,14 +370,22 @@ export function buildTreeContext(doc, opts = {}) {
   // answer buildCopyContext gives for one.
   if (!goals.length) return null;
 
+  omitted.optout = omitted.optoutGoals + omitted.optoutSteps;
+  const cutChildStories = goals.reduce((n, g) => n + g.parts.filter((p) => p.storyCut).length, 0);
+
   return {
     goals,
     entities: collectCards(entities, refs, omitted),
     omitted,
     cutStories,
-    // Countable, like the leaf context: a test can pin that the prompt is the
-    // ten roots and nothing under them.
-    nodeCount: goals.length,
+    cutChildStories,
+    // What the sheet's honest line is built from, and what a test can pin: the
+    // steps that travel, the steps there are, and the difference the caps took.
+    partCount: listedTotal,
+    stepCount: stepsTotal,
+    trimmed: trimmedTotal,
+    // Countable, like the leaf context: the goals plus the outline under them.
+    nodeCount: goals.length + listedTotal,
   };
 }
 
@@ -306,11 +433,13 @@ export const PROMPT = {
     tree: {
       open: "I keep one list of goals in an honest order, and I would like you to look at the whole of it rather than at any one of them.",
       here: "Here they are, with their stories and how far each one got.",
+      shape: "The list below is the whole tree, indented: what stands under a goal is a step towards it, and what stands under a step belongs to that step.",
       labels: {
         list: "THE LIST",
         story: "STORY",
         due: "PRESSURE",
         progress: "PROGRESS",
+        parts: "THE STEPS UNDER IT",
         cards: "PEOPLE AND PLACES",
         withheld: "LEFT OUT ON PURPOSE",
       },
@@ -318,10 +447,15 @@ export const PROMPT = {
         noStory: "nothing written yet",
         more: "(story continues)",
         noSteps: "no steps yet",
+        overdue: "overdue",
+        today: "due today",
       },
       due: { overdue: "{n} overdue", today: "{n} due today", none: "nothing due" },
       progress: "{done} of {total} steps done",
-      excerpt: "The longer stories are cut off after about {n} characters and marked. Ask me for the rest of one if it would change what you say.",
+      trimmed: "+ {n} more steps under this goal, not listed",
+      trimmedOne: "+ one more step under this goal, not listed",
+      counts: { goals: "{n} goals", goalsOne: "one goal", steps: "{n} steps", stepsOne: "one step", and: " and " },
+      excerpt: "The longer stories are cut off - after about {n} characters on a goal, {m} on a step - and marked where that happened. Ask me for the rest of one if it would change what you say.",
       ask: [
         "Read the whole of it before you say anything about a single line of it.",
         "First: ask me up to three questions, and only the ones whose answers would really change how you read this list. Then stop and wait for me.",
@@ -361,11 +495,13 @@ export const PROMPT = {
     tree: {
       open: "Ich führe eine Liste von Zielen in einer ehrlichen Reihenfolge, und ich hätte gern, dass du dir das Ganze ansiehst und nicht ein einzelnes davon.",
       here: "Hier ist sie, mit den Geschichten und dem Stand.",
+      shape: "Die Liste unten ist der ganze Baum, eingerückt: was unter einem Ziel steht, ist ein Schritt dorthin, und was unter einem Schritt steht, gehört zu diesem Schritt.",
       labels: {
         list: "DIE LISTE",
         story: "GESCHICHTE",
         due: "DRUCK",
         progress: "STAND",
+        parts: "DIE SCHRITTE DARUNTER",
         cards: "MENSCHEN UND ORTE",
         withheld: "BEWUSST WEGGELASSEN",
       },
@@ -373,10 +509,15 @@ export const PROMPT = {
         noStory: "noch nichts aufgeschrieben",
         more: "(die Geschichte geht weiter)",
         noSteps: "noch keine Schritte",
+        overdue: "überfällig",
+        today: "heute fällig",
       },
       due: { overdue: "{n} überfällig", today: "{n} heute fällig", none: "nichts fällig" },
       progress: "{done} von {total} Schritten erledigt",
-      excerpt: "Die längeren Geschichten sind nach etwa {n} Zeichen abgeschnitten und markiert. Frag mich nach dem Rest, wenn er etwas an deiner Antwort ändern würde.",
+      trimmed: "+ {n} weitere Schritte unter diesem Ziel, hier nicht aufgeführt",
+      trimmedOne: "+ ein weiterer Schritt unter diesem Ziel, hier nicht aufgeführt",
+      counts: { goals: "{n} Ziele", goalsOne: "ein Ziel", steps: "{n} Schritte", stepsOne: "ein Schritt", and: " und " },
+      excerpt: "Die längeren Geschichten sind abgeschnitten - nach etwa {n} Zeichen bei einem Ziel, {m} bei einem Schritt - und dort markiert. Frag mich nach dem Rest, wenn er etwas an deiner Antwort ändern würde.",
       ask: [
         "Lies das Ganze, bevor du zu einer einzelnen Zeile etwas sagst.",
         "Zuerst: stell mir bis zu drei Fragen, und nur die, deren Antworten wirklich etwas daran ändern, wie du diese Liste liest. Dann halt an und warte auf mich.",
@@ -416,11 +557,13 @@ export const PROMPT = {
     tree: {
       open: "Llevo una sola lista de objetivos en un orden honesto, y me gustaría que miraras el conjunto y no uno solo de ellos.",
       here: "Aquí está, con sus historias y por dónde va cada uno.",
+      shape: "La lista de abajo es el árbol entero, con sangría: lo que está debajo de un objetivo es un paso hacia él, y lo que está debajo de un paso pertenece a ese paso.",
       labels: {
         list: "LA LISTA",
         story: "HISTORIA",
         due: "PRESIÓN",
         progress: "AVANCE",
+        parts: "LOS PASOS DEBAJO",
         cards: "PERSONAS Y LUGARES",
         withheld: "OMITIDO A PROPÓSITO",
       },
@@ -428,10 +571,15 @@ export const PROMPT = {
         noStory: "todavía sin escribir",
         more: "(la historia sigue)",
         noSteps: "todavía sin pasos",
+        overdue: "fuera de plazo",
+        today: "para hoy",
       },
       due: { overdue: "{n} fuera de plazo", today: "{n} para hoy", none: "nada pendiente" },
       progress: "{done} de {total} pasos hechos",
-      excerpt: "Las historias más largas se cortan sobre los {n} caracteres y quedan marcadas. Pídeme el resto de alguna si cambiaría lo que vas a decir.",
+      trimmed: "+ {n} pasos más bajo este objetivo, aquí sin listar",
+      trimmedOne: "+ un paso más bajo este objetivo, aquí sin listar",
+      counts: { goals: "{n} objetivos", goalsOne: "un objetivo", steps: "{n} pasos", stepsOne: "un paso", and: " y " },
+      excerpt: "Las historias más largas se cortan - sobre los {n} caracteres en un objetivo, {m} en un paso - y quedan marcadas ahí. Pídeme el resto de alguna si cambiaría lo que vas a decir.",
       ask: [
         "Lee el conjunto antes de decir nada sobre una sola línea.",
         "Primero: hazme hasta tres preguntas, solo aquellas cuya respuesta cambiaría de verdad cómo lees esta lista. Luego para y espera.",
@@ -537,22 +685,55 @@ export function renderTreePrompt(context, locale) {
   const w = wordsFor(locale);
   const T = w.tree;
   const L = T.labels;
-  const out = [`${T.open}\n${T.here}`];
+  const out = [`${T.open}\n${T.here}\n${T.shape}`];
+
+  // Two spaces per level, counted from the goal: its labelled lines sit one
+  // step in, the steps under it one step further, and each level below that one
+  // more. Plain text and nothing else - it is the shape this app can read back,
+  // even though nothing on this side ever comes back.
+  const indent = (level) => " ".repeat(2 * level);
 
   const rows = [];
   for (const goal of context.goals) {
     rows.push(`${goal.rank}. ${goal.title} (${w.status[goal.status] || goal.status})`);
     const story = goal.hasStory ? `${goal.story}${goal.storyCut ? ` ${T.marks.more}` : ""}` : T.marks.noStory;
-    rows.push(`   ${L.story}: ${story}`);
+    rows.push(`${indent(1)}${L.story}: ${story}`);
     const pressure = [];
     if (goal.overdue) pressure.push(fill(T.due.overdue, { n: goal.overdue }));
     if (goal.today) pressure.push(fill(T.due.today, { n: goal.today }));
-    rows.push(`   ${L.due}: ${pressure.length ? pressure.join(", ") : T.due.none}`);
+    rows.push(`${indent(1)}${L.due}: ${pressure.length ? pressure.join(", ") : T.due.none}`);
     rows.push(
-      `   ${L.progress}: ${
+      `${indent(1)}${L.progress}: ${
         goal.steps ? fill(T.progress, { done: goal.done, total: goal.steps }) : T.marks.noSteps
       }`,
     );
+
+    const parts = goal.parts || [];
+    if (parts.length || goal.partsTrimmed) {
+      rows.push(`${indent(1)}${L.parts}:`);
+      for (const part of parts) {
+        // Terse on purpose: an open step with no date is its title and nothing
+        // else, so seventy of them stay readable and the marked ones stand out.
+        const marks = [];
+        if (part.status !== "open") marks.push(w.status[part.status] || part.status);
+        if (part.due === "overdue") marks.push(T.marks.overdue);
+        else if (part.due === "today") marks.push(T.marks.today);
+        let row = `${indent(part.level + 1)}${part.title}`;
+        if (marks.length) row += ` (${marks.join(", ")})`;
+        if (part.hasStory) row += ` - ${part.story}${part.storyCut ? ` ${T.marks.more}` : ""}`;
+        rows.push(row);
+      }
+      // Where a cap bit, it says so THERE. A model that reads four steps under a
+      // goal that has sixty-four is being lied to by omission; one that reads
+      // "+ 60 more, not listed" knows it is looking at a subset.
+      if (goal.partsTrimmed) {
+        rows.push(
+          `${indent(2)}${
+            goal.partsTrimmed === 1 ? T.trimmedOne : fill(T.trimmed, { n: goal.partsTrimmed })
+          }`,
+        );
+      }
+    }
     rows.push("");
   }
 
@@ -565,10 +746,12 @@ export function renderTreePrompt(context, locale) {
   }
   // Said out loud, because a model that does not know a story was cut will read
   // the cut as the whole of it and call a considered goal thin.
-  if (context.cutStories) block.push(fill(T.excerpt, { n: MAX_STORY_EXCERPT }));
+  if (context.cutStories || context.cutChildStories) {
+    block.push(fill(T.excerpt, { n: MAX_STORY_EXCERPT, m: MAX_CHILD_STORY_EXCERPT }));
+  }
 
   const kept = [];
-  if (context.omitted.optout) kept.push(w.withheld.optout);
+  if (context.omitted.optout) kept.push(`${w.withheld.optout}${countedAway(T, context.omitted)}`);
   if (context.omitted.sensitive) kept.push(w.withheld.sensitive);
   if (context.omitted.notes) kept.push(w.withheld.notes);
   if (kept.length) block.push(`${L.withheld}: ${kept.join(", ")}. ${w.withheld.tail}`);
@@ -576,6 +759,25 @@ export function renderTreePrompt(context, locale) {
   out.push(block.join("\n\n"));
   out.push(T.ask.join("\n\n"));
   return out.join("\n\n");
+}
+
+/**
+ * How much was kept away, in goals and in steps.
+ *
+ * The leaf prompt names what it withheld; the tree prompt has to say how much
+ * of it, because "one goal and four steps" tells a reader the size of the hole
+ * and "parts I keep away" alone does not. Empty when nothing was withheld.
+ */
+function countedAway(T, omitted) {
+  const C = T.counts;
+  const pieces = [];
+  if (omitted.optoutGoals) {
+    pieces.push(omitted.optoutGoals === 1 ? C.goalsOne : fill(C.goals, { n: omitted.optoutGoals }));
+  }
+  if (omitted.optoutSteps) {
+    pieces.push(omitted.optoutSteps === 1 ? C.stepsOne : fill(C.steps, { n: omitted.optoutSteps }));
+  }
+  return pieces.length ? ` (${pieces.join(C.and)})` : "";
 }
 
 /**

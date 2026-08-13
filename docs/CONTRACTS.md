@@ -1375,24 +1375,55 @@ role and holds a `button.h-title-btn` (`aria-label` from `a11y.treeReview`) - th
 a press dims it. It is a plain heading again whenever `treeReviewAvailable(doc)` is false, which
 is an empty list or one whose every goal is kept away from models.
 
-**What enters it** (`buildTreeContext`, pure, tested): the LIVING ROOTS only, never the tree
-under them. Per goal: its rank in the document, title, status, a story excerpt, due pressure
-(overdue / due today, counted with `model.dueCounts` over that goal's subtree) and progress
-(done of total steps). Plus the linked cards of the roots, through the same `collectCards` the
-leaf prompt uses - one function, so the card rule cannot drift into two versions.
+**What enters it** (`buildTreeContext`, pure, tested): the LIVING TREE - every goal and, under
+it, every living descendant, in document order. Per goal: its rank in the document, title,
+status, a story excerpt, due pressure (overdue / due today, counted with `model.dueCounts` over
+that goal's subtree) and progress (done of total steps). Plus the linked cards of the roots,
+through the same `collectCards` the leaf prompt uses - one function, so the card rule cannot
+drift into two versions.
+
+It carried the ROOTS ONLY until v1.65. The owner field-tested that version on his own vault -
+nine goals, seventy steps, three levels deep - and reported: *"Der große Prompt mit dem Baum hat
+bei weitem nicht alle Unterzweige dabei. Das LLM versteht nur einen kleinen Teil vom Ganzen."*
+He is right, and the review it asks for is the reason: "which of these is too vague to unfold"
+cannot be answered by a model that was never shown what has already been unfolded. So the whole
+tree travels, and the prompt's opening says in one clause that it is a tree and that what stands
+under a goal is a step towards it.
+
+**The outline** (`renderTreePrompt`): two spaces per level counted from the goal - its labelled
+lines one step in, the steps under it one further, each level below that one more. Plain text,
+the shape the app's own outline parser can read, though nothing on this side ever comes back. A
+step line is its title and nothing else unless something is true of it: a status marker only
+where the status is not `open` (`(done)`, `(in progress)`, `(resting)`), a due marker only where
+`model.isOpenLeaf` says the today rule looks at that node at all, with the group from
+`model.dueGroupOf` - so a marker on a line can never disagree with the PRESSURE count above it.
 
 **What never enters it** is what never enters the leaf prompt, enforced in the same builder
 layer: an opted-out root is **absent and counted**, an opted-out branch under a living root is
-absent **and out of that root's counts**, a card marked `sensitivity: "high"` is dropped, and
-card notes never travel. Ranks are the document's ranks, so a withheld goal leaves a **gap**
-rather than a silently renumbered list, and the "left out on purpose" line explains it.
+absent **with everything under it** and out of that root's counts, a card marked
+`sensitivity: "high"` is dropped, and card notes never travel. Ranks are the document's ranks,
+so a withheld goal leaves a **gap** rather than a silently renumbered list, and the "left out on
+purpose" line explains it - now with the size of the hole, in goals and in steps
+(`omitted.optoutGoals` / `omitted.optoutSteps`), because "one goal and 3 steps" tells a reader
+something that "parts I keep away" alone does not.
 
-**Story excerpts: `MAX_STORY_EXCERPT` = 240 characters**, cut on a word boundary and flattened
-to one paragraph. Ten stories written properly are pages, and a prompt nobody reads to the end
-is a prompt whose ask gets skimmed; 240 is about three sentences, enough to tell a goal with a
-reason behind it from a goal that is only a title. A cut story is **marked** on its own line
-(`(story continues)`) and the prompt says once, in a sentence of its own, that the longer ones
-were cut and the rest can be asked for.
+**Story excerpts: `MAX_STORY_EXCERPT` = 240 characters for a goal, `MAX_CHILD_STORY_EXCERPT` =
+120 for a step**, cut on a word boundary and flattened to one paragraph. Ten stories written
+properly are pages, and a prompt nobody reads to the end is a prompt whose ask gets skimmed; 240
+is about three sentences, enough to tell a goal with a reason behind it from a goal that is only
+a title. Most steps have no story at all, so the smaller budget is spent rarely and exactly
+where somebody sat down and thought about one step - which is what the model wants to see. A cut
+story is **marked** (`(story continues)`) and the prompt says once, in a sentence of its own,
+that the longer ones were cut, with both caps named, and that the rest can be asked for.
+
+**Caps that scale honestly: `MAX_TREE_NODES` = 400 lines in total, `MAX_GOAL_NODES` = 60 under
+any one goal.** Seventy steps fit whole; eight hundred would not, and 800 lines is the skimmed
+ask again. The per-goal cap is the more important one - without it a single runaway goal eats
+the budget and the nine below it arrive as bare titles. Trimming is from the END of a goal's own
+depth-first outline, so a parent always precedes its child and a cut leaves no orphan, and what
+was cut is **said in place** on the line where it was cut (`+ 40 more steps under this goal, not
+listed`). A goal the total cap emptied still stands in the list with its own count. A prompt
+that showed four of sixty-four steps without saying so would be a lie by omission.
 
 **The ask** (`PROMPT[locale].tree.ask`, en/de/es): read the whole of it first; up to three
 questions, only where an answer would change the reading; then the review proper - where goals
@@ -1406,6 +1437,11 @@ languages, while asserting the leaf prompt built from the same document still ca
 them). The sheet opened in tree mode has no paste row, no parser, no preview and no Apply; the
 line where the leaf sheet puts its paste row says so instead. Copy and share behave exactly as
 they do on the leaf side.
+
+**The scope line** above the field counts what actually travels - the goals AND the steps listed
+under them (`context.partCount`, so a trimmed list is never claimed whole), in all three
+languages. A list with nothing under it yet says that rather than reporting zero steps
+(`aihelp.tree.scopeBare` / `scopeBareOne`).
 
 ## Visitor counters (`TENFOLD_STATS_KEY`, off by default)
 

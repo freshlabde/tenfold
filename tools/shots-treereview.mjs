@@ -3,10 +3,12 @@
 //   PORT=7713 TENFOLD_DATA=/tmp/tenfold-shot-data node tools/serve.js &
 //   BASE=http://127.0.0.1:7713 node tools/shots-treereview.mjs
 //
-// Writes design/screens/75-tree-review.png at the reference iPhone size: the
-// review sheet as it arrives from the title of the outline screen, with the
-// line that says what travels, the prompt, and the line that says this one
-// comes back as reading rather than as steps.
+// Writes design/screens/75-tree-review.png and 76-tree-review-full.png at the
+// reference iPhone size: the review sheet as it arrives from the title of the
+// outline screen, with the line that says what travels, the prompt, and the
+// line that says this one comes back as reading rather than as steps. The
+// second frame is the prompt scrolled to the indented multi-level outline - the
+// whole point of v1.65, and the thing the first frame cuts off.
 // Not part of the test suite - this is for looking.
 import { chromium } from "@playwright/test";
 
@@ -81,15 +83,27 @@ await page.evaluate(async () => {
 
   const day = 86400000;
   const knee = byTitle("Get the knee fixed").id;
+  // Three levels, because the picture is about the tree arriving whole.
   ctx.importTree(knee, [
     { title: "Book the MRI", level: 0 },
+    { title: "Ring the practice before nine", level: 1 },
+    { title: "Ask for the earliest slot", level: 2 },
+    { title: "Put the card in the wallet", level: 1 },
     { title: "Call the physio", level: 0 },
     { title: "Swim twice a week", level: 0 },
   ]);
+  ctx.importTree(byTitle("Spanish up to B2").id, [
+    { title: "Find a tandem partner", level: 0 },
+    { title: "Ask at the language school", level: 1 },
+  ]);
   const step = (title) => ctx.doc.nodes.find((n) => n.title === title);
   ctx.updateNode(step("Book the MRI").id, { due: Date.now() - day });
+  ctx.updateNode(step("Put the card in the wallet").id, { status: "done" });
   ctx.updateNode(step("Call the physio").id, { status: "done" });
-  ctx.updateNode(step("Swim twice a week").id, { due: Date.now() });
+  ctx.updateNode(step("Swim twice a week").id, { due: Date.now(), status: "doing" });
+  ctx.updateNode(step("Find a tandem partner").id, {
+    story: "Ana at work is from Cadiz and has offered twice.",
+  });
 });
 
 // No reload here: a reload locks the vault, and the point of the picture is
@@ -115,6 +129,21 @@ await page.evaluate(() => {
 });
 await page.screenshot({ path: "design/screens/75-tree-review.png" });
 console.log("wrote 75-tree-review");
+
+// The same sheet, with the field scrolled to where the outline actually is.
+// The first frame shows the opening and the first goal; this one shows what the
+// owner said was missing - the sub-branches, indented, three levels of them.
+await page.evaluate(() => {
+  const field = document.querySelector('[data-ai="tree-prompt"]');
+  if (!field) return;
+  const at = field.value.indexOf("THE STEPS UNDER IT");
+  const before = field.value.slice(0, at).split("\n").length;
+  const lineHeight = field.scrollHeight / field.value.split("\n").length;
+  field.scrollTop = Math.max(0, (before - 2) * lineHeight);
+});
+await page.waitForTimeout(300);
+await page.screenshot({ path: "design/screens/76-tree-review-full.png" });
+console.log("wrote 76-tree-review-full");
 
 await context.close();
 console.log(problems.length ? problems : "no console problems");

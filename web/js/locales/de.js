@@ -620,8 +620,10 @@ export const de = {
   // Dieselbe Schleife, aber für die ganze Liste auf einmal: eine Durchsicht
   // zum Lesen, nie Schritte zum Übernehmen. Über den Titel der Übersicht.
   "aihelp.tree.title": "Die ganze Liste mit einer KI ansehen",
-  "aihelp.tree.scope": "Was mitgeht: deine {n} Ziele in ihrer Reihenfolge, mit Status, einem kurzen Stück jeder Geschichte, was darunter fällig ist und wie weit jedes gekommen ist. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
-  "aihelp.tree.scopeOne": "Was mitgeht: dein eines Ziel mit Status, einem kurzen Stück seiner Geschichte, was darunter fällig ist und wie weit es gekommen ist. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.tree.scope": "Was mitgeht: deine {g} Ziele in ihrer Reihenfolge und die {n} Schritte darunter, eingerückt wie sie stehen, jeder mit Status und dem, was darauf fällig ist, dazu ein kurzes Stück jeder Geschichte, die du geschrieben hast. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.tree.scopeOne": "Was mitgeht: dein eines Ziel und die {n} Schritte darunter, eingerückt wie sie stehen, jeder mit Status und dem, was darauf fällig ist, dazu ein kurzes Stück jeder Geschichte, die du geschrieben hast. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.tree.scopeBare": "Was mitgeht: deine {g} Ziele in ihrer Reihenfolge, mit Status, einem kurzen Stück jeder Geschichte und dem, was darunter fällig ist. Darunter steht noch nichts. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
+  "aihelp.tree.scopeBareOne": "Was mitgeht: dein eines Ziel mit Status, einem kurzen Stück seiner Geschichte und dem, was darunter fällig ist. Darunter steht noch nichts. Karten, die du als sensibel markiert hast, die Notizen auf den Karten und alles, was du von Modellen fernhältst, bleiben hier.",
   "aihelp.tree.noPaste": "Das hier kommt als Text zum Lesen zurück, nicht als Schritte. Nichts aus der Antwort wird in deine Liste eingefügt.",
 
   // ------------------------------------------------------------------- share
