@@ -28,6 +28,7 @@ import { qrCard } from "./qrview.js";
 import { relativeTime } from "./format.js";
 import { widgetSupported } from "../badge.js";
 import { supportAvailable, openSupportSheet } from "./support.js";
+import { methodAnchor, methodLabel } from "./policy.js";
 
 const SKINS = ["slate", "register", "breath"];
 const THEMES = ["dark", "light"];
@@ -79,6 +80,22 @@ function row(labelKey, descKey, value, onClick, opts = {}) {
       value ? el("span", { class: "setrow-value" }, [text(value)]) : icon("chevronRight", 18),
     ],
   );
+}
+
+/**
+ * The method page, in the shape of a row. Same markup as `row` above so it
+ * reads as its sibling, but built on the anchor from ui/policy.js: one module
+ * decides where this document lives in a browser and inside the shell, and
+ * every surface that offers it goes through that one decision.
+ */
+function methodRow() {
+  return methodAnchor("setrow", [
+    el("span", {}, [
+      el("span", { class: "setrow-label" }, [text(methodLabel())]),
+      el("span", { class: "setrow-desc" }, [text(t("settings.methodDesc"))]),
+    ]),
+    icon("chevronRight", 18),
+  ]);
 }
 
 function persistenceLabel(ctx) {
@@ -749,6 +766,11 @@ export function render(ctx) {
     ]),
     group("settings.group.app", [
       row("settings.about", "settings.aboutDesc", null, () => ctx.go("about")),
+      // A sibling of the row above, not a feature: the same document the About
+      // screen and the lock screen link, reached from the place somebody who
+      // already uses the app goes looking. A real anchor rather than a row that
+      // navigates, because the destination is a page outside this app.
+      methodRow(),
       // The tip jar, next to the version rather than anywhere near the data:
       // it is a fact about the app, not a switch. Absent inside the native
       // shell, where an external payment link is not allowed to exist.

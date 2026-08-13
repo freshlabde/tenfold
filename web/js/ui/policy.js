@@ -58,12 +58,13 @@ export function methodHref() {
 }
 
 /**
- * One quiet closing line, as a real anchor. Used for both public documents,
- * each with a class of its own: the specs count `a.policy-line` and
- * `a.method-line` separately, so neither line can be quietly turned into the
- * other.
+ * A link to a public document, as a real anchor rather than a button: the
+ * destination is visible before it is tapped, it needs no script, and
+ * `noopener` denies the opened page a handle on a window that may be holding a
+ * decrypted vault. Every placement goes through here, so there is one statement
+ * of how these two documents are opened.
  */
-function docLine(cls, href, label) {
+function docAnchor(cls, href, children) {
   return el(
     "a",
     {
@@ -75,20 +76,50 @@ function docLine(cls, href, label) {
         referrerpolicy: "no-referrer",
       },
     },
-    [text(label)],
+    children,
   );
 }
 
 /**
- * The closing link line of the About screen.
- *
- * A real anchor, not a button: the destination is visible before it is tapped,
- * it needs no script, and `noopener` denies the opened page a handle on the
- * window that may be holding a decrypted vault.
+ * The method page as an anchor, in whatever shape the surface asking for it
+ * needs. Three screens link it - About, the lock screen and the settings - and
+ * this is the one place that knows where it goes and how it is opened. The
+ * caller supplies the class, so each surface can wear its own register while
+ * none of them can drift on the href.
+ * @param {string} cls
+ * @param {Array} children
+ * @returns {HTMLElement}
+ */
+export function methodAnchor(cls, children) {
+  return docAnchor(cls, methodHref(), children);
+}
+
+/**
+ * The label, from the one catalogue key every placement shares. Four surfaces
+ * naming the same document differently would read as four different things.
+ * @returns {string}
+ */
+export function methodLabel() {
+  return t("about.method");
+}
+
+/**
+ * The quiet footer form, for the lock screen: the same register as the About
+ * button standing next to it, and reachable before anything is unlocked.
+ * @returns {HTMLElement}
+ */
+export function methodFootLink() {
+  return methodAnchor("btn-ghost is-link", [text(methodLabel())]);
+}
+
+/**
+ * The closing link line of the About screen. Its own class, next to the method
+ * line's own class: the specs count `a.policy-line` and `a.method-line`
+ * separately, so neither can be quietly turned into the other.
  * @returns {HTMLElement}
  */
 export function policyAboutLine() {
-  return docLine("policy-line", policyHref(), t("about.policy"));
+  return docAnchor("policy-line", policyHref(), [text(t("about.policy"))]);
 }
 
 /**
@@ -99,5 +130,5 @@ export function policyAboutLine() {
  * @returns {HTMLElement}
  */
 export function methodAboutLine() {
-  return docLine("method-line", methodHref(), t("about.method"));
+  return methodAnchor("method-line", [text(methodLabel())]);
 }

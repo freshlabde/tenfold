@@ -484,6 +484,7 @@ export const de = {
   "bio.setupAgainDesc": "Die Einrichtung auf diesem Gerät hat sich geändert, der alte Weg hinein funktioniert nicht mehr. Das hier legt einen neuen Schlüssel dafür an. Passphrase und Wiederherstellungsschlüssel waren nie betroffen.",
   "settings.about": "Über tenfold",
   "settings.aboutDesc": "Die Methode, und was mit deinen Daten passiert.",
+  "settings.methodDesc": "Die Zehn-Ziele-Methode ausführlich, als öffentliche Seite.",
   "settings.version": "Version",
 
   // -------------------------------------------------------------------- sync
@@ -590,7 +591,7 @@ export const de = {
   "about.close.p1": "Neu ist das nicht. Und genau das ist die Stärke. tenfold erfindet keine Methode, es bewahrt eine bewährte und übernimmt die Logistik.",
   "about.claim.p1": "tenfold - get what you want.",
   "about.policy": "Datenschutz",
-  "about.method": "Die Methode ausführlich",
+  "about.method": "Die Methode",
 
   // ----------------------------------------------------------- the tip jar
   "support.row": "Spendier einen Espresso",

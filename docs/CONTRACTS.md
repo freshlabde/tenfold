@@ -952,7 +952,7 @@ it is the only screen that names an address the owner cannot afford to have
 wrong.
 
 - **Two entry points, one sheet.** A row in the settings "About this app" group,
-  between About and the version, and one closing line at the end of the About
+  under About and the method row and above the version, and one closing line at the end of the About
   screen, after the claim and in the muted tone. Both call
   `openSupportSheet(ctx)`. The About line is **absent during the first-run
   intro**: that screen is somebody deciding whether to trust the app with their
@@ -1119,13 +1119,29 @@ and self-contained.
 - **`sw.js` does NOT precache it**, for the same reason the policy is not precached: a
   cached public document is a stale public document.
 - **The two documents cross-link in their footers**, once per language, and nowhere else.
-- **The About link follows the policy line's rules, not the tip jar's.** `ui/policy.js`
-  renders it as `a.method-line` directly below `a.policy-line` and above the espresso
-  line, present in every mode including the first-run intro. Its own class, so a spec can
-  count the two lines separately and neither can be turned into the other unnoticed. Two
-  hrefs under the same rule as the policy: `./method.html` in a browser,
-  `https://tenfold.kairatools.com/method.html` in the shell, both living in
-  `ui/policy.js` alone and pinned by `tests/method.spec.js`.
+- **Three placements in the app, one string, one href rule.** All of them follow the
+  policy line's rules and none of them the tip jar's: present in the browser, inside the
+  shell and during the first-run intro alike. `ui/policy.js` owns the anchor
+  (`methodAnchor`), the label (`methodLabel`, the single key `about.method`) and the two
+  hrefs - `./method.html` in a browser, `https://tenfold.kairatools.com/method.html` in
+  the shell, because a same-origin `target="_blank"` is inert there. No screen may write
+  either of those strings itself; `tests/method.spec.js` asserts that none of the three
+  contains the key or the filename.
+  1. **About screen**: `a.method-line`, directly below `a.policy-line` and above the
+     espresso line. Its own class, so a spec counts the two lines separately.
+  2. **Lock screen** (`ui/lock.js`): a third entry in the `.lock-foot` row, between the
+     passphrase/recovery toggle and About. This is the screen a stranger meets when a
+     phone is handed to them, and the method page is the one thing that explains the app
+     with the vault sealed. The row is measured, not eyeballed: at **360px** in all three
+     languages the three entries stay inside the row, do not overlap and stay on one line.
+  3. **Settings** (`ui/settings.js`): an `a.setrow` directly under "About tenfold" in the
+     app group, same plate and same chevron, description `settings.methodDesc`. It is a
+     link out of the app rather than a navigation inside it, which is why it is an anchor
+     and not a `row()`.
+- **The welcome screen deliberately does NOT get a fourth entry.** It has no `.lock-foot`
+  family, and its first and biggest button already reads "What is this? The method"
+  (`setup.welcome.about`) and opens the About screen, which carries the line. A second
+  method entry on that screen would be the same offer twice.
 
 ## Zero-knowledge sync (stage 2)
 

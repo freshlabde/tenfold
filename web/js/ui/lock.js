@@ -1,9 +1,10 @@
 // ui/lock.js - the screen in front of the vault.
 //
 // What it does: takes the passphrase, or the recovery key when the passphrase
-// is gone, and hands it to the context. Also the only route to the About text
-// from outside the vault - somebody must be able to read what this app does
-// before typing a secret into it.
+// is gone, and hands it to the context. Also the route to the About text and to
+// the public method page from outside the vault - this is the screen a stranger
+// meets when somebody hands them a phone, and both of those have to answer
+// "what is this" without anything being unlocked first.
 //
 // When this device has enrolled its own authenticator, the first thing on the
 // screen is the biometric button, and it fires itself once - that is the answer
@@ -30,6 +31,7 @@
 import { el, text, icon, clear } from "./dom.js";
 import { t } from "../i18n.js";
 import { langSwitch } from "./langswitch.js";
+import { methodFootLink } from "./policy.js";
 
 let mode = "pass";
 let failed = false;
@@ -120,6 +122,14 @@ export function render(ctx) {
     [text(t("common.about"))],
   );
 
+  // The method, as its own entry rather than one buried a tap deeper inside
+  // About: what this app is asking somebody to do is the one thing a locked
+  // screen should still be able to explain. A real link, in the same quiet
+  // register as the two buttons beside it, and it carries the same href rule
+  // as every other placement (absolute inside the shell, where a same-origin
+  // target="_blank" is inert).
+  const method = methodFootLink();
+
   // The device's own authenticator, when this device armed one. The button is
   // above the field because it is the shorter way in; the field below it never
   // goes away.
@@ -157,7 +167,7 @@ export function render(ctx) {
       err,
     ]),
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [unlock]),
-    el("div", { class: "lock-foot" }, [toggle, about]),
+    el("div", { class: "lock-foot" }, [toggle, method, about]),
     langSwitch(ctx),
     // The way out when the passphrase is truly gone and no key exists:
     // wipe this device's copy and start over. Deliberately quiet - it is

@@ -484,6 +484,7 @@ export const es = {
   "bio.setupAgainDesc": "La configuración de este dispositivo ha cambiado y la entrada anterior ha dejado de funcionar. Esto crea una clave nueva. La frase de paso y la clave de recuperación nunca se han visto afectadas.",
   "settings.about": "Acerca de tenfold",
   "settings.aboutDesc": "El método y qué pasa con tus datos.",
+  "settings.methodDesc": "El método de las diez metas en detalle, como página pública.",
   "settings.version": "Versión",
 
   // -------------------------------------------------------------------- sync
@@ -590,7 +591,7 @@ export const es = {
   "about.close.p1": "Nada de esto es nuevo. Y esa es justamente la fuerza. tenfold no inventa un método; conserva uno probado y se encarga de la logística.",
   "about.claim.p1": "tenfold - get what you want.",
   "about.policy": "Privacidad",
-  "about.method": "El método en detalle",
+  "about.method": "El método",
 
   // ----------------------------------------------------------- the tip jar
   "support.row": "Invítame a un café",

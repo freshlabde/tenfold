@@ -492,6 +492,7 @@ export const en = {
   "bio.setupAgainDesc": "The enrolment on this device changed, so the old way in stopped working. This makes a new key for it. The passphrase and the recovery key were never affected.",
   "settings.about": "About tenfold",
   "settings.aboutDesc": "The method, and what happens to your data.",
+  "settings.methodDesc": "The ten-goals method in full, as a public page.",
   "settings.version": "Version",
 
   // -------------------------------------------------------------------- sync
@@ -598,7 +599,7 @@ export const en = {
   "about.close.p1": "None of this is new. And that is exactly the strength. tenfold does not invent a method; it keeps a proven one and takes over the logistics.",
   "about.claim.p1": "tenfold - get what you want.",
   "about.policy": "Privacy policy",
-  "about.method": "The method in full",
+  "about.method": "The method",
 
   // ----------------------------------------------------------- the tip jar
   "support.row": "Buy me an espresso",

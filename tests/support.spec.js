@@ -272,14 +272,15 @@ test("the settings row sits by the version and opens the same sheet", async ({ p
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("One or two euros, if this is worth it to you.");
 
-  // Between "About tenfold" and the version, in the group about the app.
+  // In the group about the app, under the two rows that say what this app is
+  // (About and the method page) and above the version.
   const neighbours = await page.evaluate(() => {
     const rows = [...document.querySelectorAll(".setrow")];
     const i = rows.findIndex((r) => r.textContent.includes("Buy me an espresso"));
     const label = (n) => (n ? n.querySelector(".setrow-label").textContent : null);
     return { before: label(rows[i - 1]), after: label(rows[i + 1]) };
   });
-  expect(neighbours).toEqual({ before: "About tenfold", after: "Version" });
+  expect(neighbours).toEqual({ before: "The method", after: "Version" });
 
   await row.click();
   await expect(page.locator(".sheet-title")).toHaveText("Buy me an espresso");

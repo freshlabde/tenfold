@@ -758,6 +758,13 @@ button.h-sub {
 }
 .btn-ghost:active { color: var(--text); }
 .btn-ghost.is-accent { color: var(--accent); }
+/* The same register as a ghost button, worn by a real anchor: the two public
+   documents are links, not actions, and a link shows where it goes before it is
+   tapped. Only the underline and the inline layout have to be undone. */
+a.btn-ghost.is-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none;
+}
 
 .iconbtn {
   width: var(--tap); height: var(--tap);
@@ -1364,6 +1371,10 @@ button.h-sub {
 .setrow-value { flex: none; max-width: 40%; text-align: right; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); letter-spacing: .04em; line-height: 1.4; }
 .setrow.is-danger .setrow-label { color: var(--accent); }
 .setrow[aria-disabled="true"] { opacity: .5; cursor: default; }
+/* A row that is a link out of the app rather than a navigation inside it. Same
+   plate, same chevron, no underline: it has to read as the sibling of the row
+   above it and not as a new kind of thing. */
+a.setrow { text-decoration: none; }
 
 /* The sync status dot: the only place sync appears outside its own group.
    Four quiet states, no animation - a background task must not blink at you. */
@@ -1620,7 +1631,16 @@ a.btn { text-decoration: none; }
 
 /* The biometric way in, above the field it does not replace. */
 .lock-bio { margin: 26px 0 4px; }
-.lock-foot { flex: none; padding: 14px var(--gutter) 0; display: flex; justify-content: space-between; align-items: center; }
+/* Three entries now, and the narrowest phone in the matrix is 360px wide: the
+   row is allowed to breathe with a gap rather than pushing its ends into each
+   other, and the labels never break inside a word. tests/method.spec.js
+   measures it at 360 in all three languages instead of trusting this comment. */
+.lock-foot {
+  flex: none; padding: 14px var(--gutter) 0;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 6px;
+}
+.lock-foot > * { flex: 0 1 auto; min-width: 0; text-align: center; }
 /* The escape hatch under the language row: present, but never loud. */
 .lock-reset { flex: none; display: flex; justify-content: center; padding: 0 var(--gutter) 4px; }
 .lock-reset .btn-ghost { font-size: 12px; color: var(--text-4); }

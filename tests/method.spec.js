@@ -237,7 +237,7 @@ test("the About screen links the method in the browser, and opens it", async ({
 
   const link = page.locator("a.method-line");
   await expect(link).toHaveCount(1);
-  await expect(link).toHaveText("The method in full");
+  await expect(link).toHaveText("The method");
   await expect(link).toHaveAttribute("href", METHOD_PATH);
   await expect(link).toHaveAttribute("target", "_blank");
   const rel = await link.getAttribute("rel");
@@ -290,6 +290,200 @@ test("the intro shows the method link where it deliberately shows no tip jar", a
   await expect(page.locator("a.method-line")).toHaveCount(1);
 });
 
+// ------------------------------------------- the lock screen and the settings
+
+/** Through the first run, into an unlocked vault. */
+async function setupVault(page) {
+  await page.getByRole("button", { name: "Set up the vault" }).click();
+  await page.locator('input[type="password"]').first().fill("correct horse battery staple");
+  await page.locator('input[type="password"]').nth(1).fill("correct horse battery staple");
+  await page.getByRole("button", { name: /Create the vault/ }).click();
+  await page.waitForSelector(".keygrid", { timeout: 60000 });
+  await page.locator(".check").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: /Start empty/ }).click();
+  await page.getByRole("button", { name: "Not now" }).click();
+  await page.getByRole("button", { name: "Begin" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+}
+
+async function lockNow(page) {
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: /Lock now/ }).click();
+  await page.waitForSelector(".lock-foot");
+}
+
+test("the lock screen offers the method, and opens it", async ({ page, context }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  // The screen a stranger meets when a phone is handed to them: it has to be
+  // able to say what this app is without anything being unlocked.
+  const link = page.locator(".lock-foot a.btn-ghost");
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveText("The method");
+  await expect(link).toHaveAttribute("href", METHOD_PATH);
+  await expect(link).toHaveAttribute("target", "_blank");
+  const rel = await link.getAttribute("rel");
+  expect(rel).toContain("noopener");
+
+  // Between the two buttons that were already there, not instead of either.
+  const row = await page.evaluate(() =>
+    [...document.querySelector(".lock-foot").children].map((n) => n.tagName + ":" + n.textContent),
+  );
+  expect(row.length).toBe(3);
+  expect(row[0]).toContain("Use the recovery key");
+  expect(row[1]).toBe("A:The method");
+  expect(row[2]).toContain("About");
+
+  const opened = await Promise.all([context.waitForEvent("page"), link.click()]);
+  const tab = opened[0];
+  await tab.waitForLoadState();
+  expect(tab.url()).toContain("/web/method.html");
+  await tab.close();
+});
+
+test("inside the shell the lock screen keeps the entry, at the public address", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  const link = page.locator(".lock-foot a.btn-ghost");
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveAttribute("href", METHOD_URL);
+  await expect(link).toHaveAttribute("target", "_blank");
+});
+
+test("the lock footer still fits a 360px phone, in all three languages", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await freshApp(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await setupVault(page);
+  await lockNow(page);
+
+  for (const [code, native] of [
+    ["en", "English"],
+    ["de", "Deutsch"],
+    ["es", "Español"],
+  ]) {
+    await page.locator(`.lang-switch button[lang="${code}"]`).click();
+    await page.waitForSelector(".lock-foot");
+    await expect(page.locator(`.lang-switch button[lang="${code}"]`)).toHaveText(native);
+
+    const box = await page.evaluate(() => {
+      const foot = document.querySelector(".lock-foot");
+      const rect = foot.getBoundingClientRect();
+      const kids = [...foot.children].map((n) => {
+        const r = n.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, text: n.textContent };
+      });
+      return {
+        rect: { left: rect.left, right: rect.right, height: rect.height },
+        kids,
+        docWidth: document.documentElement.scrollWidth,
+        viewport: window.innerWidth,
+      };
+    });
+
+    // Measured, not eyeballed: nothing sticks out of the row, the three
+    // entries do not overlap each other, and the page does not scroll
+    // sideways because of them.
+    expect(box.kids.length, code).toBe(3);
+    expect(box.docWidth, code).toBeLessThanOrEqual(box.viewport);
+    for (const kid of box.kids) {
+      expect(kid.left, `${code}: ${kid.text} starts left of the row`).toBeGreaterThanOrEqual(
+        box.rect.left - 0.5,
+      );
+      expect(kid.right, `${code}: ${kid.text} runs past the row`).toBeLessThanOrEqual(
+        box.rect.right + 0.5,
+      );
+    }
+    for (let i = 1; i < box.kids.length; i += 1) {
+      expect(box.kids[i].left, `${code}: entries overlap`).toBeGreaterThanOrEqual(
+        box.kids[i - 1].right - 0.5,
+      );
+    }
+    // One line each. A label that wrapped would make its entry taller than a
+    // single tap target, which is the shape the owner asked not to see.
+    const tallest = Math.max(...box.kids.map((k) => k.bottom - k.top));
+    expect(tallest, `${code}: an entry wrapped to a second line`).toBeLessThan(56);
+  }
+});
+
+test("the settings offer the method as a sibling of About", async ({ page, context }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: "Settings" }).click();
+
+  const link = page.locator("a.setrow");
+  await expect(link).toHaveCount(1);
+  await expect(link.locator(".setrow-label")).toHaveText("The method");
+  await expect(link).toHaveAttribute("href", METHOD_PATH);
+  await expect(link).toHaveAttribute("target", "_blank");
+
+  // Directly under the About row, in the same group, wearing the same plate.
+  const order = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".setrow")];
+    const label = (n) => (n.querySelector(".setrow-label") || {}).textContent;
+    const about = rows.findIndex((n) => label(n) === "About tenfold");
+    const method = rows.findIndex((n) => label(n) === "The method");
+    return { about, method, sameParent: rows[about].parentElement === rows[method].parentElement };
+  });
+  expect(order.method).toBe(order.about + 1);
+  expect(order.sameParent).toBe(true);
+
+  const opened = await Promise.all([context.waitForEvent("page"), link.click()]);
+  const tab = opened[0];
+  await tab.waitForLoadState();
+  expect(tab.url()).toContain("/web/method.html");
+  await tab.close();
+});
+
+test("inside the shell the settings row stays, at the public address", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await page.getByRole("button", { name: "Settings" }).click();
+
+  // The tip jar is the contrast again: absent in the shell, where this row is
+  // not, because a public document is not a payment.
+  const link = page.locator("a.setrow");
+  await expect(link).toHaveCount(1);
+  await expect(link).toHaveAttribute("href", METHOD_URL);
+});
+
+test("every surface names the document with the same string", async ({ page }) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const i18n = await import("/web/js/i18n.js");
+    const out = {};
+    for (const locale of ["en", "de", "es"]) {
+      i18n.setLocale(locale);
+      out[locale] = i18n.t("about.method");
+    }
+    i18n.setLocale("en");
+    return out;
+  });
+  // One key, four placements: the About line, the lock footer, the settings
+  // row label, and whatever comes next.
+  expect(r.en).toBe("The method");
+  expect(r.de).toBe("Die Methode");
+  expect(r.es).toBe("El método");
+
+  const policy = await readFile(join(ROOT, "web", "js", "ui", "policy.js"), "utf8");
+  const about = await readFile(join(ROOT, "web", "js", "ui", "about.js"), "utf8");
+  const lock = await readFile(join(ROOT, "web", "js", "ui", "lock.js"), "utf8");
+  const settings = await readFile(join(ROOT, "web", "js", "ui", "settings.js"), "utf8");
+  // The key is written once, and the three screens pull it through policy.js.
+  expect((policy.match(/about\.method/g) || []).length).toBe(1);
+  for (const [name, src] of [["about", about], ["lock", lock], ["settings", settings]]) {
+    expect(src, `${name} hard-codes the key`).not.toContain("about.method");
+    expect(src, `${name} hard-codes an href`).not.toContain("method.html");
+  }
+});
+
 test("the method link is named in all three catalogues", async ({ page }) => {
   await page.goto("/tests/fixture.html");
   const r = await page.evaluate(async () => {
@@ -302,9 +496,9 @@ test("the method link is named in all three catalogues", async ({ page }) => {
     i18n.setLocale("en");
     return out;
   });
-  expect(r.en).toBe("The method in full");
-  expect(r.de).toBe("Die Methode ausführlich");
-  expect(r.es).toBe("El método en detalle");
+  expect(r.en).toBe("The method");
+  expect(r.de).toBe("Die Methode");
+  expect(r.es).toBe("El método");
   for (const value of Object.values(r)) expect(value).not.toMatch(/^about\./);
 });
 
