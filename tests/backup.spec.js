@@ -51,6 +51,22 @@ async function enterApp(page) {
   await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
 }
 
+/**
+ * Wait for whichever screen a LATER unlock landed on, and end up on the outline.
+ *
+ * An unlock no longer always opens The Ten: the app opens where the work is, so
+ * a vault with something due or an unanswered daily question opens Today
+ * instead (app.js `somethingWaits`, tests/landing.spec.js). The first run above
+ * is exempt by design and needs none of this.
+ */
+async function afterUnlock(page) {
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
+  if ((await page.locator(".h-title").textContent()) === "Today") {
+    await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  }
+  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+}
+
 async function addRoots(page, titles) {
   await page.getByRole("button", { name: /Write the first one|New entry/ }).click();
   for (const title of titles) {
@@ -192,7 +208,7 @@ test("an export clears the marker, and the stamp survives a lock", async ({ page
   await expect(page.locator(".lock-title")).toHaveText("Locked");
   await page.locator(".lock input").fill(PASS);
   await page.getByRole("button", { name: /Unlock/ }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await afterUnlock(page);
   await expect(marker(page)).toHaveCount(0);
   // Sync stayed off throughout - the export is the other way to be safe.
   expect(await syncIdOf(page)).toBeNull();

@@ -16,6 +16,7 @@ import { childrenOf, isLeaf, storyDepth, dueGroupOf } from "../model.js";
 import { metricFor, progressOf, dueLabel } from "./format.js";
 import { t } from "../i18n.js";
 import { spring, rubberBand, collapse, prefersReducedMotion } from "../motion.js";
+import { stepFinished, rowDeleted, rowLifted } from "../haptics.js";
 
 const SWIPE_START = 8;
 const SWIPE_COMMIT = 92;
@@ -225,6 +226,11 @@ function attachGestures(ctx, refs) {
     pressTimer = setTimeout(() => {
       if (mode !== "none") return;
       mode = "drag";
+      // The lift is the one moment on this row where nothing has moved yet and
+      // something has nevertheless happened: the press was long enough, and the
+      // row now belongs to the finger. A hand holding still has no other way of
+      // being told that, so this is the haptic that earns its keep most.
+      rowLifted();
       drag = beginDrag(ctx, shell, row, node, opts);
     }, LONG_PRESS_MS);
     row.setPointerCapture(ev.pointerId);
@@ -291,6 +297,11 @@ function attachGestures(ctx, refs) {
   };
 
   const finish = async () => {
+    // Before the collapse, not after it: the answer belongs to the finger that
+    // is still on the glass. Waiting for the animation would put a fifth of a
+    // second between the gesture and its confirmation, which is long enough to
+    // read as a response to something else.
+    stepFinished();
     setX(SWIPE_COMMIT + 40);
     await collapse(shell);
     ctx.setStatus(node.id, "done");
@@ -302,6 +313,11 @@ function attachGestures(ctx, refs) {
   // confirmation on any node kind, so this must not invent one either - the
   // toast is what makes both paths recoverable.
   const remove = async () => {
+    // Deliberately not the same feeling as the finish above. The two gestures
+    // are mirror images on one row and one of them takes a whole subtree away,
+    // so the hand should be able to tell which one it just made without
+    // looking - see haptics.js for why this is the warning and not an impact.
+    rowDeleted();
     setX(-(SWIPE_COMMIT + 40));
     await collapse(shell);
     ctx.deleteNode(node);

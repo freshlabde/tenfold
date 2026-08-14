@@ -154,6 +154,33 @@ async function unlock(page) {
   await page.getByRole("button", { name: /Unlock/ }).click();
 }
 
+/**
+ * Wait for whichever screen the unlock landed on, and end up on the outline.
+ *
+ * An unlock no longer always opens The Ten: the app opens where the work is,
+ * and a vault with something due or an unanswered daily question opens Today
+ * (app.js `somethingWaits`, tests/landing.spec.js). Every vault in this file
+ * has goals in it, so most of these unlocks land on Today - which is beside the
+ * point of a badge test or a share test, so this closes it again and hands back
+ * the outline they were written against.
+ */
+async function afterUnlock(page) {
+  await inTheApp(page);
+  if ((await page.locator(".h-title").textContent()) === "Today") {
+    await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  }
+  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+}
+
+/**
+ * The same wait without the tidying up. For the share tests, where a sheet
+ * comes up over whichever screen the unlock landed on and the Close button
+ * underneath it is - correctly - not reachable.
+ */
+async function inTheApp(page) {
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
+}
+
 // --------------------------------------------------------------------- badge
 
 test("the badge counts the open leaves that are overdue or due today", async ({ page }) => {
@@ -235,7 +262,7 @@ test("the badge is set again on unlock, and a lock does not take it away", async
   await page.reload();
   expect(await lastBadge(page)).toBe(null);
   await unlock(page);
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await afterUnlock(page);
   await expect.poll(() => lastBadge(page)).toBe(1);
 });
 
@@ -339,7 +366,7 @@ test("after unlock a shared item is offered and filed where it is sent", async (
   await lockNow(page);
   await page.reload();
   await unlock(page);
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
 
   const sheet = page.locator(".sheet");
   await expect(sheet).toBeVisible({ timeout: 15000 });
@@ -373,7 +400,7 @@ test("after unlock a shared item is offered and filed where it is sent", async (
   // And it is not offered a second time.
   await page.reload();
   await unlock(page);
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
   await expect(page.locator(".sheet")).toHaveCount(0);
 });
 
@@ -386,7 +413,7 @@ test("a shared item that is discarded leaves nothing behind", async ({ page }) =
   await lockNow(page);
   await page.reload();
   await unlock(page);
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
   const sheet = page.locator(".sheet");
   await expect(sheet).toBeVisible({ timeout: 15000 });
   // No title came with it, so the first line of the text became one.

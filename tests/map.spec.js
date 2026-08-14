@@ -71,6 +71,23 @@ async function addRoots(page, titles) {
 }
 
 /**
+ * Wait for whichever screen an unlock landed on, and end up on the outline.
+ *
+ * An unlock no longer always opens The Ten: the app opens where the work is, so
+ * a vault with something due or an unanswered daily question opens Today
+ * instead (app.js `somethingWaits`, tests/landing.spec.js). The two tests below
+ * lock and unlock to prove a map setting was sealed into the document, which is
+ * true whichever screen it came back on.
+ */
+async function afterUnlock(page) {
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
+  if ((await page.locator(".h-title").textContent()) === "Today") {
+    await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  }
+  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+}
+
+/**
  * A screen change is one View Transition, and while it runs the real DOM is
  * replaced by snapshots that swallow every hit test. Waiting for the
  * transition to be over is the difference between a click and a click into
@@ -608,7 +625,7 @@ test("the map header carries the two readings, and the choice is remembered", as
   await page.getByRole("button", { name: "Lock now" }).click();
   await page.locator('input[type="password"]').first().fill(PASS);
   await page.getByRole("button", { name: "Unlock" }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await afterUnlock(page);
 
   await page.getByRole("button", { name: "Open the map" }).click();
   await expect(page.locator(roots)).toHaveCount(4);
@@ -1212,7 +1229,7 @@ test("the card toggle is remembered in the document, like the mode", async ({ pa
   await page.getByRole("button", { name: "Lock now" }).click();
   await page.locator('input[type="password"]').first().fill(PASS);
   await page.getByRole("button", { name: "Unlock" }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await afterUnlock(page);
 
   await openMapRaw(page);
   await expect(page.locator(".map-card")).toHaveCount(0);

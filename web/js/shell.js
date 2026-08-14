@@ -50,6 +50,21 @@ export const CAP_WIDGET = "widget";
  * can be asked with the vault still locked.
  */
 export const CAP_BIO = "bio";
+/**
+ * The fifth is a property of the BUILD again, like the first three: the bridge
+ * takes a `haptic` message unconditionally and UIKit is asked for the feedback
+ * on whatever hardware is under it, so there is nothing about a device or a
+ * configuration to condition it on. An iPad with no Taptic Engine simply feels
+ * nothing, which is what a haptic is allowed to do - it is the one message in
+ * this file whose absence changes nothing anybody can see.
+ *
+ * It is also the one capability the web app looks for before the shell offers
+ * it: the vocabulary shipped in wave 2a with no callers at all, and this half
+ * is wave 2b. Until the native list carries the name, `shellWith` answers null
+ * and every sender in haptics.js is a no-op - which is the correct degradation
+ * and exactly what a browser gets.
+ */
+export const CAP_HAPTIC = "haptic";
 
 /**
  * The channel, or null in a plain browser.

@@ -139,7 +139,13 @@ async function unlock(page) {
   await page.waitForTimeout(600);
   await page.locator(".lock input").fill(PASS);
   await page.locator(".lock input").press("Enter");
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 90000 });
+  // An unlock no longer always opens The Ten: the app opens where the work is,
+  // so a vault with something due or an unanswered daily question opens Today
+  // instead (app.js `somethingWaits`, tests/landing.spec.js). The espresso
+  // question is offered over whichever of the two it landed on - that is the
+  // point of `offerAfterUnlock` running on both paths - so this helper only
+  // waits for the app to be open, and does not care which screen won.
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 90000 });
 }
 
 /** Age the vault by moving its birthday back. The seam, not a sleep. */

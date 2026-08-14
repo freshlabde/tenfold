@@ -572,6 +572,14 @@ test("lock and unlock round trip keeps the list", async ({ page }) => {
 
   await page.locator(".lock input").fill(PASS);
   await page.getByRole("button", { name: /Unlock/ }).click();
+  // An unlock opens where the work is, and this vault has an unanswered daily
+  // question in it, so it comes back on Today (app.js `somethingWaits`,
+  // tests/landing.spec.js). The list this test is about is on the outline
+  // behind it, one close button away.
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 30000 });
+  if ((await page.locator(".h-title").textContent()) === "Today") {
+    await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  }
   await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 30000 });
   await expect(page.locator(".row-title")).toHaveText(["Alpha", "Beta"]);
 });

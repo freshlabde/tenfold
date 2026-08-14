@@ -90,6 +90,23 @@ async function enableSync(page) {
   return { code, id: code.replace(/-/g, ""), link };
 }
 
+/**
+ * From wherever an unlock landed to the outline.
+ *
+ * An unlock opens where the work is: a vault with something due or an
+ * unanswered daily question comes back on Today rather than The Ten (app.js
+ * `somethingWaits`, tests/landing.spec.js), and every vault in this file has
+ * goals in it because a merge needs something to merge. These tests read the
+ * merged list off the outline, so Today is closed again by its own button.
+ */
+async function toOutline(page) {
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
+  if ((await page.locator(".h-title").textContent()) === "Today") {
+    await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  }
+  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+}
+
 /** Fetches a vault on a fresh device and unlocks it. */
 async function adoptAndUnlock(page, code) {
   await page.getByRole("button", { name: "Open from another device" }).click();
@@ -98,7 +115,7 @@ async function adoptAndUnlock(page, code) {
   await expect(page.locator(".lock-title")).toHaveText("Locked", { timeout: 30000 });
   await page.locator(".lock input").fill(PASS);
   await page.getByRole("button", { name: /Unlock/ }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await toOutline(page);
 }
 
 async function unlockAgain(page) {
@@ -106,7 +123,7 @@ async function unlockAgain(page) {
   await expect(page.locator(".lock-title")).toHaveText("Locked");
   await page.locator(".lock input").fill(PASS);
   await page.getByRole("button", { name: /Unlock/ }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await toOutline(page);
 }
 
 async function serverVersion(request, id) {

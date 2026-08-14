@@ -78,6 +78,19 @@ async function setupVault(page) {
   await expect(page.locator(".h-title")).toHaveText("The Ten");
 }
 
+/**
+ * The vault is open - and that is all this file ever needs to know.
+ *
+ * An unlock opens where the work is: the frame above seeds eight goals, so the
+ * daily question is waiting and these unlocks come back on Today rather than on
+ * The Ten (app.js `somethingWaits`, tests/landing.spec.js). Which of the two it
+ * was is beside the point of an authenticator test; that the passphrase or the
+ * credential got in at all is the whole point.
+ */
+async function inTheApp(page) {
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
+}
+
 async function openSettings(page) {
   await page.getByRole("button", { name: /settings/i }).click();
   await expect(page.locator(".h-title")).toHaveText("Settings");
@@ -148,7 +161,7 @@ test("enrol, lock, and the authenticator opens the vault", async ({ page, baseUR
   await page.reload();
   await page.waitForSelector(".lock-title");
   // No passphrase is entered anywhere in this test.
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
 });
 
 test("a cancelled prompt falls back to the passphrase without an error banner", async ({ page, baseURL }) => {
@@ -181,7 +194,7 @@ test("a cancelled prompt falls back to the passphrase without an error banner", 
   // The passphrase still opens it while the button sits right above the field.
   await page.locator('input[type="password"]').fill(PASS);
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
 });
 
 test("turning it off removes the button, and the passphrase still works", async ({ page, baseURL }) => {
@@ -202,7 +215,7 @@ test("turning it off removes the button, and the passphrase still works", async 
 
   await page.locator('input[type="password"]').fill(PASS);
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
 });
 
 test("a pointer from another device is ignored, not fatal", async ({ page, baseURL }) => {
@@ -232,7 +245,7 @@ test("a pointer from another device is ignored, not fatal", async ({ page, baseU
   // The passphrase opens it in both cases.
   await page.locator('input[type="password"]').fill(PASS);
   await page.getByRole("button", { name: "Unlock", exact: true }).click();
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  await inTheApp(page);
 });
 
 test("nothing key-like is written to local storage", async ({ page, baseURL }) => {

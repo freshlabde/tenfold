@@ -39,7 +39,8 @@ import {
 } from "./entities.js";
 import * as sync from "./sync.js";
 import * as push from "./push.js";
-import { setBadge, clearBadge, clearWidgetState } from "./badge.js";
+import { setBadge, clearBadge, clearWidgetState, badgeCount, questionWaits } from "./badge.js";
+import { vaultUnlocked } from "./haptics.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import { startShellVaultLock } from "./vaultlock.js";
 import * as webauthn from "./webauthn.js";
@@ -816,6 +817,13 @@ async function openWithMasterKey(key) {
   // First correct count of the session: the worker may have left a numberless
   // flag on the icon after a push, and nothing before this line could count.
   setBadge(state.doc);
+  // The vault is open. Fired here and not from the three buttons on the lock
+  // screen because this is where the fact becomes true: above this line an
+  // envelope has released a key, which is not the same thing as a document that
+  // opened - `openFromVault` can still throw, and a wrong passphrase never
+  // reaches here at all. One place, all three envelopes, no way to feel an
+  // unlock that did not happen.
+  vaultUnlocked();
   touchIdle();
 }
 
@@ -910,6 +918,48 @@ async function offerAfterUnlock() {
   await offerSupport();
 }
 
+// ------------------------------------------------------------------- landing
+
+/**
+ * Is anything actually waiting? The one question that decides where an unlock
+ * lands, and it is NOT answered here.
+ *
+ * Both halves come out of badge.js, which is the same pair of calls the icon
+ * and the home-screen widget are fed from in the same tick. That is the whole
+ * point of routing through it: if the badge says nothing is waiting and the app
+ * still opens Today, one of the two is lying, and nobody would ever find out
+ * which - the icon and the screen are never looked at in the same second. A
+ * second definition of "waiting" would not be a duplicate, it would be a slowly
+ * diverging pair.
+ *
+ * `dueNowCount` is the overdue-and-due-today count Today ranks first;
+ * `questionWaits` is the daily question still being unanswered, which is false
+ * on an empty list and false once it has been put away for the day. Neither is
+ * defined here and neither may be.
+ *
+ * @returns {boolean}
+ */
+function somethingWaits() {
+  if (!state.doc) return false;
+  const opts = { now: ctx.now() };
+  return badgeCount(state.doc, opts) > 0 || questionWaits(state.doc, opts);
+}
+
+/**
+ * Today, with the outline underneath it.
+ *
+ * The stack matters: Today's close button is `ctx.back()`, so it has to land on
+ * the outline whether somebody arrived here from a notification, from the rule
+ * above, or by pressing the Today button themselves. Three ways in, one way
+ * out, and the screen behind the close button is never a surprise.
+ */
+function landOnToday() {
+  state.view = { name: "outline", id: null };
+  state.stack = [];
+  syncHistory();
+  go("today");
+}
+
 // ------------------------------------------------------------------- context
 
 const ctx = {
@@ -962,15 +1012,38 @@ const ctx = {
   },
 
   /**
-   * The way into the outline after a successful unlock or setup. The very
-   * first time a vault is entered, the About text is offered for reading -
-   * once dismissed it never appears uninvited again (flag in doc.settings,
-   * so the decision travels with the vault).
+   * The way into the app after a successful unlock or setup. The very first
+   * time a vault is entered, the About text is offered for reading - once
+   * dismissed it never appears uninvited again (flag in doc.settings, so the
+   * decision travels with the vault).
+   *
+   * WHERE IT LANDS. Not always the outline any more: the app opens where the
+   * work is. Something due now, or the day's question still unanswered, and it
+   * opens Today; otherwise The Ten, which is where somebody with nothing
+   * pending would want to think rather than act. The rule is `somethingWaits()`
+   * above and is the badge's own arithmetic, not a second opinion.
+   *
+   * Three things this rule does not touch, in the order they are checked:
+   *
+   *   - The intro wins. A vault whose About text has not been read is a first
+   *     run, and a first run must never land on Today: a list somebody made
+   *     ninety seconds ago has nothing due, and the question card over an empty
+   *     list ("Nothing calls for today") is the worst possible first screen for
+   *     an app that has just asked for a passphrase. `finishIntro` below then
+   *     goes to the outline deliberately, without consulting the rule.
+   *   - An explicit `pendingView` wins over it. A notification or a share
+   *     brought somebody somewhere on purpose, and a rule computed from a
+   *     document must not overrule a person's own tap.
+   *   - It is not a shell rule. There is no capability here and no branch on
+   *     `inShell()` - the browser, the installed PWA and the shell open in the
+   *     same place, because this is one app and "where does it open" is one
+   *     answer.
    */
   async enterApp() {
     // With sync on, the remote copy is folded in before the list appears -
     // unless the server is slow, in which case the list wins and the merge
-    // arrives a moment later.
+    // arrives a moment later. It also has to be before the landing decision:
+    // a step that fell due on another device is something waiting here too.
     await pullOnEntry();
     if (state.doc && !state.doc.settings.aboutRead) {
       state.introAbout = true;
@@ -984,10 +1057,12 @@ const ctx = {
     // close button on Today lands where it always does.
     if (state.pendingView === "today") {
       state.pendingView = null;
-      state.view = { name: "outline", id: null };
-      state.stack = [];
-      syncHistory();
-      ctx.go("today");
+      landOnToday();
+      offerAfterUnlock();
+      return;
+    }
+    if (somethingWaits()) {
+      landOnToday();
       offerAfterUnlock();
       return;
     }
@@ -995,6 +1070,16 @@ const ctx = {
     offerAfterUnlock();
   },
 
+  /**
+   * Out of the About intro and into the app - the outline, always, and
+   * deliberately WITHOUT consulting the landing rule in `enterApp`. This is the
+   * end of a first run: the list is minutes old, nothing in it can be due, and
+   * the only thing the rule could find waiting is the daily question, which
+   * would put a coaching card over "Nothing calls for today" as the first thing
+   * somebody sees after handing this app a passphrase. The Ten is what they
+   * just built and what they came to look at. An explicit `pendingView` still
+   * wins, for the same reason it wins everywhere else.
+   */
   finishIntro() {
     state.introAbout = false;
     state.view = { name: "outline", id: null };

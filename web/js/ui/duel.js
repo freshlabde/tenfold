@@ -16,6 +16,7 @@ import { el, text, icon } from "./dom.js";
 import { t } from "../i18n.js";
 import { startDuel, currentPair, choose, result, progress } from "../prioritize.js";
 import { spring, rubberBand, prefersReducedMotion } from "../motion.js";
+import { decisionCommitted } from "../haptics.js";
 import { pad2 } from "./format.js";
 
 const COMMIT = 88;
@@ -168,6 +169,11 @@ export function render(ctx, id) {
     const live = currentPair(duel);
     if (!live || live.a.id !== pair.a.id || live.b.id !== pair.b.id) return;
     history.push(duel);
+    // Here rather than in `pick` or in the swipe release: this is the single
+    // point both routes into a decision pass through, and it is the point past
+    // the two guards above - a stale button and a duel that was left in the
+    // meantime both come this far and neither is a decision anybody made.
+    decisionCommitted();
     duel = choose(duel, winnerId);
     ctx.repaint();
     // The counter is the only thing that changes for somebody who cannot see

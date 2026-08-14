@@ -590,6 +590,20 @@ async function unlock(page) {
   await page.waitForSelector(".lock-title");
   await page.locator(".lock input").fill(PASS);
   await page.getByRole("button", { name: /Unlock/ }).click();
+  // Either of the two, on purpose: an unlock opens where the work is, so a
+  // vault with something due or an unanswered daily question comes back on
+  // Today rather than The Ten (app.js `somethingWaits`, tests/landing.spec.js).
+  // Nothing in this file is about which of the two won - and the share offer
+  // below rides on top of whichever it was - so this waits for the app to be
+  // open and no more. `toOutline` is for the tests that then read the list.
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
+}
+
+/** From wherever the unlock landed to the outline, by Today's own close button. */
+async function toOutline(page) {
+  if ((await page.locator(".h-title").textContent()) === "Today") {
+    await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  }
   await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
 }
 
@@ -979,6 +993,7 @@ test("the shell's deadline closes the vault before the message it arrived on ret
 
   // And the vault is intact: the passphrase opens it, with the goal in it.
   await unlock(page);
+  await toOutline(page);
   await expect(page.locator(".row-title").first()).toHaveText("Get the knee fixed");
 });
 

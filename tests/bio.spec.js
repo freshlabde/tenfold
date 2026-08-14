@@ -792,7 +792,12 @@ test("nothing the shell is handed about biometry can carry vault content", async
   await enableFromSettings(page);
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await lockNow(page);
-  await expect(page.locator(".h-title")).toHaveText("The Ten", { timeout: 60000 });
+  // The shell's biometric button fires itself once, so the app comes straight
+  // back - onto Today rather than The Ten, because this vault has a goal in it
+  // and the daily question is therefore waiting (app.js `somethingWaits`,
+  // tests/landing.spec.js). Which screen it was is beside the point here: what
+  // this test reads is the message log, not the DOM.
+  await expect(page.locator(".h-title")).toHaveText(/^(Today|The Ten)$/, { timeout: 60000 });
   await page.evaluate(async () => {
     const { ctx } = await import("/web/js/app.js");
     await ctx.wipeLocalVault();

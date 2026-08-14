@@ -98,9 +98,14 @@ Anyone who wants to change an interface changes this file first.
 ## Today & the daily question (stage 2)
 
 - **Today screen** (`web/js/ui/today.js`, route `today`): `model.todayList` (rule fixed
-  above), reachable from a "Today" button in the outline header and via Cmd/Ctrl+T; a quiet
-  list, max 7, nothing else. Rows are the ordinary `rows.js` rows with `opts.path` set, so
-  swipe-right-done works here too.
+  above), reachable from a "Today" button in the outline header, via Cmd/Ctrl+T, from the daily
+  notification, and - since the landing rule below - as the screen an unlock opens on when
+  something is actually waiting; a quiet list, max 7, nothing else. Rows are the ordinary
+  `rows.js` rows with `opts.path` set, so swipe-right-done works here too.
+- **The empty screen is not empty when the question is up.** `today.js` draws the question card
+  and the list independently: with nothing in `todayList` it shows `emptyState()` ("Nothing
+  calls for today"), and the card sits above it whenever the question is waiting. That pairing
+  is exactly why the first run is exempt from the landing rule - see below.
 - **The path rule.** A step torn out of its tree is named by its WHOLE chain, root goal
   first, joined by `ui/format.PATH_SEPARATOR` (` › `, the breadcrumb voice the focus crumb
   and the search results already speak) via `ui/format.pathLine(ancestors)`. Never shortened
@@ -267,6 +272,9 @@ left edge, the trash on the right in the danger register) and lights the one the
 towards. Every list built from `nodeRow`/`nodeList` (the ten, a focus screen's parts, Today)
 gets both swipes; the duel screen has gestures of its own and none of this. Under
 `prefers-reduced-motion` a commit lands without the spring and without the collapse.
+
+All three answer with touch feedback inside the native shell, each with a different kind, and
+the lift fires before anything has moved - see the `haptic` senders below.
 
 ## Sheets, and the keyboard (`web/js/ui/sheet.js`)
 
@@ -799,6 +807,89 @@ open sheet that has not been saved yet. `web/js/ui/editor.js` deliberately has n
 autosave - *"a half typed title should not be what survives a lock"* - so an unsaved sheet loses
 its contents here exactly as it does when the fifteen-minute idle lock fires. Everything that
 reached the document survives, including an edit made 200ms before the message arrived.
+
+## Where the app opens: the landing rule (`enterApp`)
+
+An unlock used to go to The Ten, always. It now **opens where the work is**: if something is
+due now, or the day's question is still unanswered, it opens **Today**; otherwise **The Ten**.
+One rule, in `web/js/app.js` `somethingWaits()`, and it is not a shell feature - the browser,
+the installed PWA and the native shell all obey it, because "where does this app open" is one
+answer and not a fork.
+
+**It is the badge's arithmetic, not a second opinion.** `somethingWaits()` asks `badge.js` the
+two questions the icon and the home-screen widget are fed from in the same tick:
+
+```
+badgeCount(doc, {now}) > 0   ||   questionWaits(doc, {now})
+```
+
+`badgeCount` is `model.dueNowCount` - open leaves overdue or due today, the two groups Today
+ranks first. `questionWaits` is `questions.dailyQuestion` still returning something, which is
+false on an empty list and false once `settings.dailyDismissed` names today. **Neither may ever
+be redefined here.** A second definition of "waiting" would not be a duplicate but a slowly
+diverging pair: if the badge said nothing was waiting while the app opened Today, one of the two
+would be lying, and nobody would find out which - an icon and a screen are never looked at in
+the same second. `tests/landing.spec.js` holds the pair together by asserting both calls against
+the screen that appeared.
+
+Two things outrank the rule, in the order `enterApp` checks them:
+
+- **The About intro, i.e. the first run.** A vault whose `settings.aboutRead` is not set has
+  just been made; nothing in it can be due, so the only thing that could be "waiting" is the
+  daily question - and Today would then draw the question card over its empty state ("Nothing
+  calls for today"), as the first screen somebody sees after handing this app a passphrase.
+  `finishIntro()` therefore goes to the outline **deliberately, without consulting the rule**.
+  The exemption is the first run and nothing more: the second unlock of the same vault obeys it.
+- **An explicit `pendingView`.** The daily notification opens `./?view=today`, which `boot()`
+  consumes once and strips from the URL. A person's own tap outranks anything computed from a
+  document, so this branch is checked before the rule and wins even when nothing is waiting.
+
+**Today keeps the outline underneath it**, on all three paths (`landOnToday()`): the close
+button on Today is `ctx.back()`, and the screen behind it must never be a surprise.
+
+## Touch feedback: the `haptic` senders (`web/js/haptics.js`)
+
+iOS Safari has no Vibration API, so a web page on iOS cannot produce touch feedback of any
+kind. The native shell can, and has been able to since wave 2a - a complete bridge, a closed
+vocabulary, unit tests and a self-test - with no callers at all on this side. This is the
+other half.
+
+```js
+{ type: "haptic", kind: "impact-medium" }
+```
+
+**The vocabulary is closed and belongs to the bridge.** Four names, listed in
+tenfold-ios/docs/BRIDGE.md, and the shell **rejects** one it does not recognise rather than
+defaulting - so an invented name is silence, not an error. `web/js/haptics.js` pins all four
+(`KINDS`) and `tests/haptics.spec.js` asserts them literally, as the Swift unit tests do from
+the other side. A moment with no name in the vocabulary is a request for a new name on the
+native side, never an approximation with the nearest kind.
+
+**Callers name a moment, not a kind.** `rows.js` says a step was finished; this module decides
+that a finish feels like `success`. A closed vocabulary spread across five call sites in three
+files is a vocabulary that drifts on the sixth, so the mapping lives in one file:
+
+| moment | sender | kind | why |
+|---|---|---|---|
+| a decision committed in the duel (`ui/duel.js` `commit`) | `decisionCommitted()` | `impact-medium` | the vocabulary's "a rank applied". Not `success`: that is the duel *resolving*, and a run of twenty decisions that each felt like an ending would be twenty endings |
+| a step swiped to finished (`ui/rows.js` `finish`) | `stepFinished()` | `success` | "something completed", word for word |
+| a row swiped to deleted (`ui/rows.js` `remove`) | `rowDeleted()` | `warning` | "worth noticing but not an error". Deliberately not the same feeling as the finish it mirrors: the two gestures live on one row, one of them takes a whole subtree, and a hand should be able to tell them apart without looking |
+| the long press that lifts a row (`ui/rows.js`, at the `LONG_PRESS_MS` timer) | `rowLifted()` | `impact-light` | "a row selected". The only one of the five that is not the end of anything - it says the press was long enough, which a finger holding still has no other way of learning |
+| a successful unlock (`app.js` `openWithMasterKey`) | `vaultUnlocked()` | `success` | an unlock is a completion. Fired where all three envelopes converge - passphrase, WebAuthn PRF, the shell's own Face ID - and **after** the document opened, so a released key that then failed to open a vault is never felt |
+
+- **Gated on `CAP_HAPTIC` (`"haptic"`)**, a property of the **BUILD** like `reminder`/`badge`/
+  `widget` - the bridge takes the message unconditionally and an iPad with no Taptic Engine
+  simply feels nothing. It is the one capability the web app looks for before the shell offers
+  it: until the native list carries the name, every sender is a no-op, which is the correct
+  degradation and exactly what a browser gets.
+- **Fire and forget, never awaited.** The bridge offers an `id` and a `haptic-ack` that reports
+  whether the name was understood; nothing here uses it. All five moments are a gesture
+  mid-flight, and a promise on any of those paths would put the bridge between a finger and the
+  thing it is moving. The finish and the delete fire **before** their collapse animation, for
+  the same reason: the answer belongs to the finger still on the glass.
+- **No setting.** Haptics are a system preference on every platform that has them, and an
+  app-level copy of a system switch is a second answer to a question the OS already asked.
+- **In a browser it is exactly nothing** - no shell, no capability, no post, no error.
 
 ## Browser history (wave: session UX)
 
