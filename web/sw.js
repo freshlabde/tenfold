@@ -18,7 +18,7 @@
 // share POST are passed through untouched, so nothing can be smuggled through
 // this worker.
 
-const VERSION = "tenfold-v68";
+const VERSION = "tenfold-v69";
 
 /**
  * Where the app leaves the current locale for the notification text. The key is
