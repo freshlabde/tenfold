@@ -18,6 +18,15 @@
 // vault made ninety seconds ago has nothing due, so the only thing that could
 // be "waiting" is the daily question, and the question card over "Nothing calls
 // for today" is the worst possible first screen this app could show.
+//
+// Since the start-screen setting (doc.settings.landing) the rule above is the
+// DEFAULT rather than the only answer, and the second half of this file is
+// about that: The Ten and the map can be asked for outright, "Today" stays the
+// rule rather than the screen, the map steps aside on a vault with nothing on
+// it, and a notification still beats all three. The one test that matters most
+// is the one that asserts the field is ABSENT after an ordinary setup - it is
+// the guard for everybody who never opens settings, and if it ever goes red the
+// default has moved under somebody who did not ask for it.
 import { test, expect } from "@playwright/test";
 
 const PASS = "correct horse battery staple";
@@ -109,6 +118,49 @@ async function makeSomethingDue(page) {
     noon.setHours(9, 0, 0, 0);
     ctx.updateNode(leaf.id, { due: noon.getTime() });
   });
+}
+
+/**
+ * A screen change is one View Transition, and while it runs the real DOM is
+ * replaced by snapshots that swallow every hit test - a click issued into one
+ * is retried against whatever the new screen put at those coordinates.
+ */
+async function settled(page) {
+  await page.waitForFunction(() =>
+    !document
+      .getAnimations()
+      .some((a) => String((a.effect && a.effect.pseudoElement) || "").includes("view-transition")),
+  );
+}
+
+/** What the document says the start screen is - undefined until somebody picks. */
+function landingSetting(page) {
+  return page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    return ctx.doc.settings.landing;
+  });
+}
+
+/**
+ * Pick a start screen through the real control, from the outline.
+ *
+ * Deliberately not `ctx.setSettings({ landing })`: the segment in settings is
+ * half of what is being shipped here, and a test that writes the field itself
+ * would still pass with three buttons that do nothing. The names are the
+ * screens' own header titles, which is the point of the control.
+ */
+async function chooseStartScreen(page, label) {
+  await settled(page);
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  await expect(page.locator(".h-title")).toHaveText("Settings");
+  const seg = page.getByRole("group", { name: "Start screen" });
+  await seg.getByRole("button", { name: label, exact: true }).click();
+  await expect(seg.getByRole("button", { name: label, exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
 }
 
 const landed = (page) => page.locator(".h-title");
@@ -241,4 +293,147 @@ test("the landing is the badge's own arithmetic, not a second opinion", async ({
   await unlock(page);
   await expect(landed(page)).toHaveText("The Ten", { timeout: 60000 });
   expect(await waiting()).toEqual({ due: 0, question: false });
+});
+
+// ------------------------------------------------------- the start screen setting
+
+test("without the setting the rule is what runs, and the field is not there", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Learn to sail properly"]);
+
+  // The guard for everybody who never opens settings: an ordinary vault carries
+  // no landing field at all, and both branches of the rule still fire on it.
+  expect(await landingSetting(page)).toBeUndefined();
+
+  await dismissQuestion(page);
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("The Ten", { timeout: 60000 });
+
+  await makeSomethingDue(page);
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("Today", { timeout: 60000 });
+
+  expect(await landingSetting(page)).toBeUndefined();
+});
+
+test("Today is the rule and not the screen: with nothing waiting it opens The Ten", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Learn to sail properly"]);
+  await dismissQuestion(page);
+  await chooseStartScreen(page, "Today");
+  expect(await landingSetting(page)).toBe("today");
+
+  // Chosen outright, and it still does not open an empty Today - Today means
+  // "open where the work is", which with nothing due and the question answered
+  // is The Ten. settings.landingDesc is where that is said out loud.
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("The Ten", { timeout: 60000 });
+});
+
+test("The Ten, chosen, wins over something waiting", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Ship the thing"]);
+  await makeSomethingDue(page);
+  await chooseStartScreen(page, "The Ten");
+  expect(await landingSetting(page)).toBe("outline");
+
+  // Something IS due and the question is unanswered, so the rule would open
+  // Today. The setting is unconditional, which is the whole reason it exists.
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("The Ten", { timeout: 60000 });
+});
+
+test("the map, chosen, opens with the outline underneath it", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Learn to sail properly", "Get the knee fixed"]);
+  await chooseStartScreen(page, "Map");
+  expect(await landingSetting(page)).toBe("map");
+
+  // The question is still waiting here, so this is the map winning over the
+  // rule as well as over The Ten.
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("Map", { timeout: 60000 });
+  await expect(page.locator(".map-canvas")).toBeVisible();
+  await expect(page.locator(".map-scene.is-ready")).toHaveCount(1);
+
+  // Same arrangement Today gets: the close button is ctx.back(), and what is
+  // behind it is the outline, never the lock screen.
+  await settled(page);
+  await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  await expect(landed(page)).toHaveText("The Ten");
+});
+
+test("the map steps aside on a vault with nothing on it", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  // No roots at all. The map is not broken there - it draws a centre mark and
+  // "Nothing on the map yet" - but it is a reading of a list with nothing to
+  // read, and its own hint says to write the ten, which only the outline can do.
+  await chooseStartScreen(page, "Map");
+
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("The Ten", { timeout: 60000 });
+  // The choice is untouched: it is the vault that is empty, not the setting.
+  expect(await landingSetting(page)).toBe("map");
+
+  // One goal is enough for the map to mean something, and then it is shown.
+  await addRoots(page, ["Learn to sail properly"]);
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("Map", { timeout: 60000 });
+});
+
+test("a notification still wins over a chosen start screen", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Sort the paperwork"]);
+  await chooseStartScreen(page, "The Ten");
+  await lockNow(page);
+
+  // A person's own tap outranks a preference they set last month, exactly as it
+  // outranks arithmetic over their document.
+  await page.goto("/web/index.html?view=today");
+  await unlock(page);
+  await expect(landed(page)).toHaveText("Today", { timeout: 60000 });
+
+  // And the parameter is spent: the next unlock obeys the setting again.
+  await lockNow(page);
+  await unlock(page);
+  await expect(landed(page)).toHaveText("The Ten", { timeout: 60000 });
+});
+
+test("the choice is sealed into the document and outlives the page", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Learn to sail properly"]);
+  await chooseStartScreen(page, "Map");
+  await lockNow(page);
+
+  // Not just a lock: the whole page goes. What comes back can only have come
+  // out of the sealed vault, which is where a setting in doc.settings belongs -
+  // it travels with the document to every device, not with this browser.
+  await page.reload();
+  await unlock(page);
+  await expect(landed(page)).toHaveText("Map", { timeout: 60000 });
+  expect(await landingSetting(page)).toBe("map");
+
+  // And the control shows the choice it made, so somebody can change it back.
+  await settled(page);
+  await page.locator(".head-actions").getByRole("button", { name: "Close" }).click();
+  await expect(landed(page)).toHaveText("The Ten");
+  await settled(page);
+  await page.getByRole("button", { name: "Open settings", exact: true }).click();
+  const seg = page.getByRole("group", { name: "Start screen" });
+  await expect(seg.getByRole("button", { name: "Map", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(seg.getByRole("button", { name: "Today", exact: true })).toHaveAttribute("aria-pressed", "false");
 });

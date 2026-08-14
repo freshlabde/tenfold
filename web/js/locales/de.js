@@ -416,6 +416,8 @@ export const de = {
   "settings.lang.en": "English",
   "settings.lang.de": "Deutsch",
   "settings.lang.es": "Español",
+  "settings.landing": "Startbildschirm",
+  "settings.landingDesc": "Heute öffnet Die Zehn, wenn nichts ansteht: nichts fällig, die Frage des Tages beantwortet. Die Karte tut dasselbe, solange noch nichts darauf steht.",
   "settings.export": "Verschlüsselten Tresor exportieren",
   "settings.exportDesc": "Eine .tenfold-Datei. Weiterhin verschlüsselt, weiterhin nur mit deiner Passphrase zu öffnen.",
   "settings.import": "Tresordatei importieren",

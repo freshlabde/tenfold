@@ -946,18 +946,65 @@ function somethingWaits() {
 }
 
 /**
- * Today, with the outline underneath it.
+ * Which screen an unlock opens, as one name - `doc.settings.landing` answered.
  *
- * The stack matters: Today's close button is `ctx.back()`, so it has to land on
- * the outline whether somebody arrived here from a notification, from the rule
- * above, or by pressing the Today button themselves. Three ways in, one way
- * out, and the screen behind the close button is never a surprise.
+ * Three values, and the default is the rule above rather than a screen: a
+ * document with no `landing` field behaves exactly as it did before this
+ * setting existed, which is the whole point. Anything unrecognised falls back
+ * to the same rule, so a document written by a newer version can never land
+ * somewhere this build has no screen for.
+ *
+ *   - "today"   - the default: `somethingWaits()` decides, Today or The Ten.
+ *                 Deliberately NOT "always Today": an empty Today is nobody's
+ *                 preferred start, and somebody who asks for Today is asking to
+ *                 be shown the work, not to be shown that there is none.
+ *   - "outline" - The Ten, unconditionally.
+ *   - "map"     - the map, unconditionally, with ONE exception below.
+ *
+ * The map on an empty vault. It is not a broken screen - it draws its own
+ * empty state, a centre mark and the line "Write your ten. Each one appears
+ * here" - but it is a reading of a list, and there is nothing there to read. It
+ * also names an action it cannot perform: the composer is on the outline, and
+ * the map has no way to add anything. So with no roots at all this falls back
+ * to The Ten, which is both the thing the map's own hint points at and the
+ * screen one tap behind the map anyway. One root is enough for the map to mean
+ * something (a body, its name, "One so far") and it is shown then.
+ *
+ * @returns {string} a SCREENS key
  */
-function landOnToday() {
+function landingView() {
+  if (!state.doc) return "outline";
+  const chosen = (state.doc.settings || {}).landing;
+  if (chosen === "outline") return "outline";
+  if (chosen === "map") return childrenOf(state.doc.nodes, null).length ? "map" : "outline";
+  return somethingWaits() ? "today" : "outline";
+}
+
+/**
+ * Land on one screen, with the outline underneath it.
+ *
+ * The stack matters: the close button on Today and on the map is `ctx.back()`,
+ * so the outline has to be under both of them whether somebody arrived from a
+ * notification, from the rule above, from their own choice of start screen, or
+ * by pressing the Today button themselves. Many ways in, one way out, and the
+ * screen behind the close button is never a surprise.
+ *
+ * This was `landOnToday` until the setting arrived and is now the one place
+ * that arranges a landing, rather than a second copy of the same four lines per
+ * destination - a copy is how the map ends up with a different screen behind
+ * its X than Today has, for no reason anybody could name later.
+ */
+function landOn(name) {
+  // The outline as a destination is not the outline as a floor: `replace`
+  // collapses the stack so a back press from the root leaves the app.
+  if (name === "outline") {
+    go("outline", null, { replace: true });
+    return;
+  }
   state.view = { name: "outline", id: null };
   state.stack = [];
   syncHistory();
-  go("today");
+  go(name);
 }
 
 // ------------------------------------------------------------------- context
@@ -1023,6 +1070,13 @@ const ctx = {
    * pending would want to think rather than act. The rule is `somethingWaits()`
    * above and is the badge's own arithmetic, not a second opinion.
    *
+   * That rule is now the DEFAULT rather than the only answer:
+   * `doc.settings.landing` can ask for The Ten or the map instead, and
+   * `landingView()` above resolves the three values into one screen name. A
+   * document without the field - which is every document that existed before
+   * the setting, and every document belonging to somebody who never opens
+   * settings - resolves to exactly the rule described above.
+   *
    * Three things this rule does not touch, in the order they are checked:
    *
    *   - The intro wins. A vault whose About text has not been read is a first
@@ -1030,10 +1084,13 @@ const ctx = {
    *     ninety seconds ago has nothing due, and the question card over an empty
    *     list ("Nothing calls for today") is the worst possible first screen for
    *     an app that has just asked for a passphrase. `finishIntro` below then
-   *     goes to the outline deliberately, without consulting the rule.
-   *   - An explicit `pendingView` wins over it. A notification or a share
-   *     brought somebody somewhere on purpose, and a rule computed from a
-   *     document must not overrule a person's own tap.
+   *     goes to the outline deliberately, without consulting the rule. Nothing
+   *     had to be added for the setting: the intro is returned into before this
+   *     decision is reached at all, and a first run has no setting yet anyway.
+   *   - An explicit `pendingView` wins over it, and over the setting with it. A
+   *     notification or a share brought somebody somewhere on purpose, and
+   *     neither a rule computed from a document nor a preference somebody set
+   *     last month may overrule the tap they are making now.
    *   - It is not a shell rule. There is no capability here and no branch on
    *     `inShell()` - the browser, the installed PWA and the shell open in the
    *     same place, because this is one app and "where does it open" is one
@@ -1057,22 +1114,19 @@ const ctx = {
     // close button on Today lands where it always does.
     if (state.pendingView === "today") {
       state.pendingView = null;
-      landOnToday();
+      landOn("today");
       offerAfterUnlock();
       return;
     }
-    if (somethingWaits()) {
-      landOnToday();
-      offerAfterUnlock();
-      return;
-    }
-    ctx.go("outline", null, { replace: true });
+    landOn(landingView());
     offerAfterUnlock();
   },
 
   /**
    * Out of the About intro and into the app - the outline, always, and
-   * deliberately WITHOUT consulting the landing rule in `enterApp`. This is the
+   * deliberately WITHOUT consulting the landing rule or the start-screen
+   * setting in `enterApp` (a first run has neither a reason nor a way to have
+   * chosen one: the settings screen is behind this intro). This is the
    * end of a first run: the list is minutes old, nothing in it can be due, and
    * the only thing the rule could find waiting is the daily question, which
    * would put a coaching card over "Nothing calls for today" as the first thing

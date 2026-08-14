@@ -51,18 +51,19 @@ export const CAP_WIDGET = "widget";
  */
 export const CAP_BIO = "bio";
 /**
- * The fifth is a property of the BUILD again, like the first three: the bridge
- * takes a `haptic` message unconditionally and UIKit is asked for the feedback
- * on whatever hardware is under it, so there is nothing about a device or a
- * configuration to condition it on. An iPad with no Taptic Engine simply feels
- * nothing, which is what a haptic is allowed to do - it is the one message in
- * this file whose absence changes nothing anybody can see.
+ * The fifth is a property of the DEVICE, like `bio` and unlike the first three.
+ * A Taptic Engine is hardware: no iPad has one, and on a device without one
+ * every UIKit feedback call is accepted and silently does nothing - so a shell
+ * that advertised this everywhere would be promising that a tap will be felt on
+ * a machine where it cannot be. The shell asks
+ * `CHHapticEngine.capabilitiesForHardware()` at injection time and leaves the
+ * name out where the answer is no, which is also why it is absent in a
+ * simulator.
  *
- * It is also the one capability the web app looks for before the shell offers
- * it: the vocabulary shipped in wave 2a with no callers at all, and this half
- * is wave 2b. Until the native list carries the name, `shellWith` answers null
- * and every sender in haptics.js is a no-op - which is the correct degradation
- * and exactly what a browser gets.
+ * What that means here: an absent `haptic` is ordinary rather than a shell too
+ * old to have it. Every sender in haptics.js is then a no-op, which is exactly
+ * what a browser gets and the correct degradation in both cases - a haptic is
+ * the one message whose absence changes nothing anybody can see.
  */
 export const CAP_HAPTIC = "haptic";
 

@@ -1,6 +1,7 @@
 // ui/settings.js - the small set of switches this app has.
 //
-// What it does: skin, theme, language, the two exports and the one import,
+// What it does: skin, theme, language, which screen an unlock opens, the two
+// exports and the one import,
 // what the browser says about keeping the data - or, inside the native shell
 // where there is no browser to ask, what the app itself keeps - when it was
 // last saved, and the button that locks everything again.
@@ -35,6 +36,15 @@ import { methodAnchor, methodLabel } from "./policy.js";
 const SKINS = ["slate", "register", "breath"];
 const THEMES = ["dark", "light"];
 const DEPTH = ["on", "off"];
+// Where an unlock opens (doc.settings.landing, resolved in app.js
+// `landingView`). The three values ARE the three screen names, which is what
+// lets the labels be `t("<value>.title")` - the app's own name for each screen,
+// the one on its header. A second set of names for screens that already have
+// names is how a "Board" appears in settings for a screen called "The Ten".
+// The list is repeated here rather than imported from app.js on purpose: app.js
+// imports this module, and the skins above already live with the same small
+// duplication for the same reason.
+const LANDINGS = ["today", "outline", "map"];
 
 function group(titleKey, children) {
   return el("div", { class: "group" }, [
@@ -748,6 +758,22 @@ export function render(ctx) {
       segment("settings.language", LOCALES, settings.lang || getLocale(), (v) => t(`settings.lang.${v}`), (v) =>
         ctx.setSettings({ lang: v }),
       ),
+      // Which screen an unlock opens. It sits in this group rather than in one
+      // of its own: a group heading for a single segment would make the
+      // smallest switch in the app look like a subsystem, and what somebody
+      // sees when the app opens is close enough to what the app looks like.
+      segment("settings.landing", LANDINGS, settings.landing || "today", (v) => t(`${v}.title`), (v) =>
+        ctx.setSettings({ landing: v }),
+      ),
+      // The honest line, and the reason this control needs one at all: "Today"
+      // does not always open Today. It is the rule from app.js `somethingWaits`
+      // - with nothing due and the question answered it opens The Ten, because
+      // an empty Today is nobody's preferred start - and a person who picked
+      // Today and got The Ten would otherwise think the setting was broken. The
+      // same field-hint paragraph the story depth and the widget title use; a
+      // description slot on `segment` would have been a layout component built
+      // for one caller.
+      el("p", { class: "field-hint", style: { padding: "0 2px" } }, [text(t("settings.landingDesc"))]),
     ]),
     group("settings.group.story", [
       row("entities.open", "entities.openDesc", null, () => ctx.go("entities")),

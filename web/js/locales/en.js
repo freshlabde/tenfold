@@ -423,6 +423,13 @@ export const en = {
   "settings.lang.en": "English",
   "settings.lang.de": "Deutsch",
   "settings.lang.es": "Español",
+  // Where an unlock opens. The three option labels are not here: they are
+  // today.title, outline.title and map.title, the names those screens already
+  // wear in their own headers. The description is the honest part - "Today"
+  // does not always open Today, and somebody who chose it and got The Ten would
+  // otherwise be looking at a setting they think is broken.
+  "settings.landing": "Start screen",
+  "settings.landingDesc": "Today opens The Ten when nothing is waiting: nothing due, and the day's question answered. The map does the same while there is nothing on it yet.",
   "settings.export": "Export the encrypted vault",
   "settings.exportDesc": "A .tenfold file. Still encrypted, still needs your passphrase.",
   "settings.import": "Import a vault file",

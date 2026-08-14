@@ -416,6 +416,8 @@ export const es = {
   "settings.lang.en": "English",
   "settings.lang.de": "Deutsch",
   "settings.lang.es": "Español",
+  "settings.landing": "Pantalla de inicio",
+  "settings.landingDesc": "Hoy abre Las Diez cuando no espera nada: nada vence y la pregunta del día ya está respondida. El mapa hace lo mismo mientras no haya nada en él.",
   "settings.export": "Exportar la caja fuerte cifrada",
   "settings.exportDesc": "Un archivo .tenfold. Sigue cifrado y sigue necesitando tu frase de acceso.",
   "settings.import": "Importar un archivo de caja fuerte",

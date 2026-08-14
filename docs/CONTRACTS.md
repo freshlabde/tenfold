@@ -814,7 +814,9 @@ An unlock used to go to The Ten, always. It now **opens where the work is**: if 
 due now, or the day's question is still unanswered, it opens **Today**; otherwise **The Ten**.
 One rule, in `web/js/app.js` `somethingWaits()`, and it is not a shell feature - the browser,
 the installed PWA and the native shell all obey it, because "where does this app open" is one
-answer and not a fork.
+answer and not a fork. It is now also the **default** rather than the only answer: a setting
+(`doc.settings.landing`, below) can ask for The Ten or the map instead, and a document without
+that field behaves exactly as this rule describes.
 
 **It is the badge's arithmetic, not a second opinion.** `somethingWaits()` asks `badge.js` the
 two questions the icon and the home-screen widget are fed from in the same tick:
@@ -832,20 +834,62 @@ would be lying, and nobody would find out which - an icon and a screen are never
 the same second. `tests/landing.spec.js` holds the pair together by asserting both calls against
 the screen that appeared.
 
-Two things outrank the rule, in the order `enterApp` checks them:
+### The choice: `doc.settings.landing`
+
+The rule above is the **default**, not the only answer. `settings.landing` moves the landing,
+and it lives in `doc.settings` like `skin`, `theme`, `lang` and `dailyDismissed` - encrypted,
+travelling with the vault to every device, surviving a reinstall. Three values, resolved by
+`landingView()` in `web/js/app.js`:
+
+| value | where it lands |
+|---|---|
+| **absent** (and anything unrecognised) | the rule above, unchanged |
+| `"today"` | **the rule above, unchanged** - not "always Today" |
+| `"outline"` | The Ten, unconditionally |
+| `"map"` | the map, unconditionally, except on a vault with no roots (below) |
+
+- **`"today"` is the rule, not the screen.** Choosing Today asks to be opened *where the work
+  is*, which is what the rule already computes; it does not ask for an empty Today, and nobody
+  wants a first screen whose whole content is "Nothing calls for today". This is the one place
+  the control is not literal, so `settings.landingDesc` says so out loud in all three
+  catalogues - a setting that quietly does something else is a setting people think is broken.
+- **The default is absence.** A document without the field is every document that existed
+  before the setting and every document belonging to somebody who never opens settings, and it
+  must behave exactly as it did before. `tests/landing.spec.js` asserts the field is unset after
+  a normal setup and that both branches of the rule still fire.
+- **The map on an empty vault falls back to The Ten.** The map is not broken there - it draws a
+  centre mark, "Nothing on the map yet" and the line "Write your ten. Each one appears here" -
+  but it is a *reading of a list* with nothing to read, and it names an action it cannot
+  perform: the composer is on the outline. One root is already enough for it to mean something
+  ("1 goal", a body, its name), so the fallback is exactly `childrenOf(nodes, null).length === 0`
+  and it disappears the moment anything is written.
+- **The control** is a `segment()` in the appearance group of `ui/settings.js`, the same three
+  buttons as skin/theme/language. Its option labels are `today.title` / `outline.title` /
+  `map.title` - the names those screens wear in their own headers, never a second set - which is
+  why the three stored values are the three screen names.
+
+Three things outrank the setting, in the order `enterApp` checks them:
 
 - **The About intro, i.e. the first run.** A vault whose `settings.aboutRead` is not set has
   just been made; nothing in it can be due, so the only thing that could be "waiting" is the
   daily question - and Today would then draw the question card over its empty state ("Nothing
   calls for today"), as the first screen somebody sees after handing this app a passphrase.
-  `finishIntro()` therefore goes to the outline **deliberately, without consulting the rule**.
-  The exemption is the first run and nothing more: the second unlock of the same vault obeys it.
+  `finishIntro()` therefore goes to the outline **deliberately, without consulting the rule or
+  the setting**. Nothing had to be added for the setting: the intro is returned into structurally
+  before the decision is reached, and a first run has no setting yet - the settings screen is
+  behind the intro. The exemption is the first run and nothing more: the second unlock of the
+  same vault obeys rule and setting.
 - **An explicit `pendingView`.** The daily notification opens `./?view=today`, which `boot()`
   consumes once and strips from the URL. A person's own tap outranks anything computed from a
-  document, so this branch is checked before the rule and wins even when nothing is waiting.
+  document **and any preference set last month**, so this branch is checked before the rule and
+  wins even when nothing is waiting and even when `landing` says something else.
+- **Then the setting**, and inside it the rule, for `"today"` and for absence.
 
-**Today keeps the outline underneath it**, on all three paths (`landOnToday()`): the close
-button on Today is `ctx.back()`, and the screen behind it must never be a surprise.
+**Whatever it lands on keeps the outline underneath it**, on every path (`landOn(name)`, which
+was `landOnToday()` until the setting arrived and is now the one place a landing is arranged):
+the close button on Today and on the map is `ctx.back()`, and the screen behind it must never be
+a surprise. A second copy per destination is how the map would end up with a different screen
+behind its X than Today has.
 
 ## Touch feedback: the `haptic` senders (`web/js/haptics.js`)
 
