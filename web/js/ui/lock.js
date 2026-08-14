@@ -138,9 +138,16 @@ export function render(ctx) {
   // shell webauthn.supported() is false by construction, so the second branch
   // cannot fire there - and the shell path is absent in a browser, where there
   // is no capability to find.
-  const useShell =
-    !isKey && ctx.shellBio.supported && ctx.shellBio.enabled && !ctx.shellBio.hidden;
-  const usePrf = !isKey && ctx.biometric.supported && ctx.biometric.enrolled;
+  //
+  // The two halves are named before the mode is taken into account, because
+  // they answer a second question as well: whether this device can open the
+  // vault without the passphrase. That is one fact and it must be asked once -
+  // the subtitle below reads the same booleans the button is built from, so a
+  // screen offering the button can never also promise the button cannot exist.
+  const shellBioArmed = ctx.shellBio.supported && ctx.shellBio.enabled && !ctx.shellBio.hidden;
+  const prfArmed = ctx.biometric.supported && ctx.biometric.enrolled;
+  const useShell = !isKey && shellBioArmed;
+  const usePrf = !isKey && prfArmed;
   const biometric = useShell
     ? shellBioButton(ctx, input)
     : usePrf
@@ -175,8 +182,22 @@ export function render(ctx) {
     el("div", { class: "lock" }, [
       el("div", { class: "lock-mark" }, [icon("mark", 34)]),
       el("h1", { class: "lock-title" }, [text(t("lock.title"))]),
+      // The promise under the title, and it has to be true of the device it is
+      // being read on. `lock.sub` says nothing here can read the list without
+      // the passphrase; that was true of three wrappers and stopped being true
+      // with the fourth. Where a face or a fingerprint on THIS device holds a
+      // key to this vault, the honest sentence says so - and says that it is
+      // this device only, because that is the part somebody is entitled to
+      // rely on everywhere else. Which sentence appears is decided by the same
+      // two booleans the button is, never by a second reading of the vault.
       el("p", { class: "lock-sub" }, [
-        text(ctx.autoLocked ? t("lock.autoLocked", { minutes: ctx.idleMinutes }) : t("lock.sub")),
+        text(
+          ctx.autoLocked
+            ? t("lock.autoLocked", { minutes: ctx.idleMinutes })
+            : shellBioArmed || prfArmed
+              ? t("lock.subBio")
+              : t("lock.sub"),
+        ),
       ]),
       biometric,
       bioNote,

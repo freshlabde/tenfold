@@ -1,8 +1,9 @@
 // ui/settings.js - the small set of switches this app has.
 //
 // What it does: skin, theme, language, the two exports and the one import,
-// what the browser says about keeping the data, when it was last saved, and
-// the button that locks everything again.
+// what the browser says about keeping the data - or, inside the native shell
+// where there is no browser to ask, what the app itself keeps - when it was
+// last saved, and the button that locks everything again.
 //
 // What it deliberately does NOT do: no account, no telemetry switch (there is
 // nothing to switch off), no theme preview screen. The unencrypted export is
@@ -27,6 +28,7 @@ import { openSheet, closeSheet } from "./sheet.js";
 import { qrCard } from "./qrview.js";
 import { relativeTime } from "./format.js";
 import { widgetSupported } from "../badge.js";
+import { inShell } from "../shell.js";
 import { supportAvailable, openSupportSheet } from "./support.js";
 import { methodAnchor, methodLabel } from "./policy.js";
 
@@ -103,6 +105,40 @@ function persistenceLabel(ctx) {
   if (!p) return t("settings.persistence.unsupported");
   if (!p.supported) return t("settings.persistence.unsupported");
   return p.persisted ? t("settings.persistence.granted") : t("settings.persistence.denied");
+}
+
+/**
+ * The storage row, which says something different inside the native shell.
+ *
+ * All three browser answers name a browser - what it keeps, what it may clear,
+ * what it declines to say - and inside the shell there is no browser to name.
+ * The Storage API is the wrong question there as well: it asks whether an
+ * origin's data may be evicted under pressure, and the shell's web view uses
+ * `WKWebsiteDataStore.default()`, so the sealed vault lives in the app's own
+ * container (tenfold-ios/docs/DECISIONS.md D5). Nothing evicts it; deleting
+ * the app deletes the container with it.
+ *
+ * So the shell gets one sentence that is true rather than three that are about
+ * something else, and it is stated, not asked: there is no answer to refresh,
+ * which is why the row does nothing when it is pressed there. What it does NOT
+ * say is that the vault is a file anybody could copy out - the mirror in the
+ * app container is a separate change and has not been built.
+ *
+ * The browser and PWA text is untouched, down to the byte.
+ */
+function persistenceRow(ctx) {
+  if (inShell()) {
+    return row(
+      "settings.persistence",
+      "settings.persistenceShellDesc",
+      t("settings.persistence.shell"),
+      null,
+      { disabled: true },
+    );
+  }
+  return row("settings.persistence", "settings.persistenceDesc", persistenceLabel(ctx), () =>
+    ctx.refreshPersistence().then(() => ctx.render()),
+  );
 }
 
 /** Phase to dot modifier. Four states are enough: on, working, stalled, off. */
@@ -733,7 +769,7 @@ export function render(ctx) {
       }),
       row("settings.import", "settings.importDesc", null, importSheet),
       row("settings.exportPlain", "settings.exportPlainDesc", null, () => plaintextSheet(ctx)),
-      row("settings.persistence", "settings.persistenceDesc", persistenceLabel(ctx), () => ctx.refreshPersistence().then(() => ctx.render())),
+      persistenceRow(ctx),
       row(
         "settings.lastSaved",
         null,

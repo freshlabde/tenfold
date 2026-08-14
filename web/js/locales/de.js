@@ -113,6 +113,7 @@ export const de = {
   // -------------------------------------------------------------------- lock
   "lock.title": "Gesperrt",
   "lock.sub": "Die Liste ist versiegelt. Nichts auf diesem Gerät kann sie ohne die Passphrase lesen.",
+  "lock.subBio": "Die Liste ist versiegelt. Auf diesem Gerät öffnet sie sich auch mit deinem Gesicht oder Fingerabdruck; überall sonst öffnet sie nur die Passphrase.",
   "lock.passLabel": "Passphrase",
   "lock.passPlaceholder": "deine Passphrase",
   "lock.keyLabel": "Wiederherstellungsschlüssel",
@@ -429,6 +430,8 @@ export const de = {
   "settings.persistence.denied": "Der Browser kann diese Daten löschen",
   "settings.persistence.unsupported": "Der Browser sagt es nicht",
   "settings.persistenceDesc": "Ohne dauerhaften Speicher kann ein Browser den Tresor verwerfen, wenn der Platz knapp wird. Exportiere regelmäßig.",
+  "settings.persistence.shell": "Die App behält diese Daten auf diesem Gerät",
+  "settings.persistenceShellDesc": "Sie liegen in der App selbst, auf diesem Gerät. Wird die App gelöscht, sind sie mit weg. Exportiere regelmäßig.",
   "settings.lastSaved": "Zuletzt gespeichert",
   "settings.lastSavedNever": "noch nie",
   "settings.lock": "Jetzt sperren",

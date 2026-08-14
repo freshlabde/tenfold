@@ -909,3 +909,148 @@ test("the warning about the title exists in all three catalogues", async ({ page
   expect(r.de.warn).toContain("außerhalb der Verschlüsselung");
   expect(r.es.warn).toContain("fuera del cifrado");
 });
+
+// ------------------------------------------------------ the shell's own lock
+//
+// The web app locks itself after fifteen minutes without activity. The shell
+// keeps a second, much shorter deadline that the page could not keep for
+// itself: how long the app has been away from the foreground, measured
+// natively, because a backgrounded web view is not a clock - its timers are
+// throttled, it may be suspended outright, and the wall time it can read after
+// being woken says nothing about what the operating system did in between.
+//
+// When that deadline passes the shell pushes `vault.lock` at the page, the
+// same way it pushes `share.incoming`, and holds a privacy veil over the web
+// view until the JavaScript that took the message returns. So the assertion
+// that matters most here is not that the app ends up locked - it is that it is
+// ALREADY locked in the same tick the message was delivered in. Anything that
+// waited for a frame or a promise would hand the veil back over the list.
+
+/** Exactly what the bridge dispatches when its away-deadline has passed. */
+const VAULT_LOCK = { type: "vault.lock", reason: "background", awaySeconds: 87 };
+
+/** What ctx says about itself, read from the page. */
+const appFacts = (page) =>
+  page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    return { view: ctx.view.name, doc: ctx.doc === null ? null : ctx.doc.nodes.length, savedAt: ctx.savedAt };
+  });
+
+test("the shell's deadline closes the vault before the message it arrived on returns", async ({
+  page,
+}) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Get the knee fixed"]);
+
+  const now = await page.evaluate(async (message) => {
+    const { ctx } = await import("/web/js/app.js");
+    const { SHELL_MESSAGE } = await import("/web/js/vaultlock.js");
+    window.__tenfoldShell._receive(message);
+    // Read back in the SAME tick, with nothing awaited in between. This is the
+    // whole test: the veil comes down when this function returns.
+    return {
+      name: SHELL_MESSAGE,
+      lockScreen: !!document.querySelector(".lock-title"),
+      goalStillOnScreen: document.body.innerText.includes("Get the knee fixed"),
+      docGone: ctx.doc === null,
+      view: ctx.view.name,
+    };
+  }, VAULT_LOCK);
+
+  // The name is pinned literally: it is a cross-repository wire contract, and
+  // a rename on either side would stop the vault locking rather than break a
+  // build.
+  expect(now.name).toBe("vault.lock");
+  expect(now.lockScreen).toBe(true);
+  expect(now.goalStillOnScreen).toBe(false);
+  expect(now.docGone).toBe(true);
+  expect(now.view).toBe("lock");
+
+  // A second one, and a malformed one, on a screen with nothing left to close:
+  // silence, and above all no exception travelling back across the bridge.
+  await page.evaluate((message) => {
+    window.__tenfoldShell._receive(message);
+    window.__tenfoldShell._receive({ type: "vault.lock" });
+  }, VAULT_LOCK);
+  await expect(page.locator(".lock-title")).toBeVisible();
+
+  // And the vault is intact: the passphrase opens it, with the goal in it.
+  await unlock(page);
+  await expect(page.locator(".row-title").first()).toHaveText("Get the knee fixed");
+});
+
+test("an edit still inside the autosave window survives the background lock", async ({ page }) => {
+  // The lock flushes the debounced save before it drops the master key, and it
+  // has to keep doing that now that the drop happens synchronously: the seal
+  // is started first and is holding the key and the document by the time the
+  // lines below it take both away. Without that ordering a lock arriving 200ms
+  // after a rename would silently throw the rename away.
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Get the knee fixed"]);
+
+  const renamed = "CANARY-INFLIGHT-4471 the knee, seen to";
+  const before = (await appFacts(page)).savedAt;
+  await page.evaluate(
+    async ({ title, message }) => {
+      const { ctx } = await import("/web/js/app.js");
+      const node = ctx.doc.nodes.find((n) => n.title === "Get the knee fixed");
+      ctx.updateNode(node.id, { title });
+      // Nothing awaited between the edit and the message: the 600ms autosave
+      // has certainly not fired, so this is an edit that exists only in memory.
+      window.__tenfoldShell._receive(message);
+    },
+    { title: renamed, message: VAULT_LOCK },
+  );
+
+  await expect(page.locator(".lock-title")).toBeVisible();
+  // The seal has to have reached IndexedDB before the page is thrown away,
+  // and it says so itself rather than being waited out.
+  await expect.poll(async () => (await appFacts(page)).savedAt).toBeGreaterThan(before);
+
+  await page.reload();
+  await unlock(page);
+  const titles = await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    return ctx.doc.nodes.map((n) => n.title);
+  });
+  expect(titles).toContain(renamed);
+});
+
+test("a lock arriving when there is nothing to close changes nothing", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+
+  // Before there is a vault at all. Nothing is open, nothing can be closed,
+  // and the first-run screen must not be swapped for a lock screen asking for
+  // a passphrase that does not exist yet.
+  await page.evaluate((message) => window.__tenfoldShell._receive(message), VAULT_LOCK);
+  await expect(page.getByRole("button", { name: "Set up the vault" })).toBeVisible();
+
+  // Mid first run, on the recovery key. A document IS open here - the vault
+  // was created two steps ago - so "is something open" is not the same
+  // question as "is the app in use". This is the screen that must never be
+  // taken away: it is the only time the recovery key is ever shown.
+  await page.getByRole("button", { name: "Set up the vault" }).click();
+  await page.locator('input[type="password"]').first().fill(PASS);
+  await page.locator('input[type="password"]').nth(1).fill(PASS);
+  await page.getByRole("button", { name: /Create the vault/ }).click();
+  await page.waitForSelector(".keygrid", { timeout: 60000 });
+
+  await page.evaluate((message) => window.__tenfoldShell._receive(message), VAULT_LOCK);
+  await expect(page.locator(".keygrid")).toBeVisible();
+  const facts = await appFacts(page);
+  expect(facts.view).toBe("setup");
+  expect(facts.doc).not.toBe(null);
+
+  // And the run still finishes from where it was standing.
+  await page.locator(".check").click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("button", { name: /Start empty/ })).toBeVisible();
+});

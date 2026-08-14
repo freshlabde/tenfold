@@ -43,6 +43,14 @@ export const KEYBOARD_MIN = 60;
 export const MAX_LIFT_RATIO = 0.75;
 
 /**
+ * Past this the page is zoomed and the keyboard arithmetic below stops
+ * describing anything. Not exactly 1: a browser reports 1.0000000000000002 as
+ * readily as 1, and a sheet that refused to lift on a rounding error would be
+ * a keyboard sitting on top of the field somebody is typing in.
+ */
+export const ZOOM_EPSILON = 1.01;
+
+/**
  * How far a bottom-pinned sheet has to rise to clear whatever is covering the
  * bottom of the screen. Pure on purpose: this is the whole arithmetic of the
  * fix, and it can be checked without a keyboard, a phone or a browser.
@@ -52,15 +60,28 @@ export const MAX_LIFT_RATIO = 0.75;
  * moves the visual viewport DOWN over the layout one, and the covered strip is
  * then what is left below it, not the raw difference of the two heights.
  *
+ * A ZOOMED page is the one case this arithmetic cannot describe, and it became
+ * reachable the moment `user-scalable=no` left the viewport meta. Pinching to
+ * 2x halves `visualViewport.height` in CSS pixels; panned to the top of the
+ * page that reads as half a screen "covered", which is a keyboard by every
+ * test above and would fling the sheet half way up for somebody who only
+ * wanted to read it. The two situations cannot be told apart by subtraction -
+ * the strip below the visual viewport is real either way - so the scale is
+ * asked for instead, and a page being read close up is left exactly where the
+ * reader put it. At scale 1 nothing changes, which is every existing case.
+ *
  * @param {number} layoutHeight window.innerHeight - the viewport CSS lays out in
  * @param {number} viewportHeight visualViewport.height - what is actually visible
  * @param {number} offsetTop visualViewport.offsetTop
+ * @param {number} [scale] visualViewport.scale - 1 unless somebody pinched
  * @returns {number} pixels to translate the sheet upwards, 0 for "nothing to do"
  */
-export function liftFor(layoutHeight, viewportHeight, offsetTop) {
+export function liftFor(layoutHeight, viewportHeight, offsetTop, scale = 1) {
   const layout = Number(layoutHeight);
   const visual = Number(viewportHeight);
   const top = Number(offsetTop);
+  const zoom = Number(scale);
+  if (Number.isFinite(zoom) && zoom > ZOOM_EPSILON) return 0;
   if (!Number.isFinite(layout) || !Number.isFinite(visual) || layout <= 0 || visual <= 0) return 0;
   const covered = layout - visual - (Number.isFinite(top) ? top : 0);
   if (!Number.isFinite(covered) || covered < KEYBOARD_MIN) return 0;
@@ -103,7 +124,7 @@ function watchKeyboard(sheet) {
 
   let last = -1;
   const apply = () => {
-    const lift = liftFor(window.innerHeight, vv.height, vv.offsetTop);
+    const lift = liftFor(window.innerHeight, vv.height, vv.offsetTop, vv.scale);
     if (lift !== last) {
       last = lift;
       sheet.style.setProperty("--kb-lift", `${lift}px`);
@@ -233,7 +254,21 @@ export function openSheet(layer, spec) {
   return sheet;
 }
 
-export function closeSheet() {
+/**
+ * Put the open sheet away.
+ *
+ * `opts.immediate` takes the two nodes out of the document in this call
+ * instead of when the slide-out has finished. One caller wants it and the
+ * reason is not cosmetic: a sheet holds text somebody typed, and `lock()`
+ * closes the vault - a sheet still sliding away for a quarter of a second
+ * afterwards is a quarter of a second of plaintext over a locked app - exactly
+ * the flash the native shell's privacy veil exists to prevent. Everything else
+ * keeps the animation; being called as an event handler (`opts` is then a
+ * MouseEvent) reads as no options at all, which is correct.
+ *
+ * @param {{immediate?: boolean}} [opts]
+ */
+export function closeSheet(opts = {}) {
   if (!openState) return;
   const { scrim, sheet, previous, onClose, releaseKeyboard } = openState;
   openState = null;
@@ -250,7 +285,9 @@ export function closeSheet() {
     sheet.remove();
   };
   const anim = sheet.getAnimations ? sheet.getAnimations() : [];
-  if (anim.length) {
+  if (opts && opts.immediate === true) {
+    done();
+  } else if (anim.length) {
     Promise.allSettled(anim.map((a) => a.finished)).then(done);
   } else {
     setTimeout(done, 240);

@@ -298,13 +298,43 @@ lift = clamp(window.innerHeight - visualViewport.height - visualViewport.offsetT
   lift computes to 0 and the sheet rides back down on the transition it already had.
 - **Guarded**: a browser without `visualViewport` gets no listener, no transform and no lift -
   byte-identical behaviour to before. Under `prefers-reduced-motion` the sheet does not animate.
+- **A zoomed page lifts nothing** (`ZOOM_EPSILON`, 1.01). Pinching to 2x halves
+  `visualViewport.height`; panned to the top of the page that is half a screen "covered" by the
+  formula above, and the sheet would fly up for somebody who only wanted to read it. The two
+  cases cannot be told apart by subtraction, so the scale decides: above the epsilon the lift is
+  0 and the page stays where its reader put it. The epsilon exists because browsers report
+  `1.0000000000000002` as readily as `1`, and refusing to lift on a rounding error would be a
+  keyboard sitting on the field. This became reachable when `user-scalable=no` left the viewport
+  meta (below); at scale 1 nothing changed.
 - `web/index.html` carries `interactive-widget=resizes-content` in the viewport meta: where it
   is understood (Chromium, Android) the layout viewport shrinks by itself and the lift computes
   to 0. Safari ignores it, which is the case the lift exists for.
 
-`liftFor(layoutHeight, viewportHeight, offsetTop)` is exported and pure, and `tests/keyboard.spec.js`
-checks it directly plus the wiring against a mocked `visualViewport`. **A real iOS keyboard
-remains a device check** - no desktop browser raises one.
+`liftFor(layoutHeight, viewportHeight, offsetTop, scale = 1)` is exported and pure, and
+`tests/keyboard.spec.js` checks it directly plus the wiring against a mocked `visualViewport`.
+**A real iOS keyboard remains a device check** - no desktop browser raises one.
+
+**`closeSheet({ immediate: true })`** takes the sheet out of the document in the same call
+instead of when the slide-out has finished. Exactly one caller uses it - `lock()` - and not for
+looks: a sheet holds text somebody typed, and a quarter of a second of it over a locked app is
+the flash the native shell's privacy veil exists to prevent. Called as an event handler (`opts`
+is then a MouseEvent) it reads as no options at all, which is the correct answer.
+
+### The page may be zoomed
+
+`web/index.html` does **not** carry `user-scalable=no`. Pinch to zoom is the one accessibility
+affordance the platform gives for free, and the three screens that run their own gestures each
+declare what they will share:
+
+| surface | `touch-action` | who gets two fingers |
+|---|---|---|
+| the map stage (`.map-stage`) | `none` | **map.js** - it has its own camera pinch, and the page zooming the map would be zooming a picture of a zoom |
+| a list row (`.row-shell`) | `pan-y pinch-zoom` | the browser. One finger still swipes; the browser cancels the pointer when it takes over, and `rows.js` already treats `pointercancel` as a released gesture |
+| the duel beam (`.beam`) | `pan-y pinch-zoom` | the browser, same reasoning and the same `pointercancel` path |
+
+Without the `pinch-zoom` keyword on those two, zoom would be refused for any gesture starting
+on a row - and a list is almost all rows, so the one screen somebody would want to enlarge
+would have been the one screen that could not be.
 
 ## The two outside surfaces: app badge and share target
 
@@ -535,6 +565,25 @@ inside the AAD, so a wrapper cannot be rewritten as another kind and still open.
 | `raw` | WebAuthn PRF output, `SHA-256`-reduced to 32 bytes | HKDF-SHA256 | `tenfold/raw-wrap/v1` | `webauthn:<credIdPrefix>` | yes |
 | `shell-bio-v1` | 32 bytes the native shell keeps in the Keychain behind the current biometric enrolment | HKDF-SHA256 | `tenfold/shell-bio/v1` | `shell-bio:<12 random chars>` | yes |
 
+**And the lock screen has to say so.** `lock.sub` - *"The list is sealed. Nothing on this device
+can read it without the passphrase."* - was true of the first three wrappers and stopped being
+true with the fourth: a face on this device now opens the vault, and a screen offering that as a
+button while promising it cannot exist is lying to the one person reading it. So there are two
+sentences, and `web/js/ui/lock.js` picks between them with **the same two booleans the biometric
+button is built from** (`shellBioArmed`, `prfArmed`) - one reading of the vault, never two, so
+the screen cannot offer a way in and deny it in the same paint:
+
+| this device | sentence |
+|---|---|
+| no biometric wrapper armed | `lock.sub`, unchanged, byte for byte |
+| a `shell-bio-v1` or `raw` wrapper this device can use | `lock.subBio`: *"The list is sealed. On this device it also opens with your face or fingerprint; anywhere else, only the passphrase opens it."* |
+
+The second sentence is not a softening of the first. It keeps the half that is still true of
+every other device - the passphrase is the only way in - and admits the half that is not. It
+follows the button's own state, so a wrapper the shell has just proved dead (`hidden`) takes the
+original promise back with it, because it is true again. An auto-locked screen keeps saying what
+it always said (`lock.autoLocked`); that line is about the clock, not about the wrappers.
+
 **Biometry is never a fourth way *back* in.** Neither of the two biometric wrappers is a
 recovery path: both are a shortcut past one passphrase field on one device that is already in
 somebody's hand. The Keychain item behind `shell-bio-v1` is `WhenUnlockedThisDeviceOnly`, is
@@ -696,6 +745,61 @@ is empty": a badge of zero is an ordinary Tuesday.
   asked for, and the widget, the badge and the share slot are cleared regardless, which is the
   part that could not be skipped.
 
+## The shell can close the vault: `vault.lock`
+
+```js
+// pushed by the shell, unprompted, exactly like share.incoming
+{ type: "vault.lock", reason: "background", awaySeconds: 87 }
+```
+
+The web app locks itself after fifteen minutes without activity (`IDLE_LOCK_MS`). The native
+shell keeps a **second, much shorter deadline** that the page could not keep for itself: how long
+the app has been away from the foreground. A backgrounded web view is not a clock - its timers
+are throttled, it may be suspended outright, and the wall time it can read after being woken
+says nothing about what the operating system did in between - so the away time is measured
+natively and the page is told the answer. Both deadlines run; neither replaces the other.
+
+`web/js/vaultlock.js` is the whole web half: it knows the message name and calls back.
+
+- **No capability, and no handshake.** Like `share.incoming` this is a push the page listens
+  for, not a feature it asks for, so the listener is registered unconditionally in `boot()` - in
+  a browser it costs one listener that never fires. And unlike the share inbox there is no
+  readiness flag: a share arriving before the listener exists would be somebody's note lost,
+  while a lock arriving before the app has booted is a lock that was already true.
+- **`reason` and `awaySeconds` are read by nobody on this side.** They are on the wire so a lock
+  nobody asked for is explicable from a log on either side, not because the page needs them.
+  Nothing about the lock varies with them: there is exactly one lock in this app.
+- **It goes through `lock()`**, so everything an ordinary lock does still happens - the flush,
+  the master key, `sync.resetSync()`, the per-screen `reset()` calls, the sheet, the idle timer.
+- **`lock(false)`, not `lock(true)`.** The auto flag exists to put *"locked after fifteen minutes
+  without activity"* on the screen and this was not that; it was a minute in the background. The
+  wrong sentence is a lie, so the plain lock with its one-word toast is used instead.
+- **Three no-ops, all silent**: no document open (already locked, or never unlocked), the view
+  is `setup` (`createVaultWith` opens a document while the first run is still going - locking
+  there would take the recovery key off the screen before it was read, and that screen is never
+  shown twice), and the view is already `lock`. A message at an awkward moment must never throw
+  and must never cost somebody work.
+
+**It is synchronous, and that is a requirement rather than a preference.** The shell holds a
+privacy veil over the web view until the JavaScript that took this message returns. So `lock()`
+does its visible work in the same tick:
+
+- `flushSave()` is **started, not awaited**. An async function runs to its first `await`
+  synchronously, so `sealIntoVault` is already holding the master key and the document by the
+  time the lines below take both away - the debounced 600ms save included. `sync.resetSync()`
+  still happens after that save completes, exactly as when the save was awaited at the top.
+- The repaint is `render("none")`, not the default. `transition()` hands the update to
+  `document.startViewTransition`, which paints a snapshot of the old screen and cross-fades it
+  over about a quarter of a second - and what it would be cross-fading here is the list, out of
+  a vault that is already closed.
+- The sheet is closed with `{ immediate: true }`, for the same reason one layer down.
+
+**What is still lost**, and it is the app's stated rule rather than a gap: text typed into an
+open sheet that has not been saved yet. `web/js/ui/editor.js` deliberately has no partial
+autosave - *"a half typed title should not be what survives a lock"* - so an unsaved sheet loses
+its contents here exactly as it does when the fifteen-minute idle lock fires. Everything that
+reached the document survives, including an edit made 200ms before the message arrived.
+
 ## Browser history (wave: session UX)
 
 The browser history mirrors the in-app view stack. The wanted depth is derived, never
@@ -802,6 +906,19 @@ export async function lastSavedAt(): Promise<number|null>
 **Only the encrypted vault ever goes into IndexedDB.** No plaintext field, no search index,
 no cache. Never. `saveVault` actively rejects objects carrying `nodes`, `doc`, `plaintext`
 or `settings` keys.
+
+**The storage row says something different inside the shell.** All three browser answers
+(`settings.persistence.granted` / `.denied` / `.unsupported`) name a browser, and inside the
+native shell there is no browser to name. The Storage API is also the wrong question there: it
+asks whether an origin may be evicted under pressure, and the shell's web view uses
+`WKWebsiteDataStore.default()`, so the sealed vault sits in the app's own container
+(`tenfold-ios/docs/DECISIONS.md` D5) where nothing evicts it and deleting the app deletes it with
+it. So `ui/settings.js` forks on `inShell()` and states one true sentence instead of asking a
+question with three wrong answers: **"The app keeps this data on this device"**, described as
+*"It lives inside the app, on this device. Deleting the app deletes it too. Export regularly."*
+The row is inert there - there is no answer to refresh. It deliberately does **not** claim the
+vault is a file anybody could copy out: the mirror in the app container is a separate change and
+has not been built. The browser and PWA text is untouched, down to the byte.
 
 ## `web/js/portability.js` (BUILT)
 

@@ -41,6 +41,7 @@ import * as sync from "./sync.js";
 import * as push from "./push.js";
 import { setBadge, clearBadge, clearWidgetState } from "./badge.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
+import { startShellVaultLock } from "./vaultlock.js";
 import * as webauthn from "./webauthn.js";
 import * as bio from "./bio.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
@@ -223,11 +224,25 @@ function touchIdle() {
   }, IDLE_LOCK_MS);
 }
 
+/**
+ * Close the vault: the document leaves memory, every screen that keeps its own
+ * step state starts clean, and the lock screen goes up.
+ *
+ * The ORDER is the whole of it, and it is what to preserve when this function
+ * is touched. `flushSave()` is started rather than awaited: an async function
+ * runs to its first `await` synchronously, so by the time it yields,
+ * `sealIntoVault` is already holding the master key and the document it seals.
+ * Everything below can then drop both without losing the last edit - the
+ * debounced 600 ms save included, which is the one this cancels and completes.
+ *
+ * What that buys is a lock screen that is on screen when this function RETURNS
+ * rather than one seal and one IndexedDB write later. The idle lock never
+ * needed that; the shell's does. It keeps a privacy veil over the web view
+ * until the JavaScript that took `vault.lock` returns, and a lock that only
+ * became visible a promise tick later would hand the veil back over the list.
+ */
 async function lock(auto = false) {
-  await flushSave();
-  // Sync stops at the lock: without the master key nothing could be merged,
-  // and a timer firing behind the lock screen would only produce errors.
-  sync.resetSync();
+  const saving = flushSave();
   state.doc = null;
   state.masterKey = null;
   state.duel = null;
@@ -239,12 +254,27 @@ async function lock(auto = false) {
   [setupScreen, lockScreen, duelScreen, searchScreen].forEach((s) => {
     if (typeof s.reset === "function") s.reset();
   });
-  closeSheet();
+  // Immediately, not over the quarter second a sheet usually takes to slide
+  // away: whatever is in an open sheet is plaintext somebody typed, and a
+  // vault that is closed must not still be showing it.
+  closeSheet({ immediate: true });
   clearTimeout(idleTimer);
   state.view = { name: "lock", id: null };
   syncHistory();
-  render();
+  // "none", so the swap happens in THIS call rather than inside a View
+  // Transition. The wrapper is asynchronous by construction - it hands the
+  // update to the browser, which paints a snapshot of the old screen and
+  // cross-fades it over about a quarter of a second - and what it would be
+  // cross-fading here is the list, out of a vault that is already closed. The
+  // one screen change in this app that has to be instant is this one.
+  render("none");
   if (!auto) toast(t("toast.locked"));
+  await saving;
+  // Sync stops at the lock: without the master key nothing could be merged,
+  // and a timer firing behind the lock screen would only produce errors. After
+  // the save rather than before it, exactly as when the save was awaited at
+  // the top - the push that save schedules is the one this has to cancel.
+  sync.resetSync();
 }
 
 // -------------------------------------------------------------------- toasts
@@ -1958,6 +1988,35 @@ async function boot() {
     // with the X follows.
     if (isSheetOpen()) return;
     offerShare();
+  });
+
+  // The shell's own deadline. It measures how long the app was away from the
+  // foreground - natively, because a backgrounded page cannot time itself - and
+  // asks for the vault to be closed when that is past. Registered here for the
+  // same reason the share inbox is: the message can arrive at any moment, and
+  // registering it once, unconditionally, is cheaper than a capability nobody
+  // would ever answer no to. In a browser it is one listener that never fires.
+  //
+  // Three moments where there is nothing to close, and all three have to be
+  // silent rather than clever:
+  //
+  //   no document   already locked, or never unlocked. The lock screen is
+  //                 where this would put somebody, and they are on it.
+  //   setup         `createVaultWith` opens a document while the first run is
+  //                 still going, so "a document exists" is not the same
+  //                 question as "the app is in use". Locking here would take
+  //                 away the recovery key screen before it had been read, and
+  //                 that is the one screen this app cannot show twice.
+  //   the lock view the same fact from the other side, and cheap to state.
+  //
+  // `lock(false)` and not `lock(true)`: the auto flag exists to put "locked
+  // after fifteen minutes without activity" on the screen, and this was not
+  // that. It was a minute in the background - a different sentence, and the
+  // wrong one is a lie, so the plain lock with its one-word toast is used.
+  startShellVaultLock(() => {
+    if (!state.doc) return;
+    if (state.view.name === "setup" || state.view.name === "lock") return;
+    lock(false);
   });
 
   if (pairing) await handlePairing(pairing);

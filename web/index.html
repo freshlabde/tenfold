@@ -19,7 +19,14 @@
        pinned to the bottom is already above the keys and ui/sheet.js has
        nothing to lift. Safari ignores it and keeps overlaying the keyboard,
        which is exactly the case the visual-viewport lift is written for. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content">
+  <!-- No user-scalable=no. Pinch to zoom is how somebody who cannot read 15px
+       reads 15px, and taking it away is taking away the only accessibility
+       affordance the platform gives for free. The screens that run their own
+       gestures keep them: the map declares touch-action: none and does its own
+       pinch (its camera, not the page), the rows and the duel beam declare
+       pan-y pinch-zoom so a one-finger swipe still means what it meant and two
+       fingers reach the browser. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>tenfold</title>
   <meta name="description" content="tenfold - get what you want.">
   <meta name="color-scheme" content="dark light">

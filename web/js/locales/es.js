@@ -113,6 +113,7 @@ export const es = {
   // -------------------------------------------------------------------- lock
   "lock.title": "Bloqueado",
   "lock.sub": "La lista está sellada. Nada en este dispositivo puede leerla sin la frase de acceso.",
+  "lock.subBio": "La lista está sellada. En este dispositivo también se abre con tu cara o tu huella; en cualquier otro, solo la abre la frase de acceso.",
   "lock.passLabel": "Frase de acceso",
   "lock.passPlaceholder": "tu frase de acceso",
   "lock.keyLabel": "Clave de recuperación",
@@ -429,6 +430,8 @@ export const es = {
   "settings.persistence.denied": "El navegador puede borrar estos datos",
   "settings.persistence.unsupported": "El navegador no lo dice",
   "settings.persistenceDesc": "Sin almacenamiento persistente, un navegador puede descartar la caja fuerte cuando falte espacio. Exporta con regularidad.",
+  "settings.persistence.shell": "La app conserva estos datos en este dispositivo",
+  "settings.persistenceShellDesc": "Están dentro de la propia app, en este dispositivo. Si borras la app, se van con ella. Exporta con regularidad.",
   "settings.lastSaved": "Último guardado",
   "settings.lastSavedNever": "todavía no",
   "settings.lock": "Bloquear ahora",

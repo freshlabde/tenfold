@@ -113,6 +113,11 @@ export const en = {
   // -------------------------------------------------------------------- lock
   "lock.title": "Locked",
   "lock.sub": "The list is sealed. Nothing on this device can read it without the passphrase.",
+  // The same promise, made where it is true: this device holds a key behind a
+  // face or a fingerprint, so "nothing here can read it" would be a lie. What
+  // survives is the part that matters everywhere else - on any other device
+  // the passphrase is the only way in.
+  "lock.subBio": "The list is sealed. On this device it also opens with your face or fingerprint; anywhere else, only the passphrase opens it.",
   "lock.passLabel": "Passphrase",
   "lock.passPlaceholder": "your passphrase",
   "lock.keyLabel": "Recovery key",
@@ -432,6 +437,13 @@ export const en = {
   "settings.persistence.denied": "The browser may clear this data",
   "settings.persistence.unsupported": "The browser does not say",
   "settings.persistenceDesc": "Without persistent storage a browser may drop the vault when space runs low. Export regularly.",
+  // The same row inside the native shell, where there is no browser to make
+  // the promise and none to break it. It says only what is true today: the
+  // data sits in the app's own storage on this device, and it goes when the
+  // app goes. It does NOT claim a file - the vault file in the app container
+  // is a separate change that has not been built.
+  "settings.persistence.shell": "The app keeps this data on this device",
+  "settings.persistenceShellDesc": "It lives inside the app, on this device. Deleting the app deletes it too. Export regularly.",
   "settings.lastSaved": "Last saved",
   "settings.lastSavedNever": "not yet",
   "settings.lock": "Lock now",

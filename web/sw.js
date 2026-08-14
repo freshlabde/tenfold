@@ -78,6 +78,7 @@ const SHELL = [
   "./js/questions.js",
   "./js/badge.js",
   "./js/shareinbox.js",
+  "./js/vaultlock.js",
   "./js/motion.js",
   "./js/i18n.js",
   "./js/locales/en.js",

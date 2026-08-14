@@ -154,6 +154,21 @@ test("the lift is what the keyboard covers, floored, capped and guarded", async 
       zero: liftFor(0, 0, 0),
       negative: liftFor(844, 900, 0),
       noOffset: liftFor(844, 508, undefined),
+      // Pinched to 2x and panned to the top of the page. Half the layout
+      // viewport is genuinely below what is visible, and it is not a keyboard:
+      // reading close up must not fling the sheet half way up the screen.
+      zoomedTop: liftFor(844, 422, 0, 2),
+      // The same zoom with a keyboard actually up. Still nothing: the two
+      // cannot be told apart by subtraction, and leaving a zoomed page where
+      // its reader put it is the safer of the two wrong answers.
+      zoomedKeyboard: liftFor(844, 250, 0, 2),
+      // A browser that reports a rounding artefact instead of exactly 1 is not
+      // a zoomed page, and a sheet that refused to lift there would be a
+      // keyboard sitting on the field.
+      unzoomed: liftFor(844, 508, 0, 1.0000000000000002),
+      // No scale reported at all: every browser that had this behaviour keeps
+      // it, unchanged.
+      noScale: liftFor(844, 508, 0, undefined),
     };
   });
 
@@ -172,6 +187,10 @@ test("the lift is what the keyboard covers, floored, capped and guarded", async 
   expect(r.negative).toBe(0);
   // A missing offsetTop reads as no offset, not as a broken sum.
   expect(r.noOffset).toBe(336);
+  expect(r.zoomedTop).toBe(0);
+  expect(r.zoomedKeyboard).toBe(0);
+  expect(r.unzoomed).toBe(336);
+  expect(r.noScale).toBe(336);
 });
 
 // ------------------------------------------------------------- the sheet layer

@@ -302,11 +302,18 @@ button.h-sub {
   background: var(--line);
 }
 
+/* pan-y keeps the vertical scroll with the page and hands the horizontal axis
+   to the swipe in rows.js. `pinch-zoom` was added when user-scalable=no left
+   the viewport meta: without it the browser's zoom is refused for any gesture
+   starting on a row, and a list is almost all rows - the one screen somebody
+   would want to make bigger would have been the one screen that could not.
+   One finger still means swipe; two fingers reach the browser, which cancels
+   the pointer, which rows.js already treats as a released gesture. */
 .row-shell {
   position: relative;
   border-radius: var(--plate-radius);
   overflow: hidden;
-  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
 }
 
 .row-behind {
@@ -850,11 +857,13 @@ a.btn-ghost.is-link {
   transition: width var(--dur) var(--ease-out);
 }
 
+/* Same reasoning as .row-shell: one finger tilts the beam, two fingers are the
+   browser's to zoom with, and a cancelled pointer springs the beam back. */
 .beam {
   flex: 1; min-height: 0; position: relative; overflow: hidden;
   display: flex; align-items: center;
   padding: 0 var(--gutter);
-  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
 }
 /* Radial, not linear: a linear gradient inside a box paints a hard rectangle,
    and during a swipe that rectangle's top and bottom edges were visible right

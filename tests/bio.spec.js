@@ -587,6 +587,116 @@ test("the browser's biometric button never appears inside the shell", async ({ p
   expect(enrolled.shell).toBe(true);
 });
 
+// ------------------------------------------------- what the lock screen promises
+//
+// `lock.sub` says nothing on this device can read the list without the
+// passphrase. That was true of three wrappers. It stopped being true with the
+// fourth: a face on this device now opens the vault, and a screen that offers
+// that as a button while promising it cannot exist is lying to the one person
+// it is talking to. The second sentence is not a softening of the first - it
+// keeps the part that is still true everywhere else, which is that no other
+// device has any way in but the passphrase.
+//
+// The two sentences are decided by the same two booleans the button is built
+// from, which is the point: there is no second way to ask whether this device
+// can open the vault, so the screen cannot end up offering one and denying the
+// other.
+
+const lockSub = (page) => page.locator(".lock-sub").first();
+
+test("without a biometric wrapper the lock screen keeps its promise", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  // Nothing armed: there is no button, and the original sentence is the true
+  // one. Byte for byte the sentence the web app has always shown.
+  await expect(shellButton(page)).toHaveCount(0);
+  await expect(prfButton(page)).toHaveCount(0);
+  await expect(lockSub(page)).toHaveText(
+    "The list is sealed. Nothing on this device can read it without the passphrase.",
+  );
+});
+
+test("once a face can open the vault the lock screen stops claiming it cannot", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await enableFromSettings(page);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
+  // Cancelled, so the automatic attempt leaves the screen up to be read. The
+  // button is still on offer after it - cancelling is not an error - which is
+  // exactly the state in which the old sentence contradicted the screen it was
+  // printed on.
+  await page.evaluate(() => {
+    window.__bio.unwrapCode = "cancelled";
+  });
+  await lockNow(page);
+
+  await expect(shellButton(page)).toBeVisible();
+  await expect(lockSub(page)).toHaveText(
+    "The list is sealed. On this device it also opens with your face or fingerprint; anywhere else, only the passphrase opens it.",
+  );
+
+  // Wait for the automatic attempt to have actually been MADE before the
+  // refusal is lifted. The prompt fires one frame after the screen is painted,
+  // and every assertion above passes whether or not that frame has happened
+  // yet - so lifting the refusal on the assertions alone is a race the test
+  // loses by unlocking itself.
+  await expect.poll(async () => (await sent(page, "bio.unwrapKey")).length).toBe(1);
+
+  // And the honesty is per device, not per vault: turning the wrapper off puts
+  // the original promise back, because it is true again.
+  await page.evaluate(() => {
+    window.__bio.unwrapCode = null;
+  });
+  await unlockWithPassphrase(page);
+  await openSettings(page);
+  await expect(bioRow(page)).toBeVisible({ timeout: 15000 });
+  await bioRow(page).click();
+  await expect(page.locator(".sheet-title")).toHaveText("Turn this off?");
+  await page.locator(".sheet-foot").getByRole("button", { name: "Turn off" }).click();
+  await expect.poll(async () => (await vaultFacts(page)).kinds).toEqual(["passphrase", "recovery"]);
+  // The sheet slides out rather than vanishing, and it carries a Close button
+  // of its own while it does - two on the screen at once is a strict-mode
+  // violation, not a flake.
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await lockNow(page);
+  await expect(lockSub(page)).toHaveText(
+    "The list is sealed. Nothing on this device can read it without the passphrase.",
+  );
+});
+
+test("the honest sentence exists in all three catalogues and says where it applies", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const { LOCALES } = await import("/web/js/i18n.js");
+    const out = {};
+    for (const locale of LOCALES) {
+      const cat = (await import(`/web/js/locales/${locale}.js`))[locale];
+      out[locale] = { plain: cat["lock.sub"], bio: cat["lock.subBio"] };
+    }
+    return out;
+  });
+  for (const locale of ["en", "de", "es"]) {
+    expect(typeof r[locale].bio, locale).toBe("string");
+    // Not a copy of the sentence it replaces, and long enough to have said
+    // both halves - what this device can do, and what no other device can.
+    expect(r[locale].bio, locale).not.toBe(r[locale].plain);
+    expect(r[locale].bio.length, locale).toBeGreaterThan(60);
+  }
+  expect(r.en.bio).toContain("On this device");
+  expect(r.de.bio).toContain("Auf diesem Gerät");
+  expect(r.es.bio).toContain("En este dispositivo");
+});
+
 // --------------------------------------------------------------- the vault dies
 
 test("wiping the vault tells the shell which vault died", async ({ page }) => {
