@@ -66,6 +66,20 @@ export const CAP_BIO = "bio";
  * the one message whose absence changes nothing anybody can see.
  */
 export const CAP_HAPTIC = "haptic";
+/**
+ * The sixth is a property of the BUILD again, like the first three and unlike
+ * `bio`/`haptic`: writing a file into the app's own container needs no hardware
+ * and cannot be absent on a device the shell already runs on, so the shell
+ * advertises it always. There is nothing to ask `capabilitiesForHardware()`
+ * about.
+ *
+ * What that means here: an absent `vaultmirror` says one thing only - a shell
+ * built before this existed - and vaultmirror.js then behaves exactly as it
+ * does in a browser. That is also why the settings row keeps its older, vaguer
+ * sentence in that case rather than claiming there is no spare copy: a build
+ * that cannot look is not a build that looked and found nothing.
+ */
+export const CAP_MIRROR = "vaultmirror";
 
 /**
  * The channel, or null in a plain browser.

@@ -445,12 +445,20 @@ export const en = {
   "settings.persistence.unsupported": "The browser does not say",
   "settings.persistenceDesc": "Without persistent storage a browser may drop the vault when space runs low. Export regularly.",
   // The same row inside the native shell, where there is no browser to make
-  // the promise and none to break it. It says only what is true today: the
-  // data sits in the app's own storage on this device, and it goes when the
-  // app goes. It does NOT claim a file - the vault file in the app container
-  // is a separate change that has not been built.
+  // the promise and none to break it. Kept for the two cases where the app
+  // cannot say more: a shell built before the spare copy existed, and one that
+  // did not answer when asked. Both are honestly described by this sentence,
+  // and neither may be described by "there is no second copy".
   "settings.persistence.shell": "The app keeps this data on this device",
   "settings.persistenceShellDesc": "It lives inside the app, on this device. Deleting the app deletes it too. Export regularly.",
+  // What the row says once the shell has answered. The point of naming the
+  // second copy at all is that a spare somebody does not know about is a spare
+  // that does not reassure anybody - and a spare that was never written is the
+  // one thing this row exists to admit.
+  "settings.persistence.mirrorOn": "Two copies on this device",
+  "settings.persistence.mirrorOff": "One copy on this device",
+  "settings.persistenceMirrorOnDesc": "The vault, and beside it the same encrypted file as a spare, written {ago}. Deleting the app deletes both. Export regularly.",
+  "settings.persistenceMirrorOffDesc": "The vault, with no spare beside it yet. The next save writes one. Deleting the app deletes it too. Export regularly.",
   "settings.lastSaved": "Last saved",
   "settings.lastSavedNever": "not yet",
   "settings.lock": "Lock now",

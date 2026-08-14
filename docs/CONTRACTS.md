@@ -808,6 +808,94 @@ autosave - *"a half typed title should not be what survives a lock"* - so an uns
 its contents here exactly as it does when the fifteen-minute idle lock fires. Everything that
 reached the document survives, including an edit made 200ms before the message arrived.
 
+## The spare copy: the vault file mirror (`web/js/vaultmirror.js`)
+
+The vault lives in exactly **one** place: IndexedDB inside the shell's `WKWebsiteDataStore`
+(`web/js/store.js`, `tenfold-ios/docs/DECISIONS.md` D5). There is no second copy on the device.
+WebKit storage can be evicted under pressure or corrupted by a bad shutdown, and the person then
+has nothing at all unless they made an export - which is a thing people mean to do and do not.
+The mirror is a second copy of the **same ciphertext**, written as an ordinary file into the app
+container. It is a spare tyre, not a feature.
+
+```js
+{ type: "mirror.write", blob: "<the vault as JSON text>", savedAt: 1755180000000 }  // post, no reply
+
+{ type: "mirror.read" }
+  -> { blob: "<json text>" | null, savedAt: <ms> | null }
+
+{ type: "mirror.status" }
+  -> { present: bool, bytes: number, savedAt: <ms>|null, error: string|null }
+```
+
+**Not a new trust boundary.** shell.js's rule - *no vault plaintext crosses* - is untouched,
+because nothing crossing here is plaintext. The web app hands over bytes the shell could already
+read out of its own container; what it still cannot do is open them, and this hands it no key.
+The zero-knowledge property is exactly what it was before this existed.
+
+**`blob` is the export format, on purpose.** It is byte for byte what a `.tenfold` file
+downloaded from settings contains, produced by the same `exportEncrypted()` - and adopting a
+mirror is therefore `importEncrypted()`, the path that has existed since stage 1 and that every
+import test already covers. A private wire format would have been a second serialisation of one
+object plus a second reader for it, and the day the vault envelope grows a field, the private one
+is the one that gets forgotten.
+
+**Capability `vaultmirror` (`CAP_MIRROR`)**, a property of the **BUILD** like
+`reminder`/`badge`/`widget` and unlike `bio`/`haptic`: writing a file into the app's own container
+needs no hardware, so the shell advertises it always. An absent name means one thing only - a
+shell older than this feature - and every function in `vaultmirror.js` is then a no-op, which is
+exactly what a browser gets.
+
+**Written on save, never awaited.** `flushSave()` posts it immediately after the IndexedDB write
+succeeds, fire and forget. The vault in IndexedDB is the one that matters; the mirror is the
+spare, so it may not lengthen a save and a mirror that fails may not fail one. It survives the
+`lock()` path, which *starts* `flushSave()` without awaiting it: the sealed vault is a local in
+that function, so the lines that take the master key and the document away cannot reach it.
+`setVault()` posts it too, and is the only other place that does - an import *replaces* the vault
+with the vault locked, so no save follows it, and without that line the spare would still be the
+list the person imported over. The bio wrapper writes are deliberately **not** hooked: they change
+which envelopes open the vault, not what is in it, and the next save carries them.
+
+**Read only when there is nothing.** At boot, and only where `loadVault()` returned null,
+`adoptMirror()` asks for the blob, runs it through `importEncrypted()` and writes it back to
+IndexedDB under the mirror's own `savedAt`. A boot with both present never asks - which is the
+only ordering under which the two cannot disagree about which is newer. The vault comes back
+**locked**, like every other vault at every other start; nothing is decrypted here and nothing
+could be.
+
+**The wipe rule, and the whole safety of the restore rests on it.** Clearing is **not** a new
+message. The shell already receives `vault.wiped` (above) and already deletes the biometric
+Keychain item on it; it deletes the mirror at that same point. A second way to destroy the vault
+would be a second way to forget to destroy it, and a mirror that outlived a deliberate wipe would
+walk back in at the next boot.
+
+- Every path in this app that destroys the vault ends in `wipeLocalVault()`, which sends
+  `vault.wiped` **before** it clears anything: the lock screen's *"wipe this device"*
+  (`ui/lock.js` `confirmReset`), settings' *"delete everywhere"* (`deleteEverywhere()`, which
+  ends in `wipeLocalVault()`), and the device-only fallback offered when the server copy could
+  not be removed (`ui/settings.js` `deleteFailedSheet`). There is no fourth.
+- An eviction and a wipe leave IndexedDB in the identical state, so `adoptMirror()` cannot tell
+  them apart and must not try. What tells them apart is what the shell was told.
+- **No confirmation prompt**, deliberately. The question would be *"your list is gone, here is a
+  copy from Tuesday - restore it?"*, asked of somebody with no way to know why it is gone, at the
+  moment they are least able to evaluate it. Answering no destroys the last copy; answering yes is
+  what the app would have done anyway. A question with one sensible answer teaches people to tap
+  through questions, and the next one might matter.
+- Known residual: `wipeLocalVault()` does `await bio.announceWipe(...).catch(() => {})` and
+  ignores the result, so a shell that fails to answer leaves the mirror behind while the local
+  vault is cleared. That predates the mirror; what the mirror changes is the cost of it - a
+  restorable vault rather than a stale Keychain item.
+
+**The settings row** (`ui/settings.js` `persistenceRow`, shell branch only) reads `mirror.status`
+and has three states. `null` from `mirrorStatus()` - no capability, or a shell that did not answer
+- keeps the **older, vaguer sentence unchanged**: *"The app keeps this data on this device"*. A
+build that cannot look has not looked and found nothing, and must not say it did.
+
+| state | value | description |
+|---|---|---|
+| `present`, with a `savedAt` | "Two copies on this device" | "The vault, and beside it the same encrypted file as a spare, written {ago}. Deleting the app deletes both. Export regularly." |
+| `present: false` | "One copy on this device" | "The vault, with no spare beside it yet. The next save writes one. Deleting the app deletes it too. Export regularly." |
+| no capability · `error` · present but undatable | "The app keeps this data on this device" | unchanged |
+
 ## Where the app opens: the landing rule (`enterApp`)
 
 An unlock used to go to The Ten, always. It now **opens where the work is**: if something is
@@ -1049,11 +1137,10 @@ asks whether an origin may be evicted under pressure, and the shell's web view u
 `WKWebsiteDataStore.default()`, so the sealed vault sits in the app's own container
 (`tenfold-ios/docs/DECISIONS.md` D5) where nothing evicts it and deleting the app deletes it with
 it. So `ui/settings.js` forks on `inShell()` and states one true sentence instead of asking a
-question with three wrong answers: **"The app keeps this data on this device"**, described as
-*"It lives inside the app, on this device. Deleting the app deletes it too. Export regularly."*
-The row is inert there - there is no answer to refresh. It deliberately does **not** claim the
-vault is a file anybody could copy out: the mirror in the app container is a separate change and
-has not been built. The browser and PWA text is untouched, down to the byte.
+question with three wrong answers. The row is inert there - there is no answer to refresh - and
+since the file mirror exists it states how many copies there actually are; see
+**The spare copy** below for the three sentences and when each is used. The browser and PWA text
+is untouched, down to the byte.
 
 ## `web/js/portability.js` (BUILT)
 

@@ -43,6 +43,8 @@ import { setBadge, clearBadge, clearWidgetState, badgeCount, questionWaits } fro
 import { vaultUnlocked } from "./haptics.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import { startShellVaultLock } from "./vaultlock.js";
+import { mirrorAvailable, writeMirror, readMirror, mirrorStatus, mirrorStatusCached } from "./vaultmirror.js";
+import { importEncrypted } from "./portability.js";
 import * as webauthn from "./webauthn.js";
 import * as bio from "./bio.js";
 import { t, setLocale, detectLocale, getLocale, LOCALES } from "./i18n.js";
@@ -207,8 +209,26 @@ async function flushSave(opts = {}) {
   try {
     const sealed = await sealIntoVault(state.vault, state.masterKey, state.doc);
     state.vault = sealed;
-    await saveVault(sealed);
-    state.savedAt = Date.now();
+    // One timestamp for all three readers of it - the record in IndexedDB, the
+    // "Last saved" row, and the mirror. They used to be two `Date.now()` calls
+    // a few milliseconds apart, which nobody could see and which made "the
+    // mirror carries the vault's own save time" not quite true.
+    const savedAt = Date.now();
+    await saveVault(sealed, { now: savedAt });
+    state.savedAt = savedAt;
+    // The spare copy, into the shell's app container. Started and never
+    // awaited, and that is the contract rather than an optimisation: the vault
+    // in IndexedDB is the one that matters and this is the second copy of the
+    // same bytes, so it may not lengthen a save and a mirror that fails may not
+    // fail one. The `.catch` is there because an async function reports a
+    // failure as a rejection and an unhandled one is noise in a console
+    // somebody is reading for real problems.
+    //
+    // It survives `lock()`, which starts this function without awaiting it:
+    // `sealed` is a local, so the lines that take the master key and the
+    // document away below cannot reach it, and the post happens a microtask
+    // later on a lock screen that is already up.
+    writeMirror(sealed, { savedAt }).catch(() => {});
     if (!opts.fromSync) sync.schedulePush(syncCtx);
   } catch {
     // A failed save must not take the session down; the next mutation retries.
@@ -1827,9 +1847,36 @@ const ctx = {
     },
   },
 
+  /**
+   * The spare copy in the app container, for the one row in settings that
+   * reports on it. Read-only on purpose: nothing on a screen writes or deletes
+   * a mirror - `flushSave` writes it and `vault.wiped` removes it - so what a
+   * screen gets is a status and nothing to press.
+   */
+  mirror: {
+    get supported() {
+      return mirrorAvailable();
+    },
+    /** null until the shell has been asked - the row repaints on the answer. */
+    get statusCached() {
+      return mirrorStatusCached();
+    },
+    status: () => mirrorStatus(),
+  },
+
   async setVault(vault) {
     state.vault = vault;
     await saveVault(vault);
+    // The one other place a whole vault is written, and the only one besides
+    // `flushSave` that needs the mirror: an import REPLACES the vault, and it
+    // does it with the vault locked, so there is no seal-and-save cycle
+    // following it. Without this line the spare copy would still be the vault
+    // that was just replaced - and a person who imported a file and then lost
+    // their IndexedDB would be handed back the list they had imported over.
+    // The bio wrapper writes further up are a different case and deliberately
+    // left alone: they change which envelopes open the vault, not what is in
+    // it, and the next save carries them.
+    writeMirror(vault).catch(() => {});
     state.masterKey = null;
     state.doc = null;
     state.stack = [];
@@ -2093,6 +2140,71 @@ function takePendingView() {
   return view === "today" ? "today" : null;
 }
 
+/**
+ * IndexedDB is empty. Ask the shell whether it is holding the spare copy, and
+ * if it is, put it back.
+ *
+ * When this runs at all: only where `loadVault()` returned nothing. IndexedDB
+ * is the vault and the mirror is the spare, so the spare is never consulted
+ * while there is anything to consult it against - a boot with both present is a
+ * boot that never asks, which is also the only ordering under which the two can
+ * never disagree about which is newer.
+ *
+ * Why there is no confirmation prompt, and why this is safe WITHOUT one:
+ *
+ * The failure mode this has to not have is a vault reappearing after somebody
+ * deliberately destroyed it. Everything rests on that, and nothing else does -
+ * an eviction and a wipe leave IndexedDB in exactly the same state, so this
+ * function cannot tell them apart and must not try. What tells them apart is
+ * what the SHELL was told: every path in this app that destroys the vault ends
+ * in `wipeLocalVault()`, which sends `vault.wiped` BEFORE it clears anything,
+ * and the shell deletes the mirror on that message together with the biometric
+ * Keychain item. So after a wipe there is nothing here to find, and the only
+ * thing left to find is a copy of a vault nobody asked to lose.
+ *
+ * A prompt was the obvious alternative and is worse. The question would be
+ * "your list is gone, here is a copy from Tuesday - restore it?", asked of
+ * somebody who has no way of knowing why it is gone, at the one moment they are
+ * least able to evaluate it. Answering no destroys the last copy; answering yes
+ * is what the app would have done anyway. A question with one sensible answer
+ * teaches people to tap through questions, and the next one might matter.
+ *
+ * The vault comes back LOCKED, like every other vault at every other start.
+ * Nothing is decrypted here and nothing could be: this is ciphertext arriving
+ * from a file, and the passphrase is still the only way in.
+ *
+ * @returns {Promise<Object|null>} the adopted VaultFile, or null
+ */
+async function adoptMirror() {
+  // In a browser `readMirror()` is null without a round trip. Inside the shell
+  // it is one local file read behind `shellSend`'s own timeout, on a path that
+  // only runs when there is no vault to show anyway - a first run pays a few
+  // milliseconds before the setup screen.
+  const copy = await readMirror();
+  if (!copy) return null;
+  let vault;
+  try {
+    // The import path, not a second reader: this is a `.tenfold` file's bytes,
+    // so it goes through the same validation - magic, version, wrappers - that
+    // a file picked from settings does. A mirror that fails it is a mirror
+    // worth nothing, and dropping it silently is right: there is no vault, so
+    // there is nothing this could have damaged and nothing to report to.
+    vault = await importEncrypted(copy.blob);
+  } catch {
+    return null;
+  }
+  try {
+    // Written back immediately rather than merely shown. An adopted vault that
+    // stayed only in memory would be gone again at the next reload, and the
+    // person would have unlocked a list that never came back.
+    await saveVault(vault, { now: typeof copy.savedAt === "number" ? copy.savedAt : Date.now() });
+  } catch {
+    // IndexedDB refused the write. The vault is still usable for this session,
+    // which is better than the empty setup screen the alternative would be.
+  }
+  return vault;
+}
+
 async function boot() {
   const prefs = readUiPrefs();
   setLocale(LOCALES.includes(prefs.lang) ? prefs.lang : detectLocale());
@@ -2105,6 +2217,7 @@ async function boot() {
   } catch {
     state.vault = null;
   }
+  if (!state.vault) state.vault = await adoptMirror();
   state.savedAt = state.vault ? await lastSavedAt().catch(() => null) : null;
   state.view = state.vault ? { name: "lock", id: null } : { name: "setup", id: null };
   // A reload always lands here, on the entry the page was loaded with: marked

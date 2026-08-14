@@ -76,7 +76,14 @@ function segment(labelKey, values, active, labelFor, onPick) {
   ]);
 }
 
+/**
+ * `opts.descText` is a ready-made description for the one row whose sentence
+ * carries a number in it - the storage row names when the spare copy was
+ * written, and a timestamp cannot live in a catalogue key. Every other caller
+ * passes a key and this stays a key-driven component.
+ */
 function row(labelKey, descKey, value, onClick, opts = {}) {
+  const desc = opts.descText || (descKey ? t(descKey) : null);
   return el(
     "button",
     {
@@ -87,7 +94,7 @@ function row(labelKey, descKey, value, onClick, opts = {}) {
     [
       el("span", {}, [
         el("span", { class: "setrow-label" }, [text(t(labelKey))]),
-        descKey ? el("span", { class: "setrow-desc" }, [text(t(descKey))]) : null,
+        desc ? el("span", { class: "setrow-desc" }, [text(desc)]) : null,
       ]),
       value ? el("span", { class: "setrow-value" }, [text(value)]) : icon("chevronRight", 18),
     ],
@@ -130,14 +137,48 @@ function persistenceLabel(ctx) {
  *
  * So the shell gets one sentence that is true rather than three that are about
  * something else, and it is stated, not asked: there is no answer to refresh,
- * which is why the row does nothing when it is pressed there. What it does NOT
- * say is that the vault is a file anybody could copy out - the mirror in the
- * app container is a separate change and has not been built.
+ * which is why the row does nothing when it is pressed there.
+ *
+ * That sentence used to stop short of the whole truth on purpose - it said the
+ * app keeps the data and nothing about how many copies of it there are, because
+ * there was one. Now there are two: the vault in IndexedDB, and the same
+ * ciphertext as a file beside it. The row says so, and it says it from
+ * `mirror.status` rather than from the fact that the capability exists, because
+ * a spare copy that was never written is exactly the thing somebody reading
+ * this row needs to be told about.
+ *
+ * Three states, and the third is the one that is easy to get wrong: a shell too
+ * old to have the mirror, or one that did not answer, keeps the OLD sentence
+ * unchanged. It is still true there, and "there is no second copy" would not be
+ * - a build that cannot look has not looked and found nothing.
  *
  * The browser and PWA text is untouched, down to the byte.
  */
 function persistenceRow(ctx) {
   if (inShell()) {
+    const status = mirrorStatusFor(ctx);
+    if (status && !status.error) {
+      // A file that is there and can be dated. Both halves are needed: the
+      // sentence names when it was written, and a copy the shell could not date
+      // falls through to the older, vaguer one rather than claiming "written
+      // never" - which would read as a fault and is not one.
+      if (status.present && typeof status.savedAt === "number") {
+        return row("settings.persistence", null, t("settings.persistence.mirrorOn"), null, {
+          disabled: true,
+          descText: t("settings.persistenceMirrorOnDesc", {
+            ago: relativeTime(status.savedAt, ctx.now()),
+          }),
+        });
+      }
+      // Looked, found nothing. The ordinary case for a vault that has not been
+      // saved since the app was updated to a build that keeps a spare.
+      if (!status.present) {
+        return row("settings.persistence", null, t("settings.persistence.mirrorOff"), null, {
+          disabled: true,
+          descText: t("settings.persistenceMirrorOffDesc"),
+        });
+      }
+    }
     return row(
       "settings.persistence",
       "settings.persistenceShellDesc",
@@ -149,6 +190,24 @@ function persistenceRow(ctx) {
   return row("settings.persistence", "settings.persistenceDesc", persistenceLabel(ctx), () =>
     ctx.refreshPersistence().then(() => ctx.render()),
   );
+}
+
+/**
+ * The mirror status, synchronously, asking for it once if nobody has.
+ *
+ * Same shape as the biometric row one group down: paint with what is known,
+ * ask, repaint on the answer. `mirrorStatus()` caches even a shell that did not
+ * answer - as an `error` - so this asks at most once per settings visit and the
+ * repaint cannot become a loop.
+ */
+function mirrorStatusFor(ctx) {
+  if (!ctx.mirror || !ctx.mirror.supported) return null;
+  const known = ctx.mirror.statusCached;
+  if (known !== null) return known;
+  ctx.mirror.status().then(() => {
+    if (ctx.view.name === "settings") ctx.repaint();
+  });
+  return null;
 }
 
 /** Phase to dot modifier. Four states are enough: on, working, stalled, off. */
