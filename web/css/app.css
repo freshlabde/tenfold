@@ -809,6 +809,26 @@ a.btn-ghost.is-link {
 }
 .empty-hint { font-size: 13.5px; line-height: 1.55; color: var(--muted); max-width: 30ch; }
 
+/* Under the day's question the empty state is a remark, not a screen. It stops
+   growing to fill what is left - centring a 20px display line in the space
+   below a card reads as a second headline arguing with the first - sits
+   directly under the card, and drops to the register of the hint it replaced.
+   Only Today has this pairing; every other empty state keeps the full shape. */
+.empty.is-quiet {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  padding: 2px var(--gutter) 0;
+}
+.empty.is-quiet .empty-line {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 30ch;
+}
+
 /* --------------------------------------------------------------- the composer */
 
 .composer {

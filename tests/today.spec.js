@@ -201,6 +201,45 @@ test("an empty Today says so in one calm line", async ({ page }) => {
   await expect(page.locator(".row")).toHaveCount(0);
 });
 
+test("under the day's question the empty state is a remark, not a second screen", async ({ page }) => {
+  await freshApp(page);
+  await setupVault(page);
+  // The same shape as the empty-Today test above: a goal that is no longer a
+  // leaf whose only step is finished, which is what it takes to leave the
+  // ranking rule in model.js with nothing to offer. A bare root goal is itself
+  // actionable and would fill the list.
+  await addRoots(page, ["Sort the paperwork"]);
+  await page.locator(".row").first().click();
+  await addChildren(page, ["The one step"]);
+  await page.locator(".list .row").first().click({ button: "right" });
+  await page.getByRole("button", { name: "Mark as done" }).click();
+  await page.locator(".crumb-back").click();
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+
+  // Nothing carries a date, so both halves of this screen are drawn: the card
+  // asking the day's question, and the fact that nothing is scheduled. Since
+  // the app opens where the work is, this is the ordinary first screen of the
+  // day for anybody who has not dated anything - it used to be a rarity.
+  await expect(page.locator(".qcard")).toBeVisible();
+  await expect(page.locator(".empty.is-quiet")).toHaveCount(1);
+  await expect(page.locator(".empty-line")).toHaveText("Nothing calls for today.");
+
+  // The hint is what goes. It says nothing is broken down far enough to start,
+  // which is the question the card above has just asked - the screen must not
+  // pose a question and then answer it in smaller type. The mark goes with it:
+  // a third piece of furniture between a question and its answer.
+  await expect(page.locator(".empty-hint")).toHaveCount(0);
+  await expect(page.locator(".empty-mark")).toHaveCount(0);
+
+  // Put the question away and the full empty state comes back, because now it
+  // is the only thing on the screen and has to carry it.
+  await page.getByRole("button", { name: "Not today" }).click();
+  await expect(page.locator(".qcard")).toHaveCount(0);
+  await expect(page.locator(".empty.is-quiet")).toHaveCount(0);
+  await expect(page.locator(".empty-hint")).toHaveCount(1);
+  await expect(page.locator(".empty-mark")).toHaveCount(1);
+});
+
 test("the notification link lands on Today and leaves no parameter behind", async ({ page }) => {
   await freshApp(page);
   await setupVault(page);

@@ -90,7 +90,32 @@ function questionCard(ctx, daily) {
   ]);
 }
 
-function emptyState() {
+/**
+ * Nothing is dated for today.
+ *
+ * Two shapes, because this screen has two ways of being empty and they do not
+ * read the same. On its own it is a full empty state: the mark, the fact, and
+ * the hint that explains which of the two reasons it is - everything with a
+ * date is done, or nothing is broken down far enough yet.
+ *
+ * Under the day's question the hint has to go. It says nothing is broken down
+ * far enough to start, which is precisely what the card above it has just
+ * asked about - so the screen would pose a question and then answer it in
+ * smaller type, and the mark would put a second piece of furniture between the
+ * two. What is left is the one line that is still news: nothing is dated.
+ *
+ * This pairing used to be rare. Since the app opens where the work is, it is
+ * the ordinary first screen of the day for anybody whose goals carry no dates,
+ * which is what made it worth separating.
+ *
+ * @param {boolean} withQuestion is the question card above this one
+ */
+function emptyState(withQuestion) {
+  if (withQuestion) {
+    return el("div", { class: "empty is-quiet" }, [
+      el("p", { class: "empty-line" }, [text(t("today.empty.line"))]),
+    ]);
+  }
   return el("div", { class: "empty" }, [
     el("div", { class: "empty-mark" }, [icon("mark", 30)]),
     el("p", { class: "empty-line" }, [text(t("today.empty.line"))]),
@@ -141,7 +166,7 @@ export function render(ctx) {
 
   const body = el("div", { class: "scroll" }, [
     daily ? questionCard(ctx, daily) : null,
-    items.length ? list : emptyState(),
+    items.length ? list : emptyState(Boolean(daily)),
   ]);
 
   return el("section", { class: "screen" }, [head, body]);
