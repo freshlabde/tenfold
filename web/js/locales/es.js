@@ -204,6 +204,9 @@ export const es = {
   "guide.finish": "Terminar",
   "guide.saved": "Añadido a la historia.",
 
+  // --------------------------------------------------------------------- nav
+  "nav.more": "Más",
+
   // ------------------------------------------------------------------- today
   "today.title": "Hoy",
   "today.entry": "Hoy",

@@ -80,6 +80,24 @@ export const CAP_HAPTIC = "haptic";
  * that cannot look is not a build that looked and found nothing.
  */
 export const CAP_MIRROR = "vaultmirror";
+/**
+ * The seventh is a property of the BUILD, like `reminder`/`badge`/`widget`/
+ * `vaultmirror` and unlike `bio`/`haptic`: a tab bar is four labels and a
+ * selection, it asks no hardware question, and there is no device the shell
+ * runs on where it could not be drawn. A shell that draws one advertises this
+ * always; a shell that does not, never.
+ *
+ * What that means here, and it is the whole point of the name existing: this is
+ * NOT `inShell()`. Every shell ever built answers yes to that, including the
+ * ones bundling a copy of `web/` older than this file. `shellWith(CAP_NAV)`
+ * answers yes only for a shell that actually paints the bar - so an older shell,
+ * or one whose bundled web app is ahead of its Swift, keeps the web header and
+ * stays a complete app instead of losing every route into settings.
+ *
+ * Today no shell advertises it. nav.js is therefore inert everywhere: in a
+ * browser, in a PWA, and in the shell that is currently shipping.
+ */
+export const CAP_NAV = "nav";
 
 /**
  * The channel, or null in a plain browser.

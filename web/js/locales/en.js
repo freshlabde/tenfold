@@ -208,6 +208,14 @@ export const en = {
   "guide.finish": "Finish",
   "guide.saved": "Added to the story.",
 
+  // --------------------------------------------------------------------- nav
+  // The one tab label that is not a screen title. The other three the native
+  // tab bar is handed - Today, The Ten, Map - are today.title, outline.title
+  // and map.title, so the bar and the heading above it can never disagree.
+  // "Settings" is deliberately not the word: settings is one of several things
+  // behind that tab, and About and the context list are reached through it.
+  "nav.more": "More",
+
   // ------------------------------------------------------------------- today
   "today.title": "Today",
   "today.entry": "Today",

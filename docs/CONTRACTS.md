@@ -1051,6 +1051,116 @@ the app's own counters, never `history.state`. A reload always lands on lock/set
 so `#s=<code>` and `?view=today` keep working unchanged (both strip themselves with
 `replaceState`, preserving the state object).
 
+## Navigation: telling a native tab bar where the app is (`web/js/nav.js`)
+
+The iOS shell wants a `UITabBar` under the web view. A tab bar has to know two things it
+cannot work out for itself - which tab is current, and what the four of them are called - and
+both answers live in the web app: the routing is `app.js`, and the only catalogue of text this
+product has is `web/js/locales/`. The shell holds no strings, by doctrine
+(tenfold-ios/docs/BRIDGE.md says so four times), and these two messages are what lets it keep
+that rule while still drawing words.
+
+**ONLY THE UPWARD HALF EXISTS.** The page reports; nothing listens. There is no receiver for
+`nav.go` or `nav.back` on this side, no `UITabBar` on the other, and no shell advertises `nav`,
+so every sender below is a no-op in a browser, in the PWA **and** in the shell that is
+currently shipping. Nobody may read this section and assume a working tab bar: what is built
+is the reporting direction, tested for inertness end to end (`tests/nav.spec.js`). The
+receiving half, the header fork that hides what the tabs duplicate, and the edge-back gesture
+are later stages, deliberately in that order - a build that hides the settings gear before the
+More tab routes is a build with no way into settings.
+
+```js
+{ type: "nav.state", screen: "leaf", tab: "outline", depth: 2, sheet: false }
+{ type: "nav.tabs", tabs: [{ key: "today", label: "Today" }, ...] }
+```
+
+- **Gated on `CAP_NAV` (`"nav"`)**, a property of the **BUILD** like `reminder`/`badge`/
+  `widget`/`vaultmirror` - a tab bar asks no hardware question. It is deliberately **not**
+  `inShell()`: every shell ever built answers yes to that, including ones bundling a copy of
+  `web/` older than this file, and they must keep the web header rather than lose every route
+  into settings.
+- **Fire and forget**, both of them. `nav.state` rides the render path (`syncHistory()` runs
+  inside `go()`), and a routing change must never wait on a tab bar.
+
+### `nav.state` - page to shell
+
+| field | value |
+|---|---|
+| `screen` | one of the twelve `SCREENS` keys in `app.js`. Unknown is **tolerated** on the far side: a newer web app meeting an older shell should lose its highlight, not its bar |
+| `tab` | `today` \| `outline` \| `map` \| `more`, or **omitted** - omitted means *no tab, hide the bar* (setup, lock, the first-run About intro). An unknown tab is **rejected** on the far side; the asymmetry with `screen` is deliberate, since a tab that leads nowhere is a control drawn into the void |
+| `depth` | integer >= 0, `state.stack.length` - **not** `depthNow()`. A sheet is not a screen and travels in its own field; the native back gesture arms on screens |
+| `sheet` | boolean, `isSheetOpen()`. Carried for diagnosis only: sheets stay entirely in the web app and already own a history entry |
+| `edgeBack` | optional boolean, **omitted when true**. Sent as `false` on `duel` and `map`, whose own horizontal gesture owns the left edge - the duel's beam spans the screen and it already has a control called *back* meaning something else; the map sets `touch-action: none` and pans a camera |
+
+**Sent from exactly one place: `syncHistory()`.** That function is the single point at which
+"the app moved" is known - `go()`, `stepBack()`, `lock()`, `enterApp()`, `finishIntro()`,
+`landOn()` and the `onSheetChange` subscription all pass through it, and the browser history
+mirror is fed from there too. A second collection point is two mirrors of one stack, and they
+drift on the day somebody adds a seventh caller to only one of them. The post sits **before**
+the `syncScheduled` early return: two routing changes in one task reconcile once but have to
+report twice. `mutate()` does **not** call `syncHistory()` - verified, and it must stay that
+way, because that is the composer's typing path and a `nav.state` per keystroke would put this
+bridge under a finger.
+
+**Never a node id, and never a title.** `app.js` already refuses to put an id into
+`history.state` - "even a uuid out of an encrypted list has no business outside memory" - and
+this message inherits that word for word. The fields above are the entire vocabulary: a screen
+name, a tab name, an integer and two booleans, all of them written in `nav.js`. This is the one
+line of the contract that is **asserted rather than assumed**: `tests/nav.spec.js` drives the
+app through goals with distinctive titles, across every screen that can hold a node, and reads
+back every message that crossed.
+
+### The tab model: `tabFor(viewName, rootName)`
+
+The highlight is a function of the **pair**, never of the screen alone: `entities` is reached
+from settings *and* from a leaf, and `search`/`focus`/`leaf`/`duel` all hang under the outline.
+`rootName` is `state.stack[0]?.name`.
+
+```
+tabFor(viewName, rootName):
+  viewName is a tab root  -> its tab          // today, outline, map, settings -> more
+  else rootName is given  -> the root's tab
+  else                    -> none
+```
+
+The **root test comes first**, and that ordering is the only load-bearing thing in the eight
+lines:
+
+| path | `tab` |
+|---|---|
+| outline -> focus -> entities | `outline` - entities is no root, `stack[0]` is outline |
+| settings -> entities | `more` - the same screen, the other tab |
+| today -> leaf | `today` |
+| `finishIntro` with a pending Today (stack `[outline]`, view `today`) | `today` - because today *is* a root. Read root-first this would light The Ten with Today on the screen |
+| outline -> the keyboard shortcut to the map | `map` |
+| lock, setup | none - the bar is hidden, not blank |
+
+"More" rather than "Settings": settings is one of several things behind that tab, and About and
+the context list are reached through it.
+
+### `nav.tabs` - page to shell
+
+Exactly four entries, exactly those keys, **in that order**; anything else is rejected whole,
+because half a tab bar is worse than none. Labels are capped at 24 characters and never logged.
+
+Separate from `nav.state` on purpose: that one fires on every navigation and must stay tiny,
+while the labels change about as often as somebody changes language. Three of the four are
+`today.title`, `outline.title` and `map.title` - the titles those screens already wear in their
+own headers - so the bar and the heading above it can never disagree, and a language change
+re-titles both in the same frame. Only `nav.more` is new.
+
+Sent **once at boot** (from `boot()`, before the first `nav.state`) and again on every real
+language change. The hook is `onLocaleChange` in `i18n.js` rather than the settings screen:
+the language can move from three places - the switch on the lock screen, the row in settings,
+and a document arriving from another device with a different `lang` - and all three end in
+`setLocale`, which already ignores a no-op. This is therefore not a per-settings-write message.
+
+Checked against ground rule 1: four fixed surface words out of the app's own catalogue,
+content-free by construction, the same class as `push.notice.title`. The rule that the page
+supplies the set and the shell keeps no catalogue *carries* here where it could not for the
+widget - the bar is only on screen while the page is running, so there is always a live app to
+ask.
+
 ## `web/js/model.js` (BUILT): pure tree functions, no IO
 
 ```js

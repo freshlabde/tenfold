@@ -43,6 +43,7 @@ import { setBadge, clearBadge, clearWidgetState, badgeCount, questionWaits } fro
 import { vaultUnlocked } from "./haptics.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import { startShellVaultLock } from "./vaultlock.js";
+import { navState, startShellNav } from "./nav.js";
 import { mirrorAvailable, writeMirror, readMirror, mirrorStatus, mirrorStatusCached } from "./vaultmirror.js";
 import { importEncrypted } from "./portability.js";
 import * as webauthn from "./webauthn.js";
@@ -585,6 +586,26 @@ function historyEntry() {
  * anything is issued, and any number of steps costs exactly one traversal.
  */
 function syncHistory() {
+  // The native shell's tab bar is the second mirror of this same stack, and it
+  // is fed from HERE rather than from a hook of its own: this function is the
+  // one point in the app at which "it moved" is known, reached from `go()`,
+  // `stepBack()`, `lock()`, `enterApp()`, `finishIntro()`, `landOn()` and the
+  // sheet subscription. A second collection point would drift from this one on
+  // the day somebody adds a seventh caller to only one of them.
+  //
+  // Before the early return, not after: a second routing change inside the same
+  // task reconciles once but has to REPORT twice, or the bar would hold the
+  // first of the two. And `mutate()` does not come through here - which is what
+  // keeps this off the composer's typing path, and is worth keeping true.
+  //
+  // `depth` is the app's own stack, not `depthNow()`: an open sheet is not a
+  // screen, it travels in `sheet`, and the native back gesture arms on screens.
+  navState({
+    screen: state.view.name,
+    root: state.stack.length ? state.stack[0].name : null,
+    depth: state.stack.length,
+    sheet: isSheetOpen(),
+  });
   wantedDepth = depthNow();
   if (syncScheduled) return;
   syncScheduled = true;
@@ -2210,6 +2231,13 @@ async function boot() {
   setLocale(LOCALES.includes(prefs.lang) ? prefs.lang : detectLocale());
   document.documentElement.setAttribute("lang", getLocale());
   push.rememberLocale(getLocale());
+  // The four tab labels, before the first `nav.state` below: a shell that is
+  // about to be told which tab is current should already know what the four of
+  // them are called. Subscribes to the locale for the rest of the session, so a
+  // language change re-titles the native bar in the same frame as the app's own
+  // headings. In a browser, and in a shell that does not advertise `nav`, this
+  // is one subscription that posts nothing.
+  startShellNav();
   state.pendingView = takePendingView();
   const pairing = takePairingFromFragment();
   try {
