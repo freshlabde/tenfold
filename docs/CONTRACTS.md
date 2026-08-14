@@ -1060,18 +1060,20 @@ product has is `web/js/locales/`. The shell holds no strings, by doctrine
 (tenfold-ios/docs/BRIDGE.md says so four times), and these two messages are what lets it keep
 that rule while still drawing words.
 
-**ONLY THE UPWARD HALF EXISTS.** The page reports; nothing listens. There is no receiver for
-`nav.go` or `nav.back` on this side, no `UITabBar` on the other, and no shell advertises `nav`,
-so every sender below is a no-op in a browser, in the PWA **and** in the shell that is
-currently shipping. Nobody may read this section and assume a working tab bar: what is built
-is the reporting direction, tested for inertness end to end (`tests/nav.spec.js`). The
-receiving half, the header fork that hides what the tabs duplicate, and the edge-back gesture
-are later stages, deliberately in that order - a build that hides the settings gear before the
-More tab routes is a build with no way into settings.
+**THREE OF THE FOUR MESSAGES EXIST, PLUS THE HEADER FORK.** The page reports (`nav.state`,
+`nav.tabs`), the page takes the tab tap (`nav.go`), and the screens leave out what the bar
+duplicates. What does **not** exist yet: `nav.back` and the edge gesture behind it, and there
+is no `UITabBar` on the other side - no shell advertises `nav`, so every sender below is a
+no-op and every receiver is inert in a browser, in the PWA **and** in the shell that is
+currently shipping. Nobody may read this section and assume a working tab bar; what is built
+is tested for inertness end to end (`tests/nav.spec.js`). The order was deliberate: a build
+that hid the settings gear before the More tab routed would be a build with no way into
+settings.
 
 ```js
 { type: "nav.state", screen: "leaf", tab: "outline", depth: 2, sheet: false }
 { type: "nav.tabs", tabs: [{ key: "today", label: "Today" }, ...] }
+{ type: "nav.go", tab: "today", reason: "tab" }   // shell to page, no reply
 ```
 
 - **Gated on `CAP_NAV` (`"nav"`)**, a property of the **BUILD** like `reminder`/`badge`/
@@ -1160,6 +1162,106 @@ content-free by construction, the same class as `push.notice.title`. The rule th
 supplies the set and the shell keeps no catalogue *carries* here where it could not for the
 widget - the bar is only on screen while the page is running, so there is always a live app to
 ask.
+
+### `nav.go` - shell to page
+
+Delivered through `_receive` -> the `tenfoldshell` CustomEvent -> `onShellMessage()`, the same
+unprompted route `share.incoming` and `vault.lock` already take. Neither direction needed a new
+JavaScript transport.
+
+| `reason` | when | what the page does |
+|---|---|---|
+| `tab` | another tab was tapped | close an open sheet, then `landOn(rootOf(tab))` |
+| `tab-again` | the tab already showing was tapped | at `depth > 0` collapse to the tab's root; at `depth === 0` **nothing at all** |
+| `notification` | the app was opened from the daily reminder | as `tab`, and only once the vault is open |
+
+Tab roots: `today` -> `today`, `outline` -> `outline`, `map` -> `map`, `more` -> `settings`.
+
+**There is no reply, and that is deliberate rather than an omission.** The page answers with
+its next `nav.state`, which is the honest receipt: it reports what actually *happened* rather
+than that a message was understood. A tap that was dropped is therefore silent - nothing
+happened, so there is nothing to report, and the bar's own selection is the shell's business to
+keep.
+
+**Dropped, silently, without throwing:** an unknown `tab` (including `constructor` and
+`toString` - the lookup table is prototype-less, because that key arrives from outside), an
+unrecognised `reason`, no open document (`!state.doc`), and the setup and lock screens. The
+asymmetry with the tolerated unknown `screen` going the other way is the same one this contract
+makes everywhere: losing a highlight is cosmetic, acting on an instruction that was not
+understood moves somebody's app.
+
+**A tab switch replaces, never pushes.** `landOn()` collapses the stack, so no number of taps
+can grow the history or run the back gesture backwards through tab taps. The outline lands at
+`depth 0`; the other three land at `depth 1`, because `landOn()` keeps the outline underneath
+them so a closing button is never a surprise on a build with no bar. That floor is also why a
+second tap on Today, the map or More is not the nothing-case: the stack is not empty there, so
+it re-lands on the same screen at the same depth. The alternative - comparing screens instead
+of counting the stack - would be a second copy of the tab model inside the handler.
+
+**An open sheet is closed from the page side, and before the route rather than after it.** Both
+happen in one task, which costs one history traversal instead of two, and `{ immediate: true }`
+keeps the quarter second a sheet takes to slide away from playing over the screen it was asked
+to leave.
+
+**The split between `nav.js` and `app.js` is the one to keep.** `nav.js` decides the wire - is
+this a tab this app has, is this a reason it understands, which screen is that tab's root - and
+holds no app state. `app.js` decides everything that depends on what the app is doing: whether
+a vault is open, how deep the stack is, whether a sheet is up. A transport that started reading
+app state would be a second copy of the routing rules.
+
+### The header fork: what a tab bar takes off the screens
+
+Anything in a web header that leads to one of the four tabs is that destination drawn twice,
+and the copy further from the thumb is the one nobody presses. Those go. Everything else stays,
+and the list of what stays is the more important half.
+
+**The predicate is `shellWith(CAP_NAV)`, and deliberately not `inShell()`.** Every shell ever
+built answers yes to `inShell()`, including the ones bundling a copy of `web/` older than this
+paragraph and the one shipping today. Only a shell that actually paints the bar advertises
+`nav`. Reading the weaker predicate would take the settings gear off an older build's outline
+and put nothing in its place - the fork has to follow the control that replaces it, not the
+channel that could one day carry it. It is read **once**, in `app.js`, and hung on the context
+as the boolean **`ctx.shellNav`** beside `ctx.maxRoots` and `ctx.idleMinutes`: the capability
+list is injected at document start and cannot change while the page is alive, the `ui/` modules
+then import nothing new to read a field off the context they already have, and a test can set
+it directly.
+
+| file | element | why |
+|---|---|---|
+| `ui/outline.js` | the Today ghost link | Today is a tab |
+| `ui/outline.js` | the map icon button | the map is a tab |
+| `ui/outline.js` | the settings gear | More is a tab |
+| `ui/today.js` | the whole `head-actions`, i.e. the X | Today is a tab root; there is nothing to close to |
+| `ui/map.js` | the closing icon button | the map is a tab root |
+| `ui/settings.js` | the closing icon button | settings is the root of More |
+
+**What deliberately stays:**
+
+- **The search icon on the outline.** Search is not a tab and the bar leads nowhere near it.
+  Hiding it would delete the only entrance to a screen rather than a second one. (If the header
+  is ever wanted empty, the answer is a search row on the settings screen, not this.)
+- **The due hint and the "only here" line on the outline.** They route (`ctx.go("today")`,
+  `ctx.go("settings")`) rather than navigate; the tab lights up because a `nav.state` follows.
+- **The contextual bottom bar, everywhere.** New entry, Put in order, the lock screen's bar.
+  That is content, and the whole point of those screens.
+- **Every X at depth >= 1**: `focus.js` and `leaf.js` (the crumb chevron), `search.js`,
+  `entity.js`, `about.js`, and the duel's skip. Those mirror the back gesture, not the tab bar,
+  and on a build where that gesture is not installed they are the only way out.
+
+**The map's teardown needed no move, checked rather than assumed.** `map.js`'s closing button
+runs `stopLoop(); stopCam();` before going back, and a tab switch away from the map never
+presses it. It does not have to: `draw()` opens with `if (!alive()) { stopCam(); return; }` and
+`frame()`/`running()` stop the rAF loop - and drop the `visibilitychange` listener - the moment
+the svg is detached. Leaving by the bar therefore costs exactly the one frame the browser's own
+back button has always cost. Asserted in `tests/nav.spec.js` through the `window.__tfMap` probe.
+
+**Every browser and PWA path is the `else` branch.** `ctx.shellNav` is `false` there, in the
+PWA, and in the shell shipping today, and no existing line changed behaviour - the new
+behaviour is only ever inside the guard. The fork is asserted from **both** sides in
+`tests/nav.spec.js`: with `nav` advertised the outline header has no Today link, no map button
+and no gear and Today has no X; without it - today's capability list, a shell advertising
+everything *except* `nav`, and no shell at all - all four are present and lead where they always
+did.
 
 ## `web/js/model.js` (BUILT): pure tree functions, no IO
 

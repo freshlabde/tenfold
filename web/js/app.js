@@ -44,6 +44,7 @@ import { vaultUnlocked } from "./haptics.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import { startShellVaultLock } from "./vaultlock.js";
 import { navState, startShellNav } from "./nav.js";
+import { CAP_NAV, shellWith } from "./shell.js";
 import { mirrorAvailable, writeMirror, readMirror, mirrorStatus, mirrorStatusCached } from "./vaultmirror.js";
 import { importEncrypted } from "./portability.js";
 import * as webauthn from "./webauthn.js";
@@ -84,6 +85,23 @@ export const IDLE_LOCK_MS = 15 * 60 * 1000;
 const AUTOSAVE_MS = 600;
 const MAX_ROOTS = 10;
 const UI_PREF_KEY = "tenfold.ui";
+/**
+ * Is there a native tab bar under this web view?
+ *
+ * `shellWith(CAP_NAV)`, and deliberately NOT `inShell()`. Every shell ever
+ * built answers yes to `inShell()`, including the ones bundling a copy of
+ * `web/` older than this line and the one shipping today; only a shell that
+ * actually paints the bar advertises `nav`. Reading the weaker predicate would
+ * take the settings gear off an older build's outline and leave nothing in its
+ * place - the header fork has to follow the control that replaces it, not the
+ * channel that could one day carry it.
+ *
+ * Read ONCE, here, and handed to the screens as `ctx.shellNav` below: the
+ * capability list is injected at document start and cannot change while the
+ * page is alive, the `ui/` modules then import nothing new to read a boolean
+ * off the context they already have, and a test can set the field directly.
+ */
+const SHELL_NAV = shellWith(CAP_NAV) !== null;
 export const APP_VERSION = "1.0.0";
 // The cache generation, mirrored from web/sw.js VERSION and shown in the
 // settings foot - the one answer to "which build is this phone actually
@@ -1081,6 +1099,19 @@ const ctx = {
   version: APP_VERSION,
   cacheVersion: CACHE_VERSION,
   idleMinutes: Math.round(IDLE_LOCK_MS / 60000),
+  /**
+   * True only where a native tab bar is drawn under the web view, and the one
+   * thing the screens branch on to leave out what that bar duplicates: the
+   * Today link, the map button and the gear on the outline, and the closing X
+   * on the three tab roots. Everything else in every header stays - the search
+   * icon above all, because search is not a tab and hiding it would delete the
+   * only entrance to a screen rather than a second one.
+   *
+   * A plain writable field rather than a getter: the browser and the PWA read
+   * `false` and take the branch they take today, and a test can put `true` here
+   * without a shell to assert the other side of the fork.
+   */
+  shellNav: SHELL_NAV,
   now: () => Date.now(),
   t,
   go,

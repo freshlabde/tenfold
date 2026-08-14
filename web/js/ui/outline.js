@@ -118,28 +118,40 @@ export function render(ctx) {
   const roots = ctx.childrenOf(null);
   const composing = ctx.compose && ctx.compose.parentId === null;
 
+  // Three of these four are gone under a native tab bar, and the fourth is not.
+  // Today, the map and settings are tabs: drawn twice, they are two controls
+  // for one destination, and the one further from the thumb is the one nobody
+  // presses. Search is not a tab and the bar leads nowhere near it - hiding it
+  // with the others would delete the only entrance to a screen instead of a
+  // second one. `ctx.shellNav` is false in a browser, in the PWA and in the
+  // shell shipping today, and the whole of this header is then what it always
+  // was.
   const actions = el("div", { class: "head-actions" }, [
     // The way into the short list. A word, not an icon: "Today" is the one
     // thing on this screen that is a destination rather than a tool.
-    el(
-      "button",
-      {
-        class: "btn-ghost is-today",
-        attrs: { type: "button" },
-        on: { click: () => ctx.go("today") },
-      },
-      [text(t("today.entry"))],
-    ),
+    ctx.shellNav
+      ? null
+      : el(
+          "button",
+          {
+            class: "btn-ghost is-today",
+            attrs: { type: "button" },
+            on: { click: () => ctx.go("today") },
+          },
+          [text(t("today.entry"))],
+        ),
     // The map: the same ten, seen all at once instead of one under the other.
-    el(
-      "button",
-      {
-        class: "iconbtn is-map",
-        attrs: { type: "button", "aria-label": t("a11y.mapOpen") },
-        on: { click: () => ctx.go("map") },
-      },
-      [icon("constellation", 20)],
-    ),
+    ctx.shellNav
+      ? null
+      : el(
+          "button",
+          {
+            class: "iconbtn is-map",
+            attrs: { type: "button", "aria-label": t("a11y.mapOpen") },
+            on: { click: () => ctx.go("map") },
+          },
+          [icon("constellation", 20)],
+        ),
     el(
       "button",
       {
@@ -149,15 +161,17 @@ export function render(ctx) {
       },
       [icon("search", 20)],
     ),
-    el(
-      "button",
-      {
-        class: "iconbtn",
-        attrs: { type: "button", "aria-label": t("a11y.settingsOpen") },
-        on: { click: () => ctx.go("settings") },
-      },
-      [icon("gear", 20)],
-    ),
+    ctx.shellNav
+      ? null
+      : el(
+          "button",
+          {
+            class: "iconbtn",
+            attrs: { type: "button", "aria-label": t("a11y.settingsOpen") },
+            on: { click: () => ctx.go("settings") },
+          },
+          [icon("gear", 20)],
+        ),
   ]);
 
   const head = el("div", { class: "head" }, [

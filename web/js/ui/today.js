@@ -135,17 +135,25 @@ export function render(ctx) {
         brandMark(),
         el("h1", { class: "h-title" }, [text(t("today.title"))]),
       ]),
-      el("div", { class: "head-actions" }, [
-        el(
-          "button",
-          {
-            class: "iconbtn",
-            attrs: { type: "button", "aria-label": t("common.close") },
-            on: { click: () => ctx.back() },
-          },
-          [icon("close", 20)],
-        ),
-      ]),
+      // The whole of the actions, not only the button inside it: the X is the
+      // only thing in this header, and a tab root has nothing to close to -
+      // Today is where the bar lands, and pressing it is not leaving anywhere.
+      // Every X at depth one and below stays exactly where it is: those mirror
+      // the back gesture rather than the bar, and on a build whose gesture is
+      // not installed they are the only way out.
+      ctx.shellNav
+        ? null
+        : el("div", { class: "head-actions" }, [
+            el(
+              "button",
+              {
+                class: "iconbtn",
+                attrs: { type: "button", "aria-label": t("common.close") },
+                on: { click: () => ctx.back() },
+              },
+              [icon("close", 20)],
+            ),
+          ]),
     ]),
     el("p", { class: "h-sub" }, [
       text(items.length ? t("today.sub", { n: items.length }) : t("today.subEmpty")),

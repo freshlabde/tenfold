@@ -792,16 +792,23 @@ export function render(ctx) {
         brandMark(),
         el("h1", { class: "h-title" }, [text(t("settings.title"))]),
       ]),
+      // Settings is the root of the More tab under a native bar, and a tab root
+      // has nothing to close to. The container stays where the outline's does,
+      // holding nothing: this header has one control and the screens behind it
+      // - About, the context list - keep theirs, because those sit at depth one
+      // and mirror the back gesture rather than the bar.
       el("div", { class: "head-actions" }, [
-        el(
-          "button",
-          {
-            class: "iconbtn",
-            attrs: { type: "button", "aria-label": t("common.close") },
-            on: { click: () => ctx.back() },
-          },
-          [icon("close", 20)],
-        ),
+        ctx.shellNav
+          ? null
+          : el(
+              "button",
+              {
+                class: "iconbtn",
+                attrs: { type: "button", "aria-label": t("common.close") },
+                on: { click: () => ctx.back() },
+              },
+              [icon("close", 20)],
+            ),
       ]),
     ]),
   ]);

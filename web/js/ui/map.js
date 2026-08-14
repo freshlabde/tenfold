@@ -2047,21 +2047,32 @@ export function render(ctx) {
           },
           [icon("target", 20)],
         ),
-        el(
-          "button",
-          {
-            class: "iconbtn",
-            attrs: { type: "button", "aria-label": t("common.close") },
-            on: {
-              click: () => {
-                stopLoop();
-                stopCam();
-                ctx.back();
+        // The map is a tab root under a native bar, so its X goes with the
+        // other two. The eager teardown in that handler goes with it, and
+        // nothing had to move to make that safe: `draw()` opens with
+        // `if (!alive()) { stopCam(); return; }` and `frame()` stops the loop
+        // and drops the visibility listener the moment the svg is detached, so
+        // a tab switch away from here costs exactly the one frame the browser's
+        // own back button has always cost. The recentre button, the mode toggle
+        // and the cards switch stay: they are this screen's content, not its
+        // way out.
+        ctx.shellNav
+          ? null
+          : el(
+              "button",
+              {
+                class: "iconbtn",
+                attrs: { type: "button", "aria-label": t("common.close") },
+                on: {
+                  click: () => {
+                    stopLoop();
+                    stopCam();
+                    ctx.back();
+                  },
+                },
               },
-            },
-          },
-          [icon("close", 20)],
-        ),
+              [icon("close", 20)],
+            ),
       ]),
     ]),
     el("p", { class: "h-sub" }, [text(subtitle)]),
