@@ -13,12 +13,13 @@
 // so four times), and this is the message that lets it keep that rule while
 // still drawing words.
 //
-// THE UPWARD HALF ONLY. Nothing native reads either message yet, no shell
-// advertises `nav`, and there is no receiver on this side for the two messages
-// that will one day come back (`nav.go`, `nav.back`). Everything below is
-// therefore a no-op today, in every browser and in the shell that is currently
-// shipping, and that is deliberate: the contract goes up first so the two
-// repositories never have to move in the same week.
+// THREE OF THE FOUR MESSAGES. The upward pair went first, on purpose, so the
+// two repositories never had to move in the same week; this file now also takes
+// the tab tap coming back down. The fourth, `nav.back`, is the edge gesture and
+// is a later stage, and so is the header fork that hides what the tabs
+// duplicate - deliberately in that order, because a build that hides the
+// settings gear before the More tab routes is a build with no way into
+// settings.
 //
 // The wire shapes, fixed, and duplicated in the shell repository by the same
 // necessity every other message here is - two repositories, no shared import:
@@ -27,6 +28,9 @@
 //       { type: "nav.state", screen: "leaf", tab: "outline", depth: 2,
 //         sheet: false, edgeBack: false }
 //       { type: "nav.tabs", tabs: [{ key: "today", label: "Today" }, ...] }
+//
+//     shell -> page, unprompted, no reply:
+//       { type: "nav.go", tab: "today", reason: "tab" }
 //
 // NEVER A NODE ID, AND NEVER A TITLE. `app.js` already refuses to put an id
 // into `history.state` - "even a uuid out of an encrypted list has no business
@@ -42,18 +46,19 @@
 //
 // In a browser every function here is a no-op and none of them throws.
 
-import { CAP_NAV, shellWith, shellPost } from "./shell.js";
+import { CAP_NAV, shellWith, shellPost, onShellMessage } from "./shell.js";
 import { t, onLocaleChange } from "./i18n.js";
 
 /**
- * The two message names, exactly as the shell answers to them.
+ * The message names, exactly as the shell answers to them.
  *
  * Pinned literally by a test on this side and by the bridge's own tests on the
  * other. A rename would not break a build; it would quietly leave a tab bar
- * with no selection and no words on it.
+ * with no selection and no words on it, or a tab that swallows every tap.
  */
 export const MSG_STATE = "nav.state";
 export const MSG_TABS = "nav.tabs";
+export const MSG_GO = "nav.go";
 
 /**
  * The four tabs, in the order the bar draws them.
@@ -82,6 +87,50 @@ const TAB_ROOTS = Object.freeze({
   map: "map",
   settings: "more",
 });
+
+/**
+ * The same table read the other way: which screen a tab lands on.
+ *
+ * DERIVED rather than written out a second time. Two literal tables facing each
+ * other is how `more` ends up meaning `settings` going up and `about` coming
+ * back down, six months apart, with nothing failing in between.
+ *
+ * Prototype-less on purpose, and this one is not pedantry: unlike `TAB_ROOTS`,
+ * whose keys are screen names this app writes itself, the key looked up here
+ * arrives from OUTSIDE - it is a field on a native message. On a plain object
+ * `rootOf("constructor")` would answer with a function and a tab tap would
+ * route into it.
+ */
+const ROOT_OF = Object.freeze(
+  Object.keys(TAB_ROOTS).reduce((into, screen) => {
+    into[TAB_ROOTS[screen]] = screen;
+    return into;
+  }, Object.create(null)),
+);
+
+/**
+ * Which screen a tab tap lands on.
+ *
+ * @param {string} tab one of TABS
+ * @returns {string|null} the screen name, or null for anything else - and null
+ *   is what makes an unknown tab a dropped message rather than a guess
+ */
+export function rootOf(tab) {
+  if (typeof tab !== "string") return null;
+  return ROOT_OF[tab] || null;
+}
+
+/**
+ * Why the tab bar is asking. Three, closed, and each one means something the
+ * others do not - see `startShellNav` below and docs/CONTRACTS.md for what the
+ * page does with each.
+ *
+ * An unrecognised reason is dropped rather than treated as `tab`. The
+ * asymmetry with an unknown `screen` going the other way is the same one the
+ * contract already makes: losing a highlight is a cosmetic degradation, while
+ * acting on an instruction that was not understood moves somebody's app.
+ */
+export const REASONS = Object.freeze(["tab", "tab-again", "notification"]);
 
 /**
  * The labels' keys. Three of the four are the titles those screens already wear
@@ -205,7 +254,8 @@ export function navTabs() {
 }
 
 /**
- * Start the upward half: the labels now, and again on every language change.
+ * Start both halves: the labels now and on every language change, and the ear
+ * for a tab tap coming back.
  *
  * `onLocaleChange` is the honest hook rather than the settings screen: the
  * language can move from three places (the switch on the lock screen, the row in
@@ -213,14 +263,59 @@ export function navTabs() {
  * and all three end in `setLocale`. It also already ignores a no-op change, so
  * this posts on a real change and not on every settings write.
  *
- * Called from `boot()` unconditionally. In a browser it costs one subscription
- * that posts nothing.
+ * THERE IS NO REPLY TO A `nav.go`, and that is deliberate rather than an
+ * omission. The page answers with its next `nav.state`, which is the honest
+ * receipt: it reports what actually HAPPENED - which screen, at which depth,
+ * with the sheet down - rather than that a message was understood. A tab tap
+ * that was dropped (no document, an unknown tab, a second tap on a root) is
+ * therefore silent, and correctly so: nothing happened, so there is nothing to
+ * report, and the bar's own selection is the shell's business to keep.
  *
- * @returns {() => void} unsubscribes
+ * WHAT THIS FILE DECIDES AND WHAT IT DOES NOT. The wire is decided here: is
+ * this a tab the app has, is this a reason it understands, which screen is that
+ * tab's root. Everything that needs to know what the app is currently DOING -
+ * whether a vault is open, how deep the stack is, whether a sheet is up - is
+ * the caller's, because that state lives in app.js and this module holds none.
+ * Same split as `startShellVaultLock`, and for the same reason: a transport
+ * that started reading app state would be a second copy of the routing rules.
+ *
+ * The callback receives `{ tab, root, reason }` - the tab as sent, the screen
+ * it lands on, and the reason, guaranteed to be one of REASONS. It is called
+ * synchronously, inside the dispatch. A callback that throws is swallowed: a
+ * tab tap arriving at an awkward moment must never take a session down.
+ *
+ * Called from `boot()` unconditionally, and NOT gated on `CAP_NAV` - the same
+ * choice `share.incoming` and `vault.lock` make. This is a push the page
+ * listens for rather than a feature it asks for; only a shell that draws a bar
+ * can send it, so a capability check would be a second lock on a door only one
+ * key opens. In a browser it costs one listener that never fires.
+ *
+ * @param {(go: {tab: string, root: string, reason: string}) => void} [onGo]
+ * @returns {() => void} unsubscribes from both
  */
-export function startShellNav() {
+export function startShellNav(onGo) {
   navTabs();
-  return onLocaleChange(() => {
+  const stopLocale = onLocaleChange(() => {
     navTabs();
   });
+  const stopGo = onShellMessage(MSG_GO, (message) => {
+    const tab = message.tab;
+    const root = rootOf(tab);
+    // An unknown tab is dropped. The shell should never send one - it is handed
+    // the four keys by `nav.tabs` and refuses any other set - so this guard is
+    // for the pair that is out of step, which is the ordinary state of two
+    // repositories on two release cycles.
+    if (!root) return;
+    if (REASONS.indexOf(message.reason) === -1) return;
+    if (typeof onGo !== "function") return;
+    try {
+      onGo({ tab, root, reason: message.reason });
+    } catch {
+      // Nothing to report to: the bar asked for a screen, not for an answer.
+    }
+  });
+  return () => {
+    stopLocale();
+    stopGo();
+  };
 }
