@@ -1060,20 +1060,21 @@ product has is `web/js/locales/`. The shell holds no strings, by doctrine
 (tenfold-ios/docs/BRIDGE.md says so four times), and these two messages are what lets it keep
 that rule while still drawing words.
 
-**THREE OF THE FOUR MESSAGES EXIST, PLUS THE HEADER FORK.** The page reports (`nav.state`,
-`nav.tabs`), the page takes the tab tap (`nav.go`), and the screens leave out what the bar
-duplicates. What does **not** exist yet: `nav.back` and the edge gesture behind it, and there
-is no `UITabBar` on the other side - no shell advertises `nav`, so every sender below is a
-no-op and every receiver is inert in a browser, in the PWA **and** in the shell that is
-currently shipping. Nobody may read this section and assume a working tab bar; what is built
+**ALL FOUR MESSAGES EXIST ON THIS SIDE, PLUS THE HEADER FORK.** The page reports (`nav.state`,
+`nav.tabs`), the page takes the tab tap (`nav.go`) and the edge swipe (`nav.back`), and the
+screens leave out what the bar duplicates. What does **not** exist is the other half: there is
+no `UITabBar` and no edge recogniser over there, and no shell advertises `nav`, so every sender
+below is a no-op and every receiver is inert in a browser, in the PWA **and** in the shell that
+is currently shipping. Nobody may read this section and assume a working tab bar; what is built
 is tested for inertness end to end (`tests/nav.spec.js`). The order was deliberate: a build
 that hid the settings gear before the More tab routed would be a build with no way into
-settings.
+settings, and a back gesture is worth nothing until there is a bar to go back underneath.
 
 ```js
 { type: "nav.state", screen: "leaf", tab: "outline", depth: 2, sheet: false }
 { type: "nav.tabs", tabs: [{ key: "today", label: "Today" }, ...] }
 { type: "nav.go", tab: "today", reason: "tab" }   // shell to page, no reply
+{ type: "nav.back", source: "edge" }              // shell to page, no reply
 ```
 
 - **Gated on `CAP_NAV` (`"nav"`)**, a property of the **BUILD** like `reminder`/`badge`/
@@ -1208,6 +1209,57 @@ this a tab this app has, is this a reason it understands, which screen is that t
 holds no app state. `app.js` decides everything that depends on what the app is doing: whether
 a vault is open, how deep the stack is, whether a sheet is up. A transport that started reading
 app state would be a second copy of the routing rules.
+
+### `nav.back` - shell to page
+
+Somebody swiped in from the left edge. Same route as `nav.go` - `_receive` -> the
+`tenfoldshell` CustomEvent -> `onShellMessage()` - and the same absence of a reply: the page
+answers with its next `nav.state`, or with silence when nothing happened.
+
+**It does not call `ctx.back()`.** `stepBack()` has a second branch - nothing to pop, a document
+open, and the screen is not already the outline -> *go to the outline*. That branch is what
+makes the X on Today work: many ways in, one way out, and the screen behind a closing button is
+never a surprise. Under a tab bar it would make an edge swipe **invent** a destination on a
+screen nobody navigated into, and the tab would change under a thumb that asked to go back - the
+one outcome a back gesture must never produce. `navBack()` in `app.js` is `stepBack()` without
+that branch:
+
+| state | what a swipe does |
+|---|---|
+| a sheet is open | close the sheet, and nothing else |
+| `state.stack.length > 0` | one step back, whichever tab that screen belongs to |
+| `state.stack.length === 0` | **nothing at all** - no repaint, no `nav.state` |
+| no document, `setup`, `lock` | dropped silently, as `nav.go` is |
+
+`source` is carried for diagnosis and is **not** checked against a closed set, deliberately
+unlike `reason`. `reason` picks between three behaviours, so an unrecognised one is an
+instruction that was not understood; `source` picks none - a back is a back whether an edge, a
+hardware key or some later shell's toolbar produced it - and rejecting an unfamiliar value would
+break a newer shell against an older bundle over a field that only makes a log readable.
+
+**Popping is not the fallback, and the difference is the whole rule.** A step onto a screen that
+is genuinely on the stack is honest even when it changes tab: that screen is one the person
+walked through. Because `landOn()` keeps the outline underneath Today, the map and settings,
+those three sit at depth 1, so a swipe there *does* land on The Ten - the same place their X
+used to go, and the same place the browser's back button has always gone. The nothing-case is
+the outline root and any screen a `{ replace: true }` left at depth 0.
+
+**Two guards for one rule.** The native half arms the recogniser only when the last `nav.state`
+had `depth > 0` **and** `edgeBack != false`, so at depth 0 no message is produced in the first
+place; the page refuses again on arrival. That is redundancy bought on purpose, because the cost
+of missing it is a silent tab change rather than a visible fault. It also means the sheet branch
+is not reachable from an edge swipe at depth 0 today - a sheet is not a screen and does not raise
+`depth` - and the page defines the behaviour anyway, for the shell that later arms on `sheet` or
+sends a `nav.back` from something other than an edge.
+
+**A sheet is the step, when one is up.** Closing it is what a person means by back with a sheet
+on the screen, and it is what every other route into this already does: the sheet's X, the scrim,
+Escape, and the `popstate` handler, which spends the sheet's own history entry on exactly that.
+A gesture that behaved differently from the browser's back button on the same screen would be a
+second back with second rules. Closed the ordinary animated way rather than `{ immediate: true }`
+- nothing follows it, so there is no incoming screen for the quarter second it takes to slide
+away to play over, which is the opposite of the `nav.go` case. `closeSheet()` emits to
+`onSheetChange`, which calls `syncHistory()`, so the report happens by itself.
 
 ### The header fork: what a tab bar takes off the screens
 

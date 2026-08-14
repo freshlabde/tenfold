@@ -124,9 +124,44 @@ const tap = (page, tab, reason = "tab") =>
     reason,
   });
 
-/** A malformed tap, verbatim - the shape is the test. */
+/** A malformed message, verbatim - the shape is the test. */
 const tapRaw = (page, message) =>
   page.evaluate((m) => window.__tenfoldShell._receive(m), message);
+
+/**
+ * An edge swipe, down the same road a tab tap takes.
+ *
+ * The literal `"nav.back"` is written here rather than imported from the module
+ * under test, for the reason the whole file is built on: the other half of this
+ * name is in a Swift repository that cannot import from this one, so a rename
+ * has to fail here instead of quietly agreeing with itself.
+ */
+const swipe = (page, source = "edge") =>
+  page.evaluate((message) => window.__tenfoldShell._receive(message), {
+    type: "nav.back",
+    source,
+  });
+
+/**
+ * Stamp the screen on display, so a later read can tell a repaint from stillness.
+ *
+ * `paint()` clears `#app` and appends what the screen module builds, so the
+ * node itself is the evidence: still there means nothing was redrawn. "Did
+ * nothing" is otherwise only assertable as "the title did not change", which a
+ * repaint of the same screen would pass.
+ */
+const markScreen = (page) =>
+  page.evaluate(() => {
+    const screen = document.querySelector("#app > .screen");
+    if (screen) screen.dataset.tfMark = "kept";
+    return !!screen;
+  });
+
+const screenKept = (page) =>
+  page.evaluate(() => {
+    const screen = document.querySelector("#app > .screen");
+    return !!screen && screen.dataset.tfMark === "kept";
+  });
 
 /** Where the app actually is, read from the app rather than from the wire. */
 const where = (page) =>
@@ -1191,6 +1226,293 @@ test("the answer to a tab tap is the next nav.state, and never a reply", async (
   await tap(page, "dashboard");
   await page.waitForTimeout(120);
   expect(await navCount(page)).toBe(quiet);
+});
+
+// ------------------------------------------------------------------ nav.back
+//
+// The last message, and the one with the sharpest failure mode. A swipe in from
+// the left edge is a back gesture, and the single thing a back gesture must
+// never do under a tab bar is change the tab. `stepBack()` would: it falls back
+// to the outline when there is nothing to pop, which is what makes the X on
+// Today work and would make an edge swipe on a screen nobody navigated into
+// move somebody sideways without a screen having been left. `navBack()` is that
+// function without the fallback, and the tests below are mostly about the
+// branch that is NOT there.
+
+test("an edge swipe steps back one screen, and one screen only", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+
+  // The wire name, pinned as a literal on this side too - the other half of the
+  // assertion is in tenfold-ios, and there is no shared import between them.
+  const pinned = await page.evaluate(async () => (await import("/web/js/nav.js")).MSG_BACK);
+  expect(pinned).toBe("nav.back");
+
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+  await page.locator(".row-shell").first().locator(".row").click();
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+  await addParts(page, ["Call the practice"]);
+  await page.locator(".list.is-kids .row-shell").first().locator(".row").click();
+  expect(await lastState(page)).toEqual({
+    type: "nav.state",
+    screen: "leaf",
+    tab: "outline",
+    depth: 2,
+    sheet: false,
+  });
+
+  // Two on the stack, so one step lands on the screen underneath rather than at
+  // the bottom of it. The gesture is not "go home".
+  await swipe(page);
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+  expect(await lastState(page)).toEqual({
+    type: "nav.state",
+    screen: "focus",
+    tab: "outline",
+    depth: 1,
+    sheet: false,
+  });
+
+  // And the last one, onto the outline the leaf was opened from.
+  await swipe(page);
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  expect(await lastState(page)).toEqual({
+    type: "nav.state",
+    screen: "outline",
+    tab: "outline",
+    depth: 0,
+    sheet: false,
+  });
+
+  // `source` carries nothing behavioural and is not checked against a closed
+  // set - unlike `reason`, which picks between three behaviours. A back is a
+  // back whether an edge, a hardware key or some later shell's toolbar produced
+  // it, and rejecting an unfamiliar one would break a newer shell against an
+  // older bundle over a field that only exists to make a log readable.
+  await tap(page, "today");
+  await expect(page.locator(".h-title")).toHaveText("Today");
+  await swipe(page, "hardware-key");
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  expect((await lastState(page)).depth).toBe(0);
+});
+
+test("at depth 0 the swipe does nothing at all - no message, no repaint", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  expect((await lastState(page)).depth).toBe(0);
+
+  expect(await markScreen(page)).toBe(true);
+  const before = await navCount(page);
+  await swipe(page);
+  await swipe(page);
+  await swipe(page);
+  await page.waitForTimeout(150);
+
+  // Nothing said, and nothing redrawn. The screen is the same NODE, which is
+  // the difference between "did nothing" and "repainted the same screen" - the
+  // second would flash for a gesture that deliberately does nothing, and would
+  // also put a `nav.state` on the wire for a movement that never happened.
+  expect(await navCount(page)).toBe(before);
+  expect(await screenKept(page)).toBe(true);
+  expect((await where(page)).view).toBe("outline");
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+});
+
+test("the fallback that makes the X on Today work is not inherited", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+
+  // A goal screen at depth 0 with the document open: the exact condition
+  // `stepBack()`'s second branch tests for. It is reachable in the app - the
+  // duel replaces the stack with the focus it came from - and reached here
+  // through `ctx.go` so the test is about the branch rather than about a duel.
+  const id = await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    const root = ctx.doc.nodes.find((n) => n.parentId === null && !n.deletedAt);
+    ctx.go("focus", root.id, { replace: true });
+    return root.id;
+  });
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+  expect(await lastState(page)).toEqual({
+    type: "nav.state",
+    screen: "focus",
+    depth: 0,
+    sheet: false,
+  });
+
+  // The swipe: nothing. There is no screen to step onto, and inventing the
+  // outline as a destination would move the highlight from no tab to The Ten
+  // for a gesture that left no screen behind - a tab change from a back
+  // gesture, which is the one outcome this whole variant exists to prevent.
+  expect(await markScreen(page)).toBe(true);
+  const before = await navCount(page);
+  await swipe(page);
+  await page.waitForTimeout(150);
+  expect(await navCount(page)).toBe(before);
+  expect(await screenKept(page)).toBe(true);
+  expect((await where(page)).view).toBe("focus");
+
+  // The same app state, the same instant, through `ctx.back()`: the branch is
+  // still there and still does what the X on Today needs it to do. The two
+  // answers differing from one starting point is the assertion.
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    ctx.back();
+  });
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  expect((await where(page)).view).toBe("outline");
+  expect(id).toBeTruthy();
+});
+
+test("with a sheet up the swipe closes the sheet and leaves the screen standing", async ({
+  page,
+}) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+  await page.locator(".row-shell").first().locator(".row").click();
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+
+  const onFocus = await lastState(page);
+  expect(onFocus).toEqual({
+    type: "nav.state",
+    screen: "focus",
+    tab: "outline",
+    depth: 1,
+    sheet: false,
+  });
+
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect(page.locator(".sheet")).toBeVisible();
+  expect((await lastState(page)).sheet).toBe(true);
+
+  // THE CHOICE, and it is the one a person expects: with a sheet up, back
+  // closes the sheet. Not the sheet AND the screen, and not the screen with the
+  // sheet left standing over it. Every other route into this already agrees -
+  // the sheet's X, the scrim, Escape, and the popstate handler, which spends
+  // the sheet's own history entry on exactly this. A gesture that behaved
+  // differently from the browser's back button on the same screen would be a
+  // second back with second rules.
+  expect(await markScreen(page)).toBe(true);
+  await swipe(page);
+  await expect(page.locator(".sheet")).toHaveCount(0);
+
+  // The screen behind it did not move, and was not even redrawn: the sheet
+  // lives in its own layer, so closing it is not a routing change.
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+  expect(await screenKept(page)).toBe(true);
+  expect(await lastState(page)).toEqual(onFocus);
+
+  // One swipe, one thing. The screen goes on the NEXT one, which is what makes
+  // the sheet a step of its own rather than something the gesture skips past.
+  await swipe(page);
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  expect((await lastState(page)).depth).toBe(0);
+});
+
+test("a swipe with no document, on setup and on lock, is dropped without throwing", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (err) => errors.push(String(err)));
+  await stubShell(page);
+  await freshApp(page);
+
+  // No vault yet. The gesture is not armed on setup either, so this is the two
+  // repositories being briefly out of step rather than something somebody did.
+  await expect(page.locator(".screen")).toBeVisible();
+  expect((await where(page)).view).toBe("setup");
+  let mark = await navCount(page);
+  expect(await markScreen(page)).toBe(true);
+  await swipe(page);
+  await tapRaw(page, { type: "nav.back" });
+  await tapRaw(page, { type: "nav.back", source: null });
+  await tapRaw(page, { type: "nav.back", source: 7 });
+  await page.waitForTimeout(150);
+  expect(await navCount(page)).toBe(mark);
+  expect(await screenKept(page)).toBe(true);
+  expect((await where(page)).view).toBe("setup");
+
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+
+  // Locked: no document to step back inside, and the vault must not be the
+  // thing a stray swipe reopens.
+  await page.evaluate(async () => {
+    const { ctx } = await import("/web/js/app.js");
+    await ctx.lock();
+  });
+  await page.waitForSelector(".lock-title");
+  mark = await navCount(page);
+  expect(await markScreen(page)).toBe(true);
+  await swipe(page);
+  await swipe(page, "edge");
+  await page.waitForTimeout(150);
+  expect(await navCount(page)).toBe(mark);
+  expect(await screenKept(page)).toBe(true);
+  expect((await where(page)).view).toBe("lock");
+  await expect(page.locator(".lock-title")).toBeVisible();
+
+  // Not one of them threw, which is the property that matters most here: a
+  // swipe arriving at an awkward moment must never take a session down.
+  expect(errors).toEqual([]);
+});
+
+test("the answer to a swipe is the next nav.state, and never a reply", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha"]);
+  await page.locator(".row-shell").first().locator(".row").click();
+  await expect(page.locator(".hero-title")).toHaveText("Alpha");
+
+  const mark = await navCount(page);
+  // `_receive` hands back nothing. There is no promise to settle and no ack for
+  // the recogniser to time out on - it fires once at `.began` and is finished.
+  const returned = await swipe(page);
+  expect(returned).toBeUndefined();
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+
+  const answer = await page.evaluate((from) => {
+    const all = (window.__shellMessages || []).filter(
+      (m) => m && String(m.type).indexOf("nav.") === 0,
+    );
+    return {
+      after: all.slice(from),
+      sent: (window.__shellSent || []).filter((m) => String(m.type).indexOf("nav.") === 0),
+      posted: (window.__shellPosted || []).filter((m) => String(m.type).indexOf("nav.") === 0)
+        .length,
+    };
+  }, mark);
+
+  // State, and only state: no echo of `nav.back`, no `ok`, no `replyTo`. The
+  // honest receipt reports where the app ENDED UP rather than that a message
+  // was understood - and a shell that only knows the message was received still
+  // would not know whether a screen was left.
+  expect(answer.after.length).toBeGreaterThan(0);
+  for (const message of answer.after) {
+    expect(message.type).toBe("nav.state");
+    expect(Object.prototype.hasOwnProperty.call(message, "replyTo")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(message, "ok")).toBe(false);
+  }
+  expect(answer.after[answer.after.length - 1]).toEqual({
+    type: "nav.state",
+    screen: "outline",
+    tab: "outline",
+    depth: 0,
+    sheet: false,
+  });
+
+  // Through `post`, never `send`: a routing change must not wait on a tab bar.
+  expect(answer.sent).toEqual([]);
+  expect(answer.posted).toBeGreaterThan(0);
 });
 
 // ------------------------------------------------- the header fork (section 3)

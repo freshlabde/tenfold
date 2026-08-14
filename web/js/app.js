@@ -698,6 +698,42 @@ function back() {
   stepBack(false);
 }
 
+/**
+ * One step back, asked for by the shell rather than by a control on the screen.
+ *
+ * DELIBERATELY NOT `back()`, and the difference is one branch. `stepBack()`
+ * falls back to the outline when there is nothing to pop and the screen is not
+ * already the outline, and that branch is what makes the X on Today work: many
+ * ways in, one way out, and the screen behind a closing button is never a
+ * surprise. Inherited here it would make an edge swipe *invent* a destination
+ * on a screen somebody never navigated into - the tab would change under a
+ * thumb that asked to go back, which is the one outcome a back gesture must
+ * never produce. Popping a screen that is genuinely on the stack is a different
+ * thing and stays: that screen is one the person walked through, and leaving it
+ * is what going back means, whichever tab it happens to light.
+ *
+ * So: a step only when there is something to step onto, and otherwise nothing
+ * at all - not a repaint, not a `nav.state`. The native half declines to arm the
+ * recogniser at `depth === 0` as well; two guards for one rule, because the cost
+ * of missing it is a silent tab change rather than a visible fault.
+ *
+ * A sheet first, because that is what a person means by back with a sheet up,
+ * and because it is what every other route into this already does - the X, the
+ * scrim, Escape, and the popstate handler below, which spends the sheet's own
+ * history entry on exactly this. Closed the ordinary way rather than
+ * `{ immediate: true }`: nothing follows it, so there is no incoming screen for
+ * the quarter second it takes to slide away to play over. `closeSheet()` emits
+ * to `onSheetChange`, which syncs; there is nothing further to do here.
+ */
+function navBack() {
+  if (isSheetOpen()) {
+    closeSheet();
+    return;
+  }
+  if (!state.stack.length) return;
+  stepBack(false);
+}
+
 window.addEventListener("popstate", () => {
   if (popSuppress > 0) {
     popSuppress -= 1;
@@ -2269,35 +2305,48 @@ async function boot() {
   // headings. In a browser, and in a shell that does not advertise `nav`, this
   // is one subscription that posts nothing.
   //
-  // The callback is the other direction: a tab was tapped. `nav.js` has already
-  // decided that the tab exists and which screen is its root; everything below
-  // is about what the app is currently DOING, which is state this module owns
-  // and that one deliberately holds none of.
-  startShellNav(({ root, reason }) => {
-    // Nothing to route into. The bar is not drawn on these screens either, so
-    // this is the pair being briefly out of step rather than a tap somebody
-    // made - and a silent drop is the honest answer to both.
-    if (!state.doc) return;
-    if (state.view.name === "setup" || state.view.name === "lock") return;
+  // The callbacks are the other direction: a tab was tapped, or the left edge
+  // was swiped. `nav.js` has already decided what the wire said - that the tab
+  // exists, which screen is its root, that the reason is one of three;
+  // everything below is about what the app is currently DOING, which is state
+  // this module owns and that one deliberately holds none of.
+  startShellNav(
+    ({ root, reason }) => {
+      // Nothing to route into. The bar is not drawn on these screens either, so
+      // this is the pair being briefly out of step rather than a tap somebody
+      // made - and a silent drop is the honest answer to both.
+      if (!state.doc) return;
+      if (state.view.name === "setup" || state.view.name === "lock") return;
 
-    if (reason === "tab-again") {
-      // The tab that is already showing. Deep inside it, collapse to its root;
-      // already at the root, do nothing at all. Not scroll-to-top: that would
-      // be a fourth behaviour needing a fifth message to reach the scroll
-      // container, and "nothing" is an answer somebody learns in one try.
-      if (!state.stack.length) return;
+      if (reason === "tab-again") {
+        // The tab that is already showing. Deep inside it, collapse to its root;
+        // already at the root, do nothing at all. Not scroll-to-top: that would
+        // be a fourth behaviour needing a fifth message to reach the scroll
+        // container, and "nothing" is an answer somebody learns in one try.
+        if (!state.stack.length) return;
+        landOn(root);
+        return;
+      }
+
+      // A sheet is closed from HERE rather than by the shell, and before the
+      // route rather than after it: both happen in one task, which costs one
+      // history traversal instead of two. Immediately, because the quarter
+      // second a sheet takes to slide away would play over the screen it was
+      // asked to leave.
+      if (isSheetOpen()) closeSheet({ immediate: true });
       landOn(root);
-      return;
-    }
-
-    // A sheet is closed from HERE rather than by the shell, and before the
-    // route rather than after it: both happen in one task, which costs one
-    // history traversal instead of two. Immediately, because the quarter second
-    // a sheet takes to slide away would play over the screen it was asked to
-    // leave.
-    if (isSheetOpen()) closeSheet({ immediate: true });
-    landOn(root);
-  });
+    },
+    () => {
+      // The same two drops as a tab tap, for the same reason and in the same
+      // order: there is nothing to go back inside, and the gesture is not armed
+      // on those screens either, so a swipe arriving here is the two
+      // repositories being briefly out of step rather than something somebody
+      // did.
+      if (!state.doc) return;
+      if (state.view.name === "setup" || state.view.name === "lock") return;
+      navBack();
+    },
+  );
   state.pendingView = takePendingView();
   const pairing = takePairingFromFragment();
   try {

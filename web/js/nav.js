@@ -13,13 +13,13 @@
 // so four times), and this is the message that lets it keep that rule while
 // still drawing words.
 //
-// THREE OF THE FOUR MESSAGES. The upward pair went first, on purpose, so the
-// two repositories never had to move in the same week; this file now also takes
-// the tab tap coming back down. The fourth, `nav.back`, is the edge gesture and
-// is a later stage, and so is the header fork that hides what the tabs
-// duplicate - deliberately in that order, because a build that hides the
+// ALL FOUR MESSAGES. The upward pair went first, on purpose, so the two
+// repositories never had to move in the same week; then the tab tap coming back
+// down, then the header fork that hides what the tabs duplicate, and now the
+// edge gesture. Deliberately in that order, because a build that hides the
 // settings gear before the More tab routes is a build with no way into
-// settings.
+// settings, and because a back gesture is worth nothing until there is a bar to
+// go back underneath.
 //
 // The wire shapes, fixed, and duplicated in the shell repository by the same
 // necessity every other message here is - two repositories, no shared import:
@@ -31,6 +31,7 @@
 //
 //     shell -> page, unprompted, no reply:
 //       { type: "nav.go", tab: "today", reason: "tab" }
+//       { type: "nav.back", source: "edge" }
 //
 // NEVER A NODE ID, AND NEVER A TITLE. `app.js` already refuses to put an id
 // into `history.state` - "even a uuid out of an encrypted list has no business
@@ -59,6 +60,7 @@ import { t, onLocaleChange } from "./i18n.js";
 export const MSG_STATE = "nav.state";
 export const MSG_TABS = "nav.tabs";
 export const MSG_GO = "nav.go";
+export const MSG_BACK = "nav.back";
 
 /**
  * The four tabs, in the order the bar draws them.
@@ -162,9 +164,10 @@ const LABEL_MAX = 24;
  * `duel` spans the screen with a beam and already has a control called *back*
  * that means "take the last decision back"; `map` sets `touch-action: none` and
  * pans a camera. A native edge recogniser on either of them would be a second
- * meaning for one movement. Nothing reads this yet - the gesture is a later
- * stage - and it is emitted now anyway because it costs one array membership
- * test and because the page is the only side that knows it.
+ * meaning for one movement. The page is the only side that knows this, which is
+ * why the flag travels rather than living in a Swift list of screen names, and
+ * it is the shell's recogniser that reads it: no `nav.back` is produced on
+ * either screen, so there is nothing for this module to filter on arrival.
  */
 const NO_EDGE_BACK = Object.freeze(["duel", "map"]);
 
@@ -254,8 +257,8 @@ export function navTabs() {
 }
 
 /**
- * Start both halves: the labels now and on every language change, and the ear
- * for a tab tap coming back.
+ * Start every half: the labels now and on every language change, and the ears
+ * for a tab tap and an edge swipe coming back.
  *
  * `onLocaleChange` is the honest hook rather than the settings screen: the
  * language can move from three places (the switch on the lock screen, the row in
@@ -263,13 +266,14 @@ export function navTabs() {
  * and all three end in `setLocale`. It also already ignores a no-op change, so
  * this posts on a real change and not on every settings write.
  *
- * THERE IS NO REPLY TO A `nav.go`, and that is deliberate rather than an
+ * THERE IS NO REPLY TO EITHER MESSAGE, and that is deliberate rather than an
  * omission. The page answers with its next `nav.state`, which is the honest
  * receipt: it reports what actually HAPPENED - which screen, at which depth,
- * with the sheet down - rather than that a message was understood. A tab tap
- * that was dropped (no document, an unknown tab, a second tap on a root) is
- * therefore silent, and correctly so: nothing happened, so there is nothing to
- * report, and the bar's own selection is the shell's business to keep.
+ * with the sheet down - rather than that a message was understood. A tab tap or
+ * a swipe that was dropped (no document, an unknown tab, a second tap on a
+ * root, an empty stack) is therefore silent, and correctly so: nothing
+ * happened, so there is nothing to report, and the bar's own selection is the
+ * shell's business to keep.
  *
  * WHAT THIS FILE DECIDES AND WHAT IT DOES NOT. The wire is decided here: is
  * this a tab the app has, is this a reason it understands, which screen is that
@@ -279,21 +283,31 @@ export function navTabs() {
  * Same split as `startShellVaultLock`, and for the same reason: a transport
  * that started reading app state would be a second copy of the routing rules.
  *
- * The callback receives `{ tab, root, reason }` - the tab as sent, the screen
- * it lands on, and the reason, guaranteed to be one of REASONS. It is called
- * synchronously, inside the dispatch. A callback that throws is swallowed: a
- * tab tap arriving at an awkward moment must never take a session down.
+ * `onGo` receives `{ tab, root, reason }` - the tab as sent, the screen it lands
+ * on, and the reason, guaranteed to be one of REASONS. `onBack` receives
+ * `{ source }`, a string or null. Both are called synchronously, inside the
+ * dispatch, and a callback that throws is swallowed: a message arriving at an
+ * awkward moment must never take a session down.
+ *
+ * `source` IS NOT CHECKED against a closed set, and the asymmetry with `reason`
+ * is the point rather than an oversight. `reason` picks between three different
+ * behaviours, so one this app does not recognise is an instruction it did not
+ * understand and must not act on. `source` picks nothing: a back is a back
+ * whether the left edge produced it, or a hardware key, or a toolbar button
+ * some later shell grows. Rejecting an unfamiliar one would break a newer shell
+ * against an older bundle for a field that only exists to make a log readable.
  *
  * Called from `boot()` unconditionally, and NOT gated on `CAP_NAV` - the same
  * choice `share.incoming` and `vault.lock` make. This is a push the page
  * listens for rather than a feature it asks for; only a shell that draws a bar
  * can send it, so a capability check would be a second lock on a door only one
- * key opens. In a browser it costs one listener that never fires.
+ * key opens. In a browser it costs two listeners that never fire.
  *
  * @param {(go: {tab: string, root: string, reason: string}) => void} [onGo]
- * @returns {() => void} unsubscribes from both
+ * @param {(back: {source: string|null}) => void} [onBack]
+ * @returns {() => void} unsubscribes from all three
  */
-export function startShellNav(onGo) {
+export function startShellNav(onGo, onBack) {
   navTabs();
   const stopLocale = onLocaleChange(() => {
     navTabs();
@@ -314,8 +328,18 @@ export function startShellNav(onGo) {
       // Nothing to report to: the bar asked for a screen, not for an answer.
     }
   });
+  const stopBack = onShellMessage(MSG_BACK, (message) => {
+    if (typeof onBack !== "function") return;
+    const source = typeof message.source === "string" ? message.source : null;
+    try {
+      onBack({ source });
+    } catch {
+      // As above: a swipe is not a question.
+    }
+  });
   return () => {
     stopLocale();
     stopGo();
+    stopBack();
   };
 }
