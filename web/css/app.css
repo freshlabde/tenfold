@@ -1687,6 +1687,28 @@ a.btn { text-decoration: none; }
 .lock-alt { flex: none; display: flex; justify-content: center; padding: 0 var(--gutter); }
 .lock-alt .btn-ghost { font-size: 13px; padding: 10px 8px; }
 
+/* The offer to stop typing this, in the one place where the typing is actually
+   happening. It sits in the same band as the recovery key - both are about
+   getting in - but a step quieter than it: the recovery key is for somebody who
+   cannot get in at all, this one is about the unlock AFTER this one. Two lines
+   at most on the narrowest phone, centred, and the "no thanks" beside it small
+   enough not to look like a second offer. */
+.lock-offer {
+  flex: none;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  gap: 2px 10px;
+  padding: 6px var(--gutter) 0;
+}
+.lock-offer .btn-ghost { font-size: 13px; padding: 8px 4px; max-width: 34ch; text-align: center; }
+.lock-offer .btn-ghost.is-quiet { color: var(--text-4); font-size: 12px; }
+/* The same line once the offer has been taken: no longer a control, so it is
+   text - what will happen, and why it did not happen the moment it was tapped. */
+.lock-offer-note {
+  margin: 6px 0 0; padding: 0 4px;
+  font-size: 12.5px; line-height: 1.45; color: var(--muted);
+  max-width: 34ch; text-align: center;
+}
+
 /* Two entries of one kind - what this is, and how the method works - centred
    together with room to breathe, so they read as a pair instead of as two of
    four competing rows. The narrowest phone in the matrix is 360px wide and

@@ -661,7 +661,9 @@ export function forget(): void
   that can do this); the row only exists where the platform reports a user-verifying platform
   authenticator. The lock screen shows the biometric button **above** the passphrase field
   whenever this device is enrolled, and fires it once automatically on arrival. A cancelled or
-  failed prompt is silent (no banner, no counter) and leaves the passphrase field focused.
+  failed prompt is silent (no banner, no counter) and leaves the passphrase field focused. Where
+  this device could enrol and has not, the lock screen offers it - see *The offer on the lock
+  screen* below, which covers this path and the shell's identically.
 
 ### Biometric unlock in the native shell: `web/js/bio.js`
 
@@ -732,6 +734,48 @@ export function forget(): void
   the process can already read the unlocked master key sitting in the same process. What it buys
   is a key at rest in the operating system's key store, released only for a face, bound to the
   enrolment set that existed when it was made.
+
+#### The offer on the lock screen
+
+Both paths above were reachable from exactly one place: Settings → Security. Somebody typing a
+passphrase every morning on a phone that has a face scanner was being asked for something they did
+not have to give, and the only mention of it lived on a screen they never open. So the lock screen
+makes the offer itself - **one quiet line under the passphrase form, not a sheet and not a banner**
+(`web/js/ui/lock.js`, `bio.offer` / `bio.offerArmed` / `bio.offerDismiss`).
+
+**It cannot enrol there, and that shapes everything.** Arming either wrapper means wrapping the
+master key, which only somebody who already holds it can do - and on the lock screen nobody does.
+So the tap records a **wish** (`ctx.bioOffer.arm("shell"|"prf")`, session memory in `app.js`
+`state.bioOfferWish`, never written down) and `enrolAfterUnlock()` spends it at the head of
+`offerAfterUnlock()` - the first moment a master key exists. It calls the **same**
+`shellBio.enable()` / `biometric.enrol()` the settings row calls and reports with the same two
+sentences (`webauthn.enrolled` / `webauthn.failed`); there is no second enrolment flow. The wish is
+consumed before the first `await`, so a refusal cannot re-fire it, and nothing about the session
+depends on the outcome: the vault is open either way.
+
+The line is drawn only when **all** of these hold - the first two being the same booleans the
+biometric button and the honest subtitle are built from, read the other way round, so the screen can
+never offer to arm what it is simultaneously offering to use:
+
+| condition | why |
+|---|---|
+| `!shellBioArmed && !prfArmed` | a wrapper already exists; the button is the offer |
+| the device says it can: shell `bio.available` → `available && enrolled`, or `isUserVerifyingPlatformAuthenticatorAvailable()` in a browser | never offer what would fail at the first prompt. `availableCached` is `null` until asked, so an unasked device draws nothing, asks once per arrival, and repaints - and skips even that repaint if the passphrase field already has something typed in it, because a repaint rebuilds that field |
+| not dismissed | see below |
+| passphrase mode, no `notice`, not `setupAgain` | the recovery-key mode belongs to somebody who cannot get in at all, a `notice` is a loss being explained, and after an enrolment change the re-offer is the settings row's wording by the contract above. None of those moments carries a convenience offer on top |
+
+There is no lock screen during setup, so the first run is excluded by construction; the wish is also
+cleared by `wipeLocalVault()`, because the next unlock in that session is the end of a **first run**
+and that moment belongs to the recovery key.
+
+**Where the dismissal lives: `localStorage["tenfold.ui"].bioOfferDismissed`** - the UI preferences,
+beside the language, and deliberately **not** `doc.settings`. Two reasons, either one sufficient:
+the offer is drawn with the vault **shut**, so the document that would carry the flag cannot be read
+at the moment the flag is needed; and the answer is about **this device** - the wrapper is
+device-local, the hardware behind it is device-local, and somebody declining on their phone has said
+nothing about the laptop that could also do this. A flag inside the synced vault would silence a
+device that was never asked. One "no thanks" is permanent on that device; a failed enrolment is not
+a dismissal and the offer may come back.
 
 #### `vault.wiped`
 

@@ -274,6 +274,9 @@ const againRow = (page) =>
 const shellButton = (page) => page.locator('[data-bio="shell"]');
 const prfButton = (page) => page.locator('[data-bio="unlock"]');
 const bioNote = (page) => page.locator('[data-bio="note"]');
+const offer = (page) => page.locator('[data-bio="offer"]');
+const offerArmed = (page) => page.locator('[data-bio="offer-armed"]');
+const offerNo = (page) => page.locator('[data-bio="offer-dismiss"]');
 
 /** Turn it on from the settings row, and wait until the vault carries it. */
 async function enableFromSettings(page) {
@@ -695,6 +698,253 @@ test("the honest sentence exists in all three catalogues and says where it appli
   expect(r.en.bio).toContain("On this device");
   expect(r.de.bio).toContain("Auf diesem Gerät");
   expect(r.es.bio).toContain("En este dispositivo");
+});
+
+// ------------------------------------------- the offer on the lock screen
+//
+// The enrolment used to be reachable from exactly one place: Settings →
+// Security. Somebody who types a passphrase every morning on a phone with a
+// face scanner was being asked for something they did not have to give, and the
+// only mention of it lived on a screen they never open. So the lock screen
+// makes the offer itself.
+//
+// The fact that shapes every test below: ENROLMENT NEEDS THE OPEN VAULT. A new
+// envelope can only be built by somebody who already holds the master key, and
+// on the lock screen nobody does. So the tap cannot enrol - it records a wish,
+// and the next successful unlock spends it through the same call the settings
+// row makes. "Nothing was sent yet" is therefore an assertion, not an accident.
+
+test("the lock screen offers the enrolment where the device could do it and nothing is armed", async ({
+  page,
+}) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+
+  // Not during the first run: that moment belongs to the recovery key, and
+  // there is no lock screen in it to carry an offer anyway.
+  await expect(offer(page)).toHaveCount(0);
+  await setupVault(page);
+  await expect(offer(page)).toHaveCount(0);
+
+  await lockNow(page);
+  // The device is asked what it can do only when the answer would change the
+  // screen, and the answer arrives after the paint that needed it - so the line
+  // appears on the repaint, not in the first frame.
+  await expect(offer(page)).toBeVisible({ timeout: 15000 });
+  await expect(offer(page)).toHaveText("Unlock with your face or fingerprint instead of typing this.");
+  await expect(offerNo(page)).toHaveText("No thanks");
+  // An offer, not a button that works: there is no wrapper, so there is no way
+  // in but the passphrase, and the screen still says exactly that.
+  await expect(shellButton(page)).toHaveCount(0);
+  await expect(lockSub(page)).toHaveText(
+    "The list is sealed. Nothing on this device can read it without the passphrase.",
+  );
+  expect(await sent(page, "bio.createKey")).toEqual([]);
+});
+
+test("a vault that already carries the wrapper is offered nothing - it gets the button", async ({
+  page,
+}) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await enableFromSettings(page);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+
+  // Cancelled, so the automatic attempt leaves the screen up to be read.
+  await page.evaluate(() => {
+    window.__bio.unwrapCode = "cancelled";
+  });
+  await lockNow(page);
+
+  await expect(shellButton(page)).toBeVisible();
+  await expect.poll(async () => (await sent(page, "bio.unwrapKey")).length).toBe(1);
+  await expect(offer(page)).toHaveCount(0);
+  await expect(offerNo(page)).toHaveCount(0);
+});
+
+test("a shell without the biometric capability offers nothing to arm", async ({ page }) => {
+  await stubShell(page, { capabilities: ["reminder", "badge", "widget"] });
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  // And the browser path cannot stand in for it in here: WebAuthn does not
+  // exist in a WKWebView, so there is nothing to offer from either side.
+  await expect(page.locator(".lock-alt button")).toBeVisible();
+  await expect(offer(page)).toHaveCount(0);
+  expect(await sent(page, "bio.available")).toEqual([]);
+});
+
+test("hardware with nothing enrolled on it is not offered", async ({ page }) => {
+  // The same two facts the settings row separates: a phone whose owner has not
+  // set Face ID up would fail at the first prompt, so it is not asked to.
+  await stubShell(page, { enrolled: false });
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  await expect.poll(async () => (await sent(page, "bio.available")).length).toBeGreaterThan(0);
+  await expect(page.locator(".lock-alt button")).toBeVisible();
+  await expect(offer(page)).toHaveCount(0);
+});
+
+test("a plain browser without a platform authenticator is not offered anything either", async ({
+  page,
+}) => {
+  // No shell at all, and Chromium here has the WebAuthn API but no
+  // user-verifying platform authenticator behind it. The API surface is not the
+  // capability, and only the capability may draw the line.
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  await expect(page.locator(".lock-alt button")).toBeVisible();
+  const probe = await page.evaluate(async () => {
+    const webauthn = await import("/web/js/webauthn.js");
+    const bio = await import("/web/js/bio.js");
+    return { api: webauthn.supported(), platform: await webauthn.platformAvailable(), shell: bio.supported() };
+  });
+  expect(probe.api).toBe(true);
+  expect(probe.platform).toBe(false);
+  expect(probe.shell).toBe(false);
+  await expect(offer(page)).toHaveCount(0);
+});
+
+test("taking the offer arms it, and the next unlock is what actually enrols", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  await expect(offer(page)).toBeVisible({ timeout: 15000 });
+  await offer(page).click();
+
+  // The tap cannot enrol: wrapping the master key needs the master key, and the
+  // whole point of this screen is that there is none. So the line says what
+  // will happen instead of pretending it has.
+  await expect(offerArmed(page)).toBeVisible();
+  await expect(offerArmed(page)).toContainText("passphrase");
+  await expect(offer(page)).toHaveCount(0);
+  expect(await sent(page, "bio.createKey")).toEqual([]);
+  expect((await vaultFacts(page)).kinds).toEqual(["passphrase", "recovery"]);
+
+  await unlockWithPassphrase(page);
+
+  // The existing enrolment flow, and the existing sentence: one implementation,
+  // one thing to keep true.
+  await expect(page.locator(".toast")).toContainText("can now open the vault", { timeout: 30000 });
+  const facts = await vaultFacts(page);
+  expect(facts.kinds).toEqual(["passphrase", "recovery", "shell-bio-v1"]);
+  expect(facts.labels.some((l) => l.startsWith("shell-bio:"))).toBe(true);
+  expect(await sent(page, "bio.createKey")).toEqual([{ type: "bio.createKey", vaultId: facts.vid }]);
+  expect((await bioState(page)).created).toBe(1);
+  await expect.poll(async () => (await storedFacts(page)).kinds).toEqual([
+    "passphrase",
+    "recovery",
+    "shell-bio-v1",
+  ]);
+
+  // And the offer is over, because the thing it offered exists now.
+  await page.evaluate(() => {
+    window.__bio.unwrapCode = "cancelled";
+  });
+  await lockNow(page);
+  await expect(shellButton(page)).toBeVisible();
+  await expect(offer(page)).toHaveCount(0);
+});
+
+test("an enrolment that fails after the unlock says so and holds nothing up", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  await expect(offer(page)).toBeVisible({ timeout: 15000 });
+  await offer(page).click();
+  await expect(offerArmed(page)).toBeVisible();
+
+  // The device stops being able to do it between the wish and the unlock.
+  await page.evaluate(() => {
+    window.__bio.available = false;
+    window.__bio.enrolled = false;
+  });
+  await unlockWithPassphrase(page);
+
+  // The vault is open either way - that is the whole rule. One line of toast,
+  // the same one the settings row shows, and nothing else changes.
+  await expect(page.locator(".toast")).toContainText("could not set that up", { timeout: 30000 });
+  expect((await vaultFacts(page)).kinds).toEqual(["passphrase", "recovery"]);
+  await expect(page.locator(".h-title")).toHaveText("The Ten");
+  await openSettings(page);
+  await expect(page.getByRole("button", { name: "Lock now" })).toBeVisible();
+});
+
+test("no thanks is respected, and survives a reload", async ({ page }) => {
+  await stubShell(page);
+  await removeBadgeApi(page);
+  await freshApp(page);
+  await setupVault(page);
+  await lockNow(page);
+
+  await expect(offerNo(page)).toBeVisible({ timeout: 15000 });
+  await offerNo(page).click();
+  await expect(offer(page)).toHaveCount(0);
+  await expect(offerNo(page)).toHaveCount(0);
+
+  // Outside the vault, because the vault is shut when the line is drawn - and
+  // about this device, because the hardware behind the offer is this device's.
+  const pref = await page.evaluate(() => JSON.parse(localStorage.getItem("tenfold.ui") || "{}"));
+  expect(pref.bioOfferDismissed).toBe(true);
+
+  await page.reload();
+  await page.waitForSelector(".lock-title");
+  await expect(page.locator(".lock-alt button")).toBeVisible();
+  // It does not come back on the next screen, and it does not come back after a
+  // restart: an offer that returns every morning is the nag this is not.
+  await expect(offer(page)).toHaveCount(0);
+  await page.waitForTimeout(1000);
+  await expect(offer(page)).toHaveCount(0);
+  expect(await sent(page, "bio.createKey")).toEqual([]);
+});
+
+test("the offer reads as an offer in all three catalogues", async ({ page }) => {
+  await page.goto("/tests/fixture.html");
+  const r = await page.evaluate(async () => {
+    const { LOCALES } = await import("/web/js/i18n.js");
+    const out = {};
+    for (const locale of LOCALES) {
+      const cat = (await import(`/web/js/locales/${locale}.js`))[locale];
+      out[locale] = {
+        offer: cat["bio.offer"],
+        armed: cat["bio.offerArmed"],
+        dismiss: cat["bio.offerDismiss"],
+      };
+    }
+    return out;
+  });
+  for (const locale of ["en", "de", "es"]) {
+    for (const [key, value] of Object.entries(r[locale])) {
+      expect(typeof value, `${locale}.${key}`).toBe("string");
+      expect(value.length, `${locale}.${key}`).toBeGreaterThan(0);
+    }
+    // One quiet line, not a paragraph: it sits under a passphrase field.
+    expect(r[locale].offer.length, `${locale} offer`).toBeLessThan(80);
+    // A way out that is a word, not a sentence.
+    expect(r[locale].dismiss.length, `${locale} dismiss`).toBeLessThan(20);
+    // The armed line has to say the passphrase is still needed once, because
+    // that is the surprising part of accepting.
+    expect(r[locale].armed.length, `${locale} armed`).toBeGreaterThan(60);
+  }
+  expect(r.en.armed).toContain("passphrase");
+  expect(r.de.armed).toContain("Passphrase");
+  expect(r.es.armed).toContain("frase de paso");
 });
 
 // --------------------------------------------------------------- the vault dies

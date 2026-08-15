@@ -16,6 +16,16 @@
 // the label and the automatic first attempt are identical, because to the
 // person in front of it this is one feature.
 //
+// When this device could do that and has not armed it, the screen says so
+// once, quietly, under the form: somebody typing a passphrase every morning on
+// a phone with a face scanner is being asked for something they do not have to
+// give, and a settings screen they never open is the wrong place to mention it.
+// The offer cannot enrol on the spot - a new envelope can only be built by
+// somebody who already holds the master key, and up here nobody does - so
+// tapping it remembers the wish and the next successful unlock fulfils it. One
+// dismissal is final, and it is stored outside the vault because up here the
+// vault cannot be read.
+//
 // The shell path can refuse in five ways and only two of them are worth a word:
 // too many failed attempts, and an enrolment that changed. Those get one quiet
 // line under the button - a line, not a banner and not a sheet, and it does not
@@ -40,6 +50,12 @@ let busy = false;
 let prompted = false;
 /** i18n key of the one quiet line the biometric path may leave, or null. */
 let notice = null;
+/**
+ * Whether this arrival has already asked the device what it can do. The answer
+ * arrives after the paint that needed it, so it costs one repaint - and one is
+ * all it may ever cost, however often this screen is rebuilt in between.
+ */
+let probed = false;
 
 export function reset() {
   mode = "pass";
@@ -47,6 +63,7 @@ export function reset() {
   busy = false;
   prompted = false;
   notice = null;
+  probed = false;
 }
 
 export function render(ctx) {
@@ -159,6 +176,30 @@ export function render(ctx) {
   // is gone the next time this screen is built.
   const bioNote = notice ? el("p", { class: "lock-sub", dataset: { bio: "note" } }, [text(t(notice))]) : null;
 
+  // The other half of the same fact: this device COULD open the vault without
+  // the passphrase and nobody has told it to. Four things have to be true, and
+  // the first two are the booleans above read the other way round, so the
+  // screen can never offer to arm something it is simultaneously offering to
+  // use.
+  //
+  //   nothing armed      `!shellBioArmed && !prfArmed` - the same single
+  //                      reading of the vault the button and the subtitle use.
+  //   the device can     asked of the device, not of the build: a shell with
+  //                      the capability still answers "no hardware here", and a
+  //                      browser without a platform authenticator answers the
+  //                      same. Nothing is offered on a device that would fail.
+  //   never asked away   one dismissal is permanent (see ctx.bioOffer).
+  //   nothing else to    the recovery-key mode belongs to somebody who cannot
+  //   read here          get in at all, a `notice` is a loss being explained,
+  //                      and after an enrolment change the re-offer is the
+  //                      settings row's own wording by contract - none of those
+  //                      moments may carry a convenience offer on top.
+  const offerable =
+    !isKey && !notice && !shellBioArmed && !prfArmed && !ctx.shellBio.setupAgain && !ctx.bioOffer.dismissed
+      ? offerableKind(ctx, input)
+      : null;
+  const offer = offerable ? bioOfferLine(ctx, offerable, input) : null;
+
   queueMicrotask(() => input.focus());
 
   // The foot of this screen carries four different kinds of thing, and it used
@@ -206,6 +247,11 @@ export function render(ctx) {
     ]),
     el("div", { class: "bar", style: { gridAutoFlow: "row" } }, [unlock]),
     el("div", { class: "lock-alt" }, [toggle]),
+    // Under the recovery key and not above it: that one is for somebody who
+    // cannot get in NOW, and this one is about the unlock after this one. It
+    // stays in the band of things to DO, above the pair of things to read,
+    // because it is an offer and not a document.
+    offer,
     el("div", { class: "lock-foot" }, [method, about]),
     langSwitch(ctx),
     // The way out when the passphrase is truly gone and no key exists:
@@ -310,6 +356,134 @@ function shellBioButton(ctx, field) {
     requestAnimationFrame(() => attempt());
   }
   return el("div", { class: "lock-bio" }, [button]);
+}
+
+/**
+ * Which enrolment this device could still arm: "shell", "prf", or null.
+ *
+ * The same never-both rule the button follows, asked in the same order: inside
+ * the shell there is no WebAuthn, and in a browser there is no shell, so the
+ * two branches are exclusive by construction rather than by a check.
+ *
+ * Both halves answer asynchronously and both start at null - "not asked yet",
+ * which is not the same as "no". A paint cannot wait for that, so an unasked
+ * device draws nothing, asks once, and repaints if the answer turns out to be
+ * yes. `available && enrolled` for the shell, because hardware with no face
+ * registered on it would fail at the first prompt.
+ */
+function offerableKind(ctx, field) {
+  if (ctx.shellBio.supported) {
+    const known = ctx.shellBio.availableCached;
+    if (known === null) {
+      probeOnce(ctx, field, () => ctx.shellBio.available());
+      return null;
+    }
+    return known.available && known.enrolled ? "shell" : null;
+  }
+  if (ctx.biometric.supported) {
+    const known = ctx.biometric.availableCached;
+    if (known === null) {
+      probeOnce(ctx, field, () => ctx.biometric.available());
+      return null;
+    }
+    return known === true ? "prf" : null;
+  }
+  return null;
+}
+
+/**
+ * Ask the device once, and repaint only if repainting costs nothing.
+ *
+ * A repaint of this screen builds a new passphrase field, so anything typed
+ * into the old one is gone - which would turn a background probe into lost
+ * keystrokes. So the repaint is skipped where it would be felt: another screen,
+ * an unlock already in flight, or a field somebody has started typing into. The
+ * offer then simply waits for the next arrival here, which is the cheapest
+ * possible way to be wrong.
+ */
+function probeOnce(ctx, field, ask) {
+  if (probed) return;
+  probed = true;
+  Promise.resolve()
+    .then(ask)
+    .then(() => {
+      if (busy || ctx.view.name !== "lock") return;
+      if (field && field.isConnected && field.value) return;
+      ctx.repaint();
+    })
+    .catch(() => {
+      // A device that will not answer is a device with nothing to offer.
+    });
+}
+
+/**
+ * The offer itself. One quiet line with two ways out of it - take it, or never
+ * be asked again - and it is deliberately not a sheet: nothing here interrupts
+ * an unlock somebody is in the middle of.
+ *
+ * IT CANNOT ENROL HERE. Arming a biometric envelope means wrapping the master
+ * key, and on this screen there is no master key: the vault is shut, that is
+ * what the screen is for. So the tap records a wish and the enrolment happens
+ * at the first moment it can - right after the next successful unlock, from
+ * app.js, through the one enrolment flow settings already uses.
+ *
+ * Both taps rewrite this line in place instead of calling ctx.render(). A full
+ * repaint would replace the passphrase field and drop whatever was already
+ * typed into it, and somebody who accepts an offer about the NEXT unlock has
+ * usually started on this one.
+ */
+function bioOfferLine(ctx, kind, field) {
+  const line = el("div", { class: "lock-offer", dataset: { bio: "offer-line" } }, []);
+
+  const armed = () => {
+    clear(line);
+    line.appendChild(
+      el("p", { class: "lock-offer-note", dataset: { bio: "offer-armed" } }, [text(t("bio.offerArmed"))]),
+    );
+    if (field && field.isConnected) field.focus();
+  };
+
+  const accept = el(
+    "button",
+    {
+      class: "btn-ghost",
+      attrs: { type: "button" },
+      dataset: { bio: "offer" },
+      on: {
+        click: () => {
+          ctx.bioOffer.arm(kind);
+          armed();
+        },
+      },
+    },
+    [text(t("bio.offer"))],
+  );
+
+  const no = el(
+    "button",
+    {
+      class: "btn-ghost is-quiet",
+      attrs: { type: "button" },
+      dataset: { bio: "offer-dismiss" },
+      on: {
+        click: () => {
+          // Persistent, and on purpose: an offer that returns every morning is
+          // the nag this one exists not to be.
+          ctx.bioOffer.dismiss();
+          line.remove();
+          if (field && field.isConnected) field.focus();
+        },
+      },
+    },
+    [text(t("bio.offerDismiss"))],
+  );
+
+  // A wish taken on an earlier visit to this screen survives a lock that was
+  // never followed by an unlock, so the line has to be able to open in the
+  // state it was left in.
+  if (ctx.bioOffer.armed) armed();
+  else line.append(accept, no);
+  return line;
 }
 
 /** The wipe is irreversible on this device - say so in plain words first. */

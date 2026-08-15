@@ -525,6 +525,12 @@ export const en = {
   "bio.notEnrolled": "Set up face or fingerprint on this device first, then this can be switched on.",
   "bio.setupAgain": "Set up face or fingerprint again",
   "bio.setupAgainDesc": "The enrolment on this device changed, so the old way in stopped working. This makes a new key for it. The passphrase and the recovery key were never affected.",
+  // The offer on the lock screen, where somebody is typing the passphrase this
+  // would replace. It cannot be set up here - that needs the list open - so the
+  // second line says what will happen instead of pretending it already has.
+  "bio.offer": "Unlock with your face or fingerprint instead of typing this.",
+  "bio.offerArmed": "Set up right after this unlock. Enter the passphrase once more: the setup needs the list open.",
+  "bio.offerDismiss": "No thanks",
   "settings.about": "About tenfold",
   "settings.aboutDesc": "The method, and what happens to your data.",
   "settings.methodDesc": "The ten-goals method in full, as a public page.",

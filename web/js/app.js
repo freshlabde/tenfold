@@ -86,6 +86,19 @@ const AUTOSAVE_MS = 600;
 const MAX_ROOTS = 10;
 const UI_PREF_KEY = "tenfold.ui";
 /**
+ * The one field of the lock screen's biometric offer that has to be remembered:
+ * that somebody said no to it.
+ *
+ * It lives in the UI preferences, next to the language, and NOT in
+ * `doc.settings`, for two reasons. The offer is drawn with the vault SHUT, so
+ * the document that would carry the flag cannot be read at the moment the flag
+ * is needed. And the answer is about this device: the wrapper is device-local,
+ * the hardware behind it is device-local, and somebody declining on the phone
+ * they hold has said nothing about the laptop that could also do this. A synced
+ * flag would silence a device that was never asked.
+ */
+const BIO_OFFER_PREF = "bioOfferDismissed";
+/**
  * Is there a native tab bar under this web view?
  *
  * `shellWith(CAP_NAV)`, and deliberately NOT `inShell()`. Every shell ever
@@ -152,6 +165,13 @@ const state = {
   pendingView: null,
   /** True once the espresso question has been put this session - see offerSupport. */
   supportNudgedThisSession: false,
+  /**
+   * "shell" or "prf" when the lock screen was told to arm the device's own
+   * authenticator, null otherwise. A wish, not a setting: it is taken with the
+   * vault shut, it is spent by the very next unlock, and nothing writes it
+   * down - see the offer in ui/lock.js and `enrolAfterUnlock` below.
+   */
+  bioOfferWish: null,
 };
 
 let saveTimer = 0;
@@ -1001,13 +1021,53 @@ async function offerSupport() {
   openSupportNudge(layerEl, ctx);
 }
 
+// ------------------------------------------------- the lock screen's own wish
+
+/**
+ * Arm the device's authenticator because the lock screen was asked to.
+ *
+ * THE CONSTRAINT THAT SHAPES THIS: enrolment wraps the master key, so it can
+ * only happen with the vault OPEN. The offer is made where the pain is - on the
+ * lock screen, to somebody typing a passphrase on a device that could do
+ * better - and that is precisely the one place where it cannot be carried out.
+ * So the tap leaves a wish behind and this is where it is spent: the first
+ * moment a master key exists, through the same `enable()`/`enrol()` call the
+ * settings row uses and with the same two sentences, because a second enrolment
+ * flow would be a second thing to keep true.
+ *
+ * It cannot hold anything up. The wish is consumed before the first await, so a
+ * failure cannot leave it armed for a second attempt nobody asked for; the
+ * screen is already up and the vault is already open when this runs; and a
+ * refusal - a cancelled prompt, a Keychain that said no - ends in one line of
+ * toast and nothing else. The session is not conditional on it.
+ */
+async function enrolAfterUnlock() {
+  const wish = state.bioOfferWish;
+  state.bioOfferWish = null;
+  if (!wish || !state.doc || !state.masterKey) return;
+  try {
+    if (wish === "shell") await ctx.shellBio.enable();
+    else await ctx.biometric.enrol();
+    toast(t("webauthn.enrolled"));
+  } catch {
+    // Exactly what the settings row says when the same call fails there. The
+    // offer is not marked as declined: nothing was declined, something did not
+    // work, and the next lock screen may offer it again.
+    toast(t("webauthn.failed"));
+  }
+}
+
 /**
  * Everything that wants a word after an unlock, in the one order that makes
- * sense: what another app sent in is answered first, the reminder is only
- * offered when that left the screen empty, and the one question that is about
- * the app itself rather than about the person's own list comes last of all.
+ * sense: the enrolment somebody asked for on the way in is finished first
+ * (it answers a tap that has already been made, and it puts a system prompt on
+ * screen - nothing may be sitting under that), what another app sent in is
+ * answered next, the reminder is only offered when that left the screen empty,
+ * and the one question that is about the app itself rather than about the
+ * person's own list comes last of all.
  */
 async function offerAfterUnlock() {
+  await enrolAfterUnlock();
   await offerShare();
   await offerPush();
   await offerSupport();
@@ -1298,6 +1358,10 @@ const ctx = {
     state.undo = null;
     state.savedAt = null;
     state.autoLocked = false;
+    // A wish taken on the lock screen of the vault that just died. The next
+    // unlock in this session is the end of a FIRST RUN, and a first run belongs
+    // to the recovery key - nothing else may put a system prompt over it.
+    state.bioOfferWish = null;
     [setupScreen, lockScreen, duelScreen, searchScreen].forEach((s) => {
       if (typeof s.reset === "function") s.reset();
     });
@@ -1932,6 +1996,31 @@ const ctx = {
       state.vault = await bio.disable(state.vault);
       if (state.masterKey && state.doc) await flushSave();
       else await saveVault(state.vault);
+    },
+  },
+
+  /**
+   * The lock screen's offer to arm one of the two above, and the whole of its
+   * state: has it been waved away for good, and is a wish waiting.
+   *
+   * `dismissed` is read from the UI preferences (see BIO_OFFER_PREF for why it
+   * is there and not in the document) and is permanent - one no ends the offer
+   * on this device. `arm()` records which of the two paths the lock screen was
+   * looking at; `enrolAfterUnlock` spends it at the next unlock, because that
+   * is the first moment a master key exists to wrap.
+   */
+  bioOffer: {
+    get dismissed() {
+      return readUiPrefs()[BIO_OFFER_PREF] === true;
+    },
+    dismiss() {
+      writeUiPrefs({ ...readUiPrefs(), [BIO_OFFER_PREF]: true });
+    },
+    get armed() {
+      return state.bioOfferWish !== null;
+    },
+    arm(kind) {
+      state.bioOfferWish = kind === "prf" ? "prf" : "shell";
     },
   },
 
