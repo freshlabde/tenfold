@@ -19,6 +19,13 @@ import { spring, rubberBand, collapse, prefersReducedMotion } from "../motion.js
 import { stepFinished, rowDeleted, rowLifted, rowShifted, rowDropped, warmUp } from "../haptics.js";
 
 const SWIPE_START = 8;
+/* The slop that CANCELS a pending long press, deliberately larger than the
+   8px that declares a swipe. A thumb waiting out the press timer drifts -
+   more as a hand gets less careful through a session, which is exactly the
+   "sorting works at first, later not" a device round reported. The scroll
+   never needed the early guess: touch-action pan-y means a real scroll
+   arrives as pointercancel, which this file already treats as a release. */
+const PRESS_CANCEL = 15;
 const SWIPE_COMMIT = 92;
 const LONG_PRESS_MS = 420;
 
@@ -225,15 +232,35 @@ function attachGestures(ctx, refs) {
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
       if (mode !== "none") return;
+      // beginDrag FIRST, and the mode only once it answered. It returns null
+      // when the shell has no parent - a row from a render that has since
+      // been torn down - and spending the mode on a null drag was this file's
+      // quietest failure: the row buzzed, nothing moved, the release did
+      // nothing, and the person's report read "sorting works at first, later
+      // not". A dead press now stays mode none, costs no haptic, and the next
+      // press starts clean on the fresh render.
+      drag = beginDrag(ctx, shell, row, node, opts);
+      if (!drag) return;
       mode = "drag";
       // The lift is the one moment on this row where nothing has moved yet and
       // something has nevertheless happened: the press was long enough, and the
       // row now belongs to the finger. A hand holding still has no other way of
       // being told that, so this is the haptic that earns its keep most.
       rowLifted();
-      drag = beginDrag(ctx, shell, row, node, opts);
     }, LONG_PRESS_MS);
     row.setPointerCapture(ev.pointerId);
+  };
+
+  // Fix 3 of the sort hunt: preventDefault() on pointermove cannot take back
+  // an axis that touch-action already granted - per spec, a pan the UA has
+  // begun keeps running. pan-y is granted on every row (it is how the list
+  // scrolls), so a DRAG has to refuse the native pan at the touchmove level,
+  // from a non-passive listener registered up front. On The Ten this is a
+  // no-op by geometry (ten rows can never overflow); on a goal's step list it
+  // is the difference between dragging a row and scrolling the screen with a
+  // row stuck to the finger.
+  const onTouchMove = (ev) => {
+    if (mode === "drag") ev.preventDefault();
   };
 
   const onMove = (ev) => {
@@ -244,9 +271,14 @@ function attachGestures(ctx, refs) {
     const mx = ev.clientX - startX;
     const my = ev.clientY - startY;
     if (mode === "none") {
-      if (Math.abs(my) > SWIPE_START && Math.abs(my) > Math.abs(mx)) {
+      if (Math.abs(my) > PRESS_CANCEL && Math.abs(my) > Math.abs(mx)) {
         mode = "scroll";
         clearTimeout(pressTimer);
+        // gestured, or the click that follows pointerup opens the node. The
+        // Ten never overflows, so WebKit does not swallow that click there -
+        // measured in a simulator walk where an attempted scroll opened a
+        // goal and the test met an empty outline two rounds later.
+        gestured = true;
         return;
       }
       if (Math.abs(mx) > SWIPE_START) {
@@ -333,6 +365,9 @@ function attachGestures(ctx, refs) {
   };
 
   row.addEventListener("pointerdown", onDown);
+  // Non-passive on purpose - a passive listener may not preventDefault, and
+  // preventing the native pan mid-drag is this listener's only job.
+  row.addEventListener("touchmove", onTouchMove, { passive: false });
   row.addEventListener("pointermove", onMove);
   row.addEventListener("pointerup", onUp);
   row.addEventListener("pointercancel", onUp);
