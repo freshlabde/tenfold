@@ -16,7 +16,7 @@ import { childrenOf, isLeaf, storyDepth, dueGroupOf } from "../model.js";
 import { metricFor, progressOf, dueLabel } from "./format.js";
 import { t } from "../i18n.js";
 import { spring, rubberBand, collapse, prefersReducedMotion } from "../motion.js";
-import { stepFinished, rowDeleted, rowLifted } from "../haptics.js";
+import { stepFinished, rowDeleted, rowLifted, rowShifted, rowDropped } from "../haptics.js";
 
 const SWIPE_START = 8;
 const SWIPE_COMMIT = 92;
@@ -403,6 +403,9 @@ function beginDrag(ctx, shell, row, node, opts) {
     const target = Math.max(0, Math.min(shells.length - 1, from + Math.round(dy / step)));
     if (target === to) return;
     to = target;
+    // Once per crossing, exactly here: this line is the app deciding the row
+    // occupies a new slot, and the neighbours animating is its visible half.
+    rowShifted();
     shells.forEach((s, i) => {
       if (s === shell) return;
       let shift = 0;
@@ -423,7 +426,10 @@ function beginDrag(ctx, shell, row, node, opts) {
       row.classList.remove("is-dragging");
       shell.classList.remove("is-lifted");
       row.style.transform = "";
-      if (to !== from) ctx.reorderSibling(node, opts.parentId === undefined ? node.parentId : opts.parentId, to);
+      if (to !== from) {
+        rowDropped();
+        ctx.reorderSibling(node, opts.parentId === undefined ? node.parentId : opts.parentId, to);
+      }
     },
   };
 }

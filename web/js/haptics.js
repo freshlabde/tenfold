@@ -58,6 +58,12 @@ export const KINDS = Object.freeze({
   SUCCESS: "success",
   /** Worth noticing, not an error: a merge, a limit reached. */
   WARNING: "warning",
+
+  /** The picker tick - what iOS itself plays for a row crossing a position
+      in a table's edit mode. Its own kind rather than the lightest impact:
+      a sort is a SERIES of positions, and a series of impacts would knock
+      where this motion is supposed to click. */
+  SELECTION: "selection",
 });
 
 const VOCABULARY = Object.freeze(Object.values(KINDS));
@@ -127,6 +133,30 @@ export function rowDeleted() {
  * information a finger holding still has no other way of getting.
  */
 export function rowLifted() {
+  play(KINDS.IMPACT_LIGHT);
+}
+
+/**
+ * The row crossed a position while being dragged. Once per crossing, from
+ * `place()` in rows.js - which already knows the moment, because it is the
+ * moment it animates the neighbours out of the way.
+ *
+ * This is the haptic the first device rounds reported missing, by feel: the
+ * lift spoke and then the whole sort was silent, so "no haptics when sorting"
+ * was the honest description of one tick followed by nothing. A sort is the
+ * one gesture in this app whose feedback is a rhythm rather than an event.
+ */
+export function rowShifted() {
+  play(KINDS.SELECTION);
+}
+
+/**
+ * The drag ended somewhere new. The settle after the rhythm - the same weight
+ * as the lift, so picking up and putting down bracket the motion in the same
+ * voice. Only when the order actually changed: putting a row back where it
+ * came from is not an action, and must not feel like one.
+ */
+export function rowDropped() {
   play(KINDS.IMPACT_LIGHT);
 }
 

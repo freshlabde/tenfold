@@ -1,7 +1,7 @@
 // Touch feedback, and the five moments that earn it.
 //
 // The native shell has had a complete haptic bridge since wave 2a - a closed
-// four-word vocabulary, a mapping onto UIKit, unit tests, a launch-argument
+// five-word vocabulary, a mapping onto UIKit, unit tests, a launch-argument
 // self-test - and until now not one caller on the web side. This file is the
 // other half: `web/js/haptics.js` names the five moments, maps each onto a kind
 // the shell accepts, and posts. Nothing else in the app knows the message shape.
@@ -10,7 +10,7 @@
 // message goes out, with which kind, at which moment - and, just as important,
 // that NOTHING goes out where there is no shell or no capability. The native
 // half is tested in tenfold-ios/Tests/Unit/HapticsTests.swift. The wire shape
-// and the four names are written down once, in tenfold-ios/docs/BRIDGE.md, and
+// and the five names are written down once, in tenfold-ios/docs/BRIDGE.md, and
 // both suites assert against them literally rather than deriving them: the shell
 // REJECTS a kind it does not recognise, so a rename that both sides agreed with
 // themselves about would be silence, not a failure.
@@ -152,7 +152,7 @@ async function swipe(page, shell, distance) {
 
 // ------------------------------------------------------------ the vocabulary
 
-test("the vocabulary is the four names the bridge accepts, and nothing else", async ({ page }) => {
+test("the vocabulary is the five names the bridge accepts, and nothing else", async ({ page }) => {
   // The literal, as bio.spec.js pins CAP_BIO: the other half of this assertion
   // is in tenfold-ios, and a rename on either side has to fail rather than
   // agree quietly with itself.
@@ -168,7 +168,7 @@ test("the vocabulary is the four names the bridge accepts, and nothing else", as
   });
   // Literally, in the bridge's own order. An unknown kind is refused on the
   // other side, so a fifth name invented here would simply never be felt.
-  expect(pinned.kinds).toEqual(["impact-light", "impact-medium", "success", "warning"]);
+  expect(pinned.kinds).toEqual(["impact-light", "impact-medium", "success", "warning", "selection"]);
   expect(pinned.capability).toBe("haptic");
 });
 
@@ -249,8 +249,40 @@ test("the long press that lifts a row is the light tick, and it comes before the
   await page.mouse.move(x, y - 120, { steps: 10 });
   await page.mouse.up();
   await expect(page.locator(".row-title")).toHaveText(["Alpha", "Delta", "Beta", "Gamma"]);
-  // The reorder itself adds nothing: one lift, one answer.
-  expect(await haptics(page)).toHaveLength(1);
+
+  // The sort is a rhythm, not an event, and this is the assertion that was
+  // MISSING when the first device round said "no haptics when sorting" - the
+  // line above used to insist the reorder adds nothing, and a thumb agreed.
+  // Now: the lift, one picker tick per position crossed (two here, Delta over
+  // Gamma and then over Beta), and the drop as the settle, in that order.
+  const felt = await haptics(page);
+  expect(felt[0]).toEqual({ type: "haptic", kind: "impact-light" });
+  expect(felt.filter((h) => h.kind === "selection")).toHaveLength(2);
+  expect(felt[felt.length - 1]).toEqual({ type: "haptic", kind: "impact-light" });
+  expect(felt).toHaveLength(4);
+});
+
+test("a drag that goes nowhere feels like nothing after the lift", async ({ page }) => {
+  await stubShell(page);
+  await freshApp(page);
+  await setupVault(page);
+  await addRoots(page, ["Alpha", "Beta"]);
+
+  const row = page.locator(".row-shell").nth(1).locator(".row");
+  const box = await row.boundingBox();
+  const x = box.x + 120;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.waitForTimeout(650);
+  // A wiggle that never crosses a slot, then home again. Putting a row back
+  // where it came from is not an action and must not feel like one: no tick
+  // (no position was crossed) and no drop (nothing changed).
+  await page.mouse.move(x, y - 12, { steps: 4 });
+  await page.mouse.move(x, y, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.locator(".row-title")).toHaveText(["Alpha", "Beta"]);
+  expect(await haptics(page)).toEqual([{ type: "haptic", kind: "impact-light" }]);
 });
 
 test("a successful unlock is the success, and a refused one is silence", async ({ page }) => {
