@@ -662,6 +662,20 @@ export const en = {
   // tip jar by themselves. The body of that sheet is support.body.
   "supportNudge.title": "Enjoying tenfold?",
 
+  // The same tip jar inside the native shell, where an external payment link is
+  // not allowed to exist and the three offers come from the App Store. The row
+  // and the sheet title are support.row and support.title: one idea, one voice,
+  // two surfaces.
+  "tips.rowDesc": "A one-off tip through the App Store. Nothing is unlocked.",
+  "tips.body": "tenfold costs nothing, asks for no account and runs no subscription. If it helps you get what you want, a one-off tip keeps it going.",
+  "tips.loading": "Asking the App Store.",
+  "tips.none": "The App Store has no tips to offer right now.",
+  "tips.unreachable": "The App Store could not be reached. Worth trying again in a moment.",
+  "tips.failed": "The App Store could not be asked.",
+  "tips.thanks": "Thank you.",
+  "tips.pending": "It is with the App Store.",
+  "tips.nothing": "Paying unlocks nothing, and this app keeps no receipt. The price comes from the App Store, in your own currency.",
+
   // ------------------------------------------- keeping a goal from a model
   "llm.optout": "Keep away from the model",
   "llm.optoutOff": "Allow the model again",

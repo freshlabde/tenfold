@@ -13,7 +13,9 @@
 //     external payment link for a tip is an App Store rejection. The rows are
 //     ABSENT there, not disabled, and `openSupportSheet` refuses on its own -
 //     an entry point that gets added later cannot reopen the hole. The shell
-//     gets an in-app purchase of its own, which is a different feature.
+//     gets an in-app purchase of its own - ui/tips.js, the same idea on the
+//     other surface, gated on the `tips` capability rather than on `!inShell()`
+//     so the two can never both be on offer.
 //   - No script, no image, no font, no request of any kind. The three payment
 //     details below are string constants in this file; the QR symbols are
 //     drawn locally by web/js/qr.js. Nothing here counts a visit, and nothing

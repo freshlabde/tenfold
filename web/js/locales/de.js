@@ -626,6 +626,16 @@ export const de = {
   "support.privacy": "PayPal ist eine Seite außerhalb dieser App. Die beiden Adressen sind fester Text auf diesem Bildschirm: nichts wird geladen, nichts gezählt, und diese App erfährt nie, ob jemand gezahlt hat.",
   "supportNudge.title": "Gefällt dir tenfold?",
 
+  "tips.rowDesc": "Ein einmaliger Betrag über den App Store. Es wird nichts freigeschaltet.",
+  "tips.body": "tenfold kostet nichts, will kein Konto und kein Abo. Wenn es dir hilft zu bekommen, was du willst, hält ein einmaliger Betrag es am Laufen.",
+  "tips.loading": "Der App Store wird gefragt.",
+  "tips.none": "Der App Store hat gerade nichts anzubieten.",
+  "tips.unreachable": "Der App Store war nicht erreichbar. Gleich noch einmal versuchen.",
+  "tips.failed": "Der App Store konnte nicht gefragt werden.",
+  "tips.thanks": "Danke.",
+  "tips.pending": "Liegt beim App Store.",
+  "tips.nothing": "Bezahlen schaltet nichts frei, und diese App hebt keinen Beleg auf. Der Preis kommt vom App Store, in deiner Währung.",
+
   // ------------------------------------------- keeping a goal from a model
   "llm.optout": "Vom Modell fernhalten",
   "llm.optoutOff": "Modell wieder erlauben",

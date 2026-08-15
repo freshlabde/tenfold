@@ -98,6 +98,22 @@ export const CAP_MIRROR = "vaultmirror";
  * browser, in a PWA, and in the shell that is currently shipping.
  */
 export const CAP_NAV = "nav";
+/**
+ * The eighth is neither, and it is the first of its own kind: `reminder`,
+ * `badge`, `widget`, `vaultmirror` and `nav` are properties of the BUILD and
+ * `bio`/`haptic` are properties of the DEVICE, but this one is a property of
+ * the CONFIGURATION. The shell advertises it only where a RevenueCat key was
+ * compiled in - which is no build before activation day and every build after
+ * it, on the same hardware, from the same source.
+ *
+ * What that means here: an absent `tips` is not a shell too old and not a
+ * device that cannot, it is a build with no store behind the rows. So the page
+ * draws no tip jar at all rather than three buttons that would each come back
+ * with "there is nothing here" - which is the whole reason the name exists
+ * instead of the page discovering it from an `unavailable` code. tips.js sends
+ * nothing without it, and the settings row is absent rather than disabled.
+ */
+export const CAP_TIPS = "tips";
 
 /**
  * The channel, or null in a plain browser.

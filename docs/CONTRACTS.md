@@ -1609,8 +1609,9 @@ wrong.
   rejection. In the shell the row and the line are **absent from the DOM**, not
   disabled, and `openSupportSheet` returns null on its own, so an entry point
   added later cannot reopen the hole. The shell gets an in-app purchase of its
-  own; that is a different feature and it is not this one. `tests/support.spec.js`
-  asserts all three absences against a shell stub.
+  own - see "The tip sheet in the shell" below, which is the same idea on the
+  other surface. `tests/support.spec.js` asserts all three absences against a
+  shell stub.
 - **Three ways, in this order.** PayPal (`https://www.paypal.me/freshlab`) as a
   real anchor with `target="_blank"` and `rel="noopener noreferrer"`: the
   destination is visible before it is tapped, it needs no script, and `noopener`
@@ -1664,7 +1665,8 @@ the shape of the reminder offer: the title asks whether tenfold is being enjoyed
 - **Not in the shell, at any age.** A nudge towards PayPal inside the iOS app is the same App
   Store rejection as the link it leads to. The guard sits in `offerSupport()` in app.js AND in
   `openSupportNudge`, the same belt-and-braces the sheet itself uses. The shell gets an in-app
-  purchase instead; that is a later wave and a different feature.
+  purchase instead, reachable from the settings row and only from there: it is offered, never
+  pushed, and there is no nudge towards it.
 - **Last in the chain.** `offerAfterUnlock()` is `offerShare()` -> `offerPush()` ->
   `offerSupport()`. Something another app sent in is the oldest claim on the moment, the
   reminder is the app's promise from the first run, and a question about the app itself comes
@@ -1686,6 +1688,106 @@ the shape of the reminder offer: the title asks whether tenfold is being enjoyed
 - **One new string, `supportNudge.title`**, in all three catalogues; everything else on the
   sheet is `support.body`, `support.row` and `common.notNow`, so the question and the answer
   speak with one voice.
+
+## The tip sheet in the shell (`web/js/tips.js`, `web/js/ui/tips.js`, SHELL ONLY)
+
+The other half of the same idea. **The browser sheet and the shell sheet are two
+surfaces for one thing** - buying the author a coffee - and they can never both
+be on offer: the browser one is gated on `supportAvailable()`, which is
+`!inShell()`, and this one on `tipsAvailable()`, which is
+`shellWith(CAP_TIPS) !== null` and therefore false everywhere except inside a
+shell that has a store. The row carries the same label in both (`support.row`),
+because it is the same request in the same words.
+
+- **The capability is `tips`, and it is a property of the CONFIGURATION.** Not
+  of the build (`reminder`, `badge`, `widget`, `vaultmirror`, `nav`) and not of
+  the device (`bio`, `haptic`): the shell advertises it only where a RevenueCat
+  key was compiled in. So an absent `tips` means there is no store behind the
+  rows, and the page draws no tip jar at all rather than three buttons that
+  would each come back saying there is nothing there.
+- **Two messages, and `web/js/tips.js` is the only module that knows their
+  shape.** Both go through `shellSend()`, i.e. the flat envelope with an `id`
+  added, and both are specified in `tenfold-ios/docs/BRIDGE.md`, which is the
+  source of truth.
+
+```js
+{ type: "tips.offers" }
+  -> { ok: true,  offers: [{id, title, price, currency}, ...] }   // cheapest first
+  -> { ok: false, code: "unavailable"|"unknownProduct"|"network"|"failed" }
+
+{ type: "tips.buy", product: "es.freshlab.tenfold.tip.espresso" }
+  -> { ok: true,  state: "purchased"|"cancelled"|"pending"|"failed", code? }
+  -> { ok: false, code: ... }
+```
+
+- **The field is `product` and not `id`.** `send()` allocates the reply-routing
+  id and then copies the message's own fields over the top of it, so a message
+  carrying its own `id` would overwrite the routing id with a product
+  identifier: native would answer `replyTo: "es.freshlab.tenfold.tip.espresso"`,
+  the pending map would never resolve, and every purchase would hang on both
+  sides with no error anywhere.
+- **`ok` and `state` answer different questions.** `ok` is whether the shell
+  understood the message and ran the flow; `state` is how the flow ended. **A
+  cancelled purchase is `ok: true`** - the machinery worked and the person said
+  no. Only an unreadable message or a build with no store answers `ok: false`,
+  and such a reply carries no `state`.
+- **`offers` and `code` are never both present, and an empty list is never an
+  answer.** "The store said there are none" and "the store could not be asked"
+  need different words on screen and an empty array cannot tell them apart, so
+  the shell refuses with a code instead. A shell that sent an empty list anyway
+  is reported here as `failed` rather than translated into a claim about a store
+  nobody asked.
+- **The three products** are `es.freshlab.tenfold.tip.{espresso,double,cake}`,
+  offered **cheapest first**. That order is part of the contract - the shell
+  sorts into its own order because StoreKit answers in whatever order it likes,
+  and a jar whose rows reshuffle between launches looks broken - so the sheet
+  renders them **in the order they arrived** and never sorts again. This side
+  holds no catalogue: the identifiers, the names and the prices all come from
+  the store through the shell, and a copy of that list here would be a second
+  place for activation day to go wrong.
+- **`price` is drawn exactly as it arrived and is never reformatted.** It is a
+  string the App Store built: the right symbol, the right separator, the right
+  side of the number and the right amount after Apple's own regional rounding. A
+  formatter on this side would be a second opinion about a value with one
+  correct answer. `currency` is carried through as ISO 4217 and is not used by
+  the sheet.
+- **No dead buttons.** The sheet renders only offers that arrived, and drops any
+  offer missing a usable id, name or price. There is no placeholder row and no
+  hard-coded price anywhere in `web/`.
+- **The states, and what each one puts on screen** (one line under the rows,
+  `.tip-note`):
+
+| what happened | the sheet |
+|---|---|
+| asking | `tips.loading`, no rows yet |
+| offers arrived | three rows, no note |
+| `ok:false code:unknownProduct` | `tips.none` - the store has nothing to offer right now |
+| `ok:false code:network` | `tips.unreachable` - the only place "try again" is honest |
+| `ok:false code:failed`/`unavailable`, or no reply at all | `tips.failed` - the store could not be asked |
+| `state:purchased` | sheet closes, `tips.thanks` as a toast |
+| `state:pending` | sheet closes, `tips.pending` as a toast. Never "thank you": it may complete days later and this app will never find out |
+| `state:cancelled` | **nothing.** No toast, no note, the sheet stays open |
+| `state:failed` | the note for its `code`; the rows stay so a second attempt costs no round trip |
+
+- **A shell that never answers is the same as a message it could not read.**
+  `shellSend()` rejects after its own timeout and `tips.js` reports `failed`,
+  which is why the bridge deliberately has no fifth code for it.
+- **One purchase at a time.** A second tap while the payment sheet is coming up
+  is ignored, so one decision cannot become two charges.
+- **Nothing is stored and nobody is marked a supporter.** No receipt, no
+  entitlement, no restore, no identity - nothing is unlocked by paying, and the
+  moment this side could answer *did they pay* somebody would draw a badge with
+  it. The one flag written is `doc.settings.supportOpened`, the flag the browser
+  sheet already writes, set on **opening** the sheet and not on paying, sealed
+  immediately, and its only job is still to silence the week-old nudge.
+- **It is its own module rather than a branch inside `ui/support.js`.** That
+  file's one invariant is that it does not exist inside the shell; a sheet that
+  only exists inside the shell, living there, would make its header false and
+  put an App Store rejection one accidental call away.
+- Strings live under the `tips.` prefix in all three catalogues, except the row
+  label and the sheet title, which are `support.row` and `support.title`.
+  `tests/tips.spec.js` pins the two message names, the capability string and the
+  three product identifiers literally, the way `bio.spec.js` pins `CAP_BIO`.
 
 ## The privacy policy (`web/privacy.html`)
 

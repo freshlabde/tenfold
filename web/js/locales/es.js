@@ -626,6 +626,16 @@ export const es = {
   "support.privacy": "PayPal es una página fuera de esta aplicación. Las dos direcciones son texto fijo en esta pantalla: no se carga nada, no se cuenta nada y esta aplicación nunca sabe si alguien ha pagado.",
   "supportNudge.title": "¿Te gusta tenfold?",
 
+  "tips.rowDesc": "Una propina única a través de la App Store. No desbloquea nada.",
+  "tips.body": "tenfold no cuesta nada, no pide cuenta ni suscripción. Si te ayuda a conseguir lo que quieres, una propina única lo mantiene en marcha.",
+  "tips.loading": "Preguntando a la App Store.",
+  "tips.none": "La App Store no tiene nada que ofrecer ahora mismo.",
+  "tips.unreachable": "No se ha podido conectar con la App Store. Vale la pena intentarlo en un momento.",
+  "tips.failed": "No se ha podido preguntar a la App Store.",
+  "tips.thanks": "Gracias.",
+  "tips.pending": "Está en manos de la App Store.",
+  "tips.nothing": "Pagar no desbloquea nada y esta aplicación no guarda ningún recibo. El precio viene de la App Store, en tu moneda.",
+
   // ------------------------------------------- keeping a goal from a model
   "llm.optout": "Mantener lejos del modelo",
   "llm.optoutOff": "Permitir el modelo otra vez",

@@ -1607,6 +1607,21 @@ a.btn { text-decoration: none; }
 .support-block .addr + .btn { margin-top: 10px; width: 100%; }
 .support-privacy { margin-top: 20px; }
 
+/* The tip jar inside the native shell: the three offers as rows on the settings
+   plate, so a tip reads as something you tap rather than as a checkout. The
+   price is NOT .setrow-value - that is the muted mono style for a fact the row
+   is reporting, and a price is the thing being offered. */
+.tip-list { margin-top: 16px; }
+.tip-list .setrow { margin-bottom: 8px; }
+.tip-price {
+  flex: none;
+  font-size: 14px; font-weight: var(--weight-title); letter-spacing: -.012em;
+  color: var(--text);
+}
+/* The one line that says what the store answered: absent when three rows are on
+   screen, and the whole content of the sheet when there are none. */
+.tip-note:not(:empty) { margin-top: 14px; }
+
 /* The closing line of the About screen. A sentence, not a button: the whole
    look of it is the muted prose around it, and only the tap target is real. */
 .support-line {

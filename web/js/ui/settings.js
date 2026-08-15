@@ -31,6 +31,8 @@ import { relativeTime } from "./format.js";
 import { widgetSupported } from "../badge.js";
 import { inShell } from "../shell.js";
 import { supportAvailable, openSupportSheet } from "./support.js";
+import { openTipSheet } from "./tips.js";
+import { tipsAvailable } from "../tips.js";
 import { methodAnchor, methodLabel } from "./policy.js";
 
 const SKINS = ["slate", "register", "breath"];
@@ -903,6 +905,13 @@ export function render(ctx) {
       // it is a fact about the app, not a switch. Absent inside the native
       // shell, where an external payment link is not allowed to exist.
       supportAvailable() ? row("support.row", "support.rowDesc", null, () => openSupportSheet(ctx)) : null,
+      // The same idea, on the surface where the row above may not exist: inside
+      // the shell a tip is an in-app purchase and an external payment link is a
+      // rejection. Never both - `supportAvailable()` is `!inShell()` and this
+      // one needs a capability only a shell can advertise - and one label for
+      // one idea, so the app asks for the same thing in the same words wherever
+      // somebody is reading it.
+      tipsAvailable() ? row("support.row", "tips.rowDesc", null, () => openTipSheet(ctx)) : null,
       row("settings.version", null, `${ctx.version} \u00b7 ${ctx.cacheVersion}`, null, { disabled: true }),
     ]),
   ]);
