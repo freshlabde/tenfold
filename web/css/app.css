@@ -1225,26 +1225,31 @@ a.btn-ghost.is-link {
   font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
   color: var(--text-4);
 }
-/* The node's name and its path are the CONTEXT of the question - without them
-   nobody knows what they are answering about - so they may be quieter than the
-   question but never hard to read. 12.5px accent-on-dark and 11px muted both
-   failed that on a real OLED (first device round of build 4): legible on a
-   simulator at arm's length, gone on a phone in a hand. The name gets body
-   size; the path gets the secondary text colour rather than the muted one,
-   which is reserved for text whose loss costs nothing. */
+/* The node's name is the HEADLINE of this card, and that took two device
+   rounds to admit. The question is a template - one of a fixed catalogue,
+   the same for everybody - while the name is the one word on the card that
+   is the person's own. Round one (12.5px accent) was invisible on OLED;
+   round two (15px body) was still "unscheinbar klein" next to a question in
+   display type, because the hierarchy itself was inverted: the prompt
+   shouted and the subject whispered. So the name now wears the display
+   face, larger than the question, and WRAPS instead of truncating - a goal
+   somebody wrote deserves its whole name. The question keeps its size and
+   becomes what it is: the prompt under the headline. */
 .qcard-node {
   display: block; width: 100%; margin-top: 8px; padding: 0;
   border: 0; background: none; text-align: left; cursor: pointer;
-  font-family: var(--font-body); font-size: 15px; font-weight: 600;
+  font-family: var(--font-display); font-size: 21px;
+  font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-display); line-height: 1.25;
   color: var(--accent);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 /* The path under the name. It wraps rather than shortening: the whole chain is
    the point, and a truncated middle is exactly the part that would be missed. */
 .qcard-path {
-  margin: 3px 0 0;
-  font-size: 12.5px;
-  line-height: 1.35;
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
