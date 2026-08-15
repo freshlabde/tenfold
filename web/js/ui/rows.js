@@ -16,7 +16,7 @@ import { childrenOf, isLeaf, storyDepth, dueGroupOf } from "../model.js";
 import { metricFor, progressOf, dueLabel } from "./format.js";
 import { t } from "../i18n.js";
 import { spring, rubberBand, collapse, prefersReducedMotion } from "../motion.js";
-import { stepFinished, rowDeleted, rowLifted, rowShifted, rowDropped } from "../haptics.js";
+import { stepFinished, rowDeleted, rowLifted, rowShifted, rowDropped, warmUp } from "../haptics.js";
 
 const SWIPE_START = 8;
 const SWIPE_COMMIT = 92;
@@ -252,6 +252,11 @@ function attachGestures(ctx, refs) {
       if (Math.abs(mx) > SWIPE_START) {
         clearTimeout(pressTimer);
         mode = "swipe";
+        // The swipe has declared itself; the commit is 84px away. Wake the
+        // Taptic Engine NOW so the success or warning at the end lands - a
+        // notification pattern asked of a cold engine is quietly dropped,
+        // which is why sorting buzzed while a lone swipe out of idle did not.
+        warmUp();
       }
     }
     if (mode === "swipe") {

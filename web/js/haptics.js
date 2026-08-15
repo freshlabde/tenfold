@@ -79,6 +79,22 @@ const VOCABULARY = Object.freeze(Object.values(KINDS));
  *
  * @param {string} kind one of KINDS
  */
+/**
+ * Wake the engine without playing anything.
+ *
+ * Sent when a gesture has started that may end in a haptic. A row swipe
+ * declares itself at 8px and commits at 92px; a notification pattern
+ * (success, warning) asked of a cold Taptic Engine is quietly dropped, and
+ * those milliseconds in between are exactly the warm-up it needs. This is why
+ * sorting buzzed on the first device round while a lone swipe out of idle
+ * stayed dead: the lift's impact had already woken the engine for the ticks
+ * that followed, and the swipe had nobody to wake it.
+ */
+export function warmUp() {
+  if (!shellWith(CAP_HAPTIC)) return;
+  shellPost({ type: "haptic.prepare" });
+}
+
 function play(kind) {
   if (VOCABULARY.indexOf(kind) === -1) return;
   if (!shellWith(CAP_HAPTIC)) return;

@@ -314,6 +314,15 @@ button.h-sub {
   border-radius: var(--plate-radius);
   overflow: hidden;
   touch-action: pan-y pinch-zoom;
+  /* A row is a control, not copyable prose. Without these, the long press
+     that lifts a row races iOS text selection - and on a real phone the
+     selection wins: the title gets grab handles and the person drags a
+     highlighted word around the list (build 7, first device round). The
+     beam learned this first (.scale, same sentence); the rows never did.
+     touch-callout kills the magnifier/callout on the same press. Editing
+     and copying live in the editor sheet, whose fields opt back in. */
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .row-behind {
