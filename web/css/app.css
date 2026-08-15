@@ -1225,10 +1225,17 @@ a.btn-ghost.is-link {
   font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
   color: var(--text-4);
 }
+/* The node's name and its path are the CONTEXT of the question - without them
+   nobody knows what they are answering about - so they may be quieter than the
+   question but never hard to read. 12.5px accent-on-dark and 11px muted both
+   failed that on a real OLED (first device round of build 4): legible on a
+   simulator at arm's length, gone on a phone in a hand. The name gets body
+   size; the path gets the secondary text colour rather than the muted one,
+   which is reserved for text whose loss costs nothing. */
 .qcard-node {
   display: block; width: 100%; margin-top: 8px; padding: 0;
   border: 0; background: none; text-align: left; cursor: pointer;
-  font-family: var(--font-body); font-size: 12.5px; font-weight: 600;
+  font-family: var(--font-body); font-size: 15px; font-weight: 600;
   color: var(--accent);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -1236,9 +1243,9 @@ a.btn-ghost.is-link {
    the point, and a truncated middle is exactly the part that would be missed. */
 .qcard-path {
   margin: 3px 0 0;
-  font-size: 11px;
+  font-size: 12.5px;
   line-height: 1.35;
-  color: var(--muted);
+  color: var(--text-2);
   overflow-wrap: anywhere;
 }
 .qcard-q {
