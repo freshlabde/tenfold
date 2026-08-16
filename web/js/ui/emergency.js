@@ -18,6 +18,7 @@
 import { el, sel, text, icon } from "./dom.js";
 import { t, getLocale } from "../i18n.js";
 import { qrSvg } from "./qrview.js";
+import { CAP_PRINT, shellSend, shellWith } from "../shell.js";
 
 /** The id of the printable region, so there is never a second one. */
 const PAPER_ID = "paper";
@@ -167,6 +168,22 @@ export function printEmergencySheet(groupedKey) {
   };
   window.addEventListener("afterprint", clean);
   timer = setTimeout(clean, 120000);
+
+  // In the shell, window.print() is a WKWebView no-op - the button did
+  // nothing at all until the `print` capability existed. The shell's panel is
+  // the dialog there, and it carries "Save to PDF": the drawer and the folder,
+  // same as Safari's. afterprint never fires in a web view, so cleanup rides
+  // the reply (the panel is up; its formatter renders lazily, which is what
+  // the 120-second belt above is sized for) - and a refusal or a dead shell
+  // cleans immediately rather than leaving the key parked in the DOM.
+  if (shellWith(CAP_PRINT)) {
+    shellSend({ type: "page.print" })
+      .then((reply) => {
+        if (!reply || !reply.ok) clean();
+      })
+      .catch(clean);
+    return paper;
+  }
 
   try {
     window.print();

@@ -130,6 +130,18 @@ export const CAP_TIPS = "tips";
  * anchor path, which is also what every browser gets.
  */
 export const CAP_FILE = "fileexport";
+/**
+ * The tenth is a property of the BUILD, `fileexport`'s sibling and found the
+ * same morning by the same hand: `window.print()` is a no-op in a WKWebView,
+ * so the emergency sheet's button did exactly nothing in the shell - no
+ * dialog, no error, no sheet. Where this is advertised the page sends
+ * `page.print` instead and the shell raises the iOS print panel, which also
+ * carries "Save to PDF" - the two destinations the sheet was designed for, a
+ * drawer or a folder. Absent means a shell built before this existed; the
+ * page then calls `window.print()` as ever, which is also what every browser
+ * gets.
+ */
+export const CAP_PRINT = "print";
 
 /**
  * The channel, or null in a plain browser.

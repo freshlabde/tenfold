@@ -121,7 +121,7 @@ export const APP_VERSION = "1.0.0";
 // running?" that survives a stale service worker debate. A drift guard in
 // tests/regressions.spec.js keeps the two strings identical; the bump command
 // rewrites both.
-export const CACHE_VERSION = "tenfold-v69";
+export const CACHE_VERSION = "tenfold-v70";
 
 /**
  * How long a vault has to have been in use before the app asks, once, whether
