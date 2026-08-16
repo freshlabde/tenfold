@@ -44,7 +44,7 @@ import { vaultUnlocked } from "./haptics.js";
 import { readShare, clearShare, startShellShareInbox } from "./shareinbox.js";
 import { startShellVaultLock } from "./vaultlock.js";
 import { navState, startShellNav } from "./nav.js";
-import { CAP_NAV, shellWith } from "./shell.js";
+import { CAP_FILE, CAP_NAV, shellSend, shellWith } from "./shell.js";
 import { mirrorAvailable, writeMirror, readMirror, mirrorStatus, mirrorStatusCached } from "./vaultmirror.js";
 import { importEncrypted } from "./portability.js";
 import * as webauthn from "./webauthn.js";
@@ -2118,14 +2118,42 @@ const ctx = {
     disable: () => push.disablePush(syncCtx),
   },
 
-  /** Write a Blob to disk. Local only - no upload, no network. */
-  download(blob, filename) {
+  /**
+   * Write a Blob to disk. Local only - no upload, no network.
+   *
+   * Resolves to whether a file actually left this function, and the caller's
+   * toast must wait for that answer. In a browser the anchor click is the
+   * best truth available and counts as yes. In a shell with `fileexport` the
+   * bytes cross the bridge and iOS raises its share sheet; the ack means "the
+   * file exists and the sheet is up". Without the capability the shell's
+   * navigation guard would swallow the anchor's blob: URL silently - the bug
+   * this fork exists for - so a shell WITHOUT it gets the anchor path only
+   * because a bundled page newer than its shell must still be a complete app.
+   * @returns {Promise<boolean>}
+   */
+  async download(blob, filename) {
+    if (shellWith(CAP_FILE)) {
+      try {
+        const reply = await shellSend({
+          type: "file.export",
+          name: filename,
+          text: await blob.text(),
+        });
+        return !!(reply && reply.ok);
+      } catch {
+        // A shell that advertised the capability and then failed to answer is
+        // not handed the anchor fallback: its guard is exactly what eats
+        // blob: URLs, and a silent nothing is what this path replaces.
+        return false;
+      }
+    }
     const url = URL.createObjectURL(blob);
     const a = el("a", { attrs: { href: url, download: filename } });
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return true;
   },
 };
 

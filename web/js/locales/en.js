@@ -729,6 +729,7 @@ export const en = {
   "toast.saved": "Saved.",
   "toast.locked": "Locked.",
   "toast.exported": "File written.",
+  "toast.exportFailed": "Export failed. Nothing was written.",
   "toast.imported": "Vault imported. Unlock it with its own passphrase.",
   "toast.importFailed": "That file could not be read.",
   "toast.moved": "Moved.",

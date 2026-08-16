@@ -689,6 +689,7 @@ export const de = {
   "toast.saved": "Gespeichert.",
   "toast.locked": "Gesperrt.",
   "toast.exported": "Datei geschrieben.",
+  "toast.exportFailed": "Export fehlgeschlagen. Es wurde nichts geschrieben.",
   "toast.imported": "Tresor importiert. Entsperre ihn mit seiner eigenen Passphrase.",
   "toast.importFailed": "Diese Datei ließ sich nicht lesen.",
   "toast.moved": "Verschoben.",

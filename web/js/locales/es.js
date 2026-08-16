@@ -689,6 +689,7 @@ export const es = {
   "toast.saved": "Guardado.",
   "toast.locked": "Bloqueado.",
   "toast.exported": "Archivo escrito.",
+  "toast.exportFailed": "La exportación falló. No se escribió nada.",
   "toast.imported": "Caja fuerte importada. Ábrela con su propia frase de acceso.",
   "toast.importFailed": "Ese archivo no se ha podido leer.",
   "toast.moved": "Movido.",

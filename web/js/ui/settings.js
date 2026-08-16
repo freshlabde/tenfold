@@ -721,9 +721,13 @@ function plaintextSheet(ctx) {
         class: "btn is-primary",
         attrs: { type: "button" },
         on: {
-          click: () => {
-            ctx.download(exportPlaintextMarkdown(ctx.doc), "tenfold-plaintext.md");
+          click: async () => {
+            const ok = await ctx.download(exportPlaintextMarkdown(ctx.doc), "tenfold-plaintext.md");
             closeSheet();
+            if (!ok) {
+              ctx.toast(t("toast.exportFailed"));
+              return;
+            }
             // A file left this app, so the vault is no longer the only copy -
             // the outline's quiet "only in this browser" clause can go.
             ctx.setSettings({ exportedAt: ctx.now() });
@@ -855,8 +859,15 @@ export function render(ctx) {
       el("p", { class: "field-hint", style: { padding: "0 2px" } }, [text(t("story.depthDesc"))]),
     ]),
     group("settings.group.data", [
-      row("settings.export", "settings.exportDesc", null, () => {
-        ctx.download(exportEncrypted(ctx.vault), suggestedVaultFileName(ctx.now()));
+      row("settings.export", "settings.exportDesc", null, async () => {
+        // The toast waits for the answer. "File written." used to fire on the
+        // click alone, and inside the shell the click used to produce nothing
+        // - a backup that reported success without existing.
+        const ok = await ctx.download(exportEncrypted(ctx.vault), suggestedVaultFileName(ctx.now()));
+        if (!ok) {
+          ctx.toast(t("toast.exportFailed"));
+          return;
+        }
         // Same reasoning as the plaintext export: a copy now exists off-device.
         ctx.setSettings({ exportedAt: ctx.now() });
         ctx.toast(t("toast.exported"));

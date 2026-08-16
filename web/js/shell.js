@@ -114,6 +114,22 @@ export const CAP_NAV = "nav";
  * nothing without it, and the settings row is absent rather than disabled.
  */
 export const CAP_TIPS = "tips";
+/**
+ * The ninth is a property of the BUILD, like `reminder` and `vaultmirror`:
+ * writing a temp file and raising the system share sheet needs no hardware
+ * and no configuration, so a shell that can do it advertises it always.
+ *
+ * Why it exists at all: `ctx.download`'s anchor-and-object-URL move is a
+ * browser fact. Inside the shell the navigation guard cancels the `blob:` URL
+ * - correctly, it is not the app origin - and the file went NOWHERE while the
+ * page toasted "File written." A backup path that reports success without a
+ * file is the worst sentence this app can say, so in a shell with this
+ * capability the bytes cross the bridge instead and come back as the iOS
+ * share sheet: AirDrop, Save to Files, mail, a chat. An absent `fileexport`
+ * means a shell built before this existed; `ctx.download` then keeps the
+ * anchor path, which is also what every browser gets.
+ */
+export const CAP_FILE = "fileexport";
 
 /**
  * The channel, or null in a plain browser.
