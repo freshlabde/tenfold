@@ -106,6 +106,14 @@ export async function transition(container, update, opts = {}) {
   }
   if (SUPPORTS_VIEW_TRANSITIONS) {
     const vt = document.startViewTransition(() => update());
+    // A skipped transition rejects `ready` (AbortError: "Transition was
+    // skipped") - and nothing here ever awaits `ready`, so on a machine slow
+    // enough to skip (CI, an old phone under load) that rejection surfaced
+    // as a page error while the app behaved perfectly. Absorbed explicitly:
+    // being skipped is a scheduling fact, not a failure. `finished` below
+    // stays the one that is genuinely waited on.
+    vt.ready.catch(() => {});
+    vt.updateCallbackDone.catch(() => {});
     try {
       await vt.finished;
     } catch {
